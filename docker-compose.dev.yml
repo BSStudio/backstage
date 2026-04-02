@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: backstage
+      POSTGRES_PASSWORD: backstage
+      POSTGRES_DB: backstage
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=hu-HU"
+      LC_COLLATE: hu_HU.utf8
+      LC_CTYPE: hu_HU.utf8
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  pgdata:

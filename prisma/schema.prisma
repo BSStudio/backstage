@@ -1,0 +1,172 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum MembershipStatus {
+  MEMBER_CANDIDATE_CANDIDATE // jelölt-jelölt
+  MEMBER_CANDIDATE           // jelölt
+  MEMBER                     // stúdiós
+  ACTIVE_ALUMNI              // aktív öregtag
+  ALUMNI                     // öregtag
+}
+
+enum SyncTarget {
+  AUTHENTIK
+  WEBSITE
+}
+
+enum SyncOperation {
+  CREATE_USER
+  UPDATE_USER
+  DEACTIVATE_USER
+  ADD_TO_GROUP
+  REMOVE_FROM_GROUP
+}
+
+enum SyncJobStatus {
+  PENDING
+  IN_PROGRESS
+  SUCCESS
+  FAILED
+}
+
+enum AuditAction {
+  MEMBER_CREATED
+  MEMBER_UPDATED
+  MEMBER_ARCHIVED
+  MEMBER_REACTIVATED
+  STATUS_CHANGED
+  ROLE_ASSIGNED
+  ROLE_REMOVED
+}
+
+enum GoogleGroupMatchStatus {
+  MATCHED          // known active member
+  ARCHIVED_ON_LIST // archived member, still on list
+  SECONDARY_EMAIL  // known to be a secondary address
+  UNKNOWN          // no match found
+}
+
+// ─── Core Models ──────────────────────────────────────────────────────────────
+
+// Semester format: "2025/2026/1" (autumn) or "2025/2026/2" (spring)
+// Academic year notation: first year / second year / semester number (1=ősz, 2=tavasz)
+// Sorts correctly as a string: "2024/2025/2" < "2025/2026/1" < "2025/2026/2"
+
+model Member {
+  id                  String                @id @default(cuid())
+
+  // Identity
+  firstName           String
+  lastName            String
+  nickname            String?
+  email               String                @unique
+  mobile              String?
+
+  // Academic
+  university          String?
+  major               String?
+  dormRoom            String?
+
+  // Membership
+  status              MembershipStatus      @default(MEMBER_CANDIDATE_CANDIDATE)
+  joinedSemester      String                // e.g. "2025/2026/1"
+
+  // External system links
+  authentikId         String?               @unique // nullable for legacy/alumni records
+  websiteUsername     String?               // nullable, admin-only, override for sync
+
+  // Soft delete / archive
+  archived            Boolean               @default(false)
+  archivedAt          DateTime?
+
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  // Relations
+  leadershipRole      LeadershipRole?
+  timeline            TimelineEntry[]
+  auditLogsActed      AuditLog[]            @relation("AuditActor")
+  auditLogsTargeted   AuditLog[]            @relation("AuditTarget")
+  syncJobs            SyncJob[]
+  googleGroupEntries  GoogleGroupEntry[]
+}
+
+// ─── Leadership ───────────────────────────────────────────────────────────────
+
+model LeadershipRole {
+  id                  String    @id @default(cuid())
+  memberId            String    @unique
+  member              Member    @relation(fields: [memberId], references: [id])
+  label               String    // free text e.g. "Főszerkesztő és PR-felelős"
+  // Authentik groups this role maps to
+  authentikGroupIds   String[]  // array of AuthentikGroup.authentikGroupId values
+}
+
+// Known Authentik groups
+model AuthentikGroup {
+  id                String  @id @default(cuid())
+  authentikGroupId  String  @unique // actual UUID in Authentik
+  displayName       String
+} 
+
+// ─── History & Audit ──────────────────────────────────────────────────────────
+
+// Member journey timeline - milestones like promotions, role assignments/removals, archival
+model TimelineEntry {
+  id         String             @id @default(cuid())
+  memberId   String
+  member     Member             @relation(fields: [memberId], references: [id])
+  action     AuditAction
+  status     MembershipStatus?  // new status (for promotions)
+  roleLabel  String?            // snapshot of role label (for role assign/remove)
+  createdAt  DateTime           @default(now())
+}
+
+// Low-level audit log: every field change
+model AuditLog {
+  id         String      @id @default(cuid())
+  actorId    String?
+  actor      Member?     @relation("AuditActor", fields: [actorId], references: [id])
+  targetId   String
+  target     Member      @relation("AuditTarget", fields: [targetId], references: [id])
+  action     AuditAction
+  diff       Json        // { field: { old, new } }
+  createdAt  DateTime    @default(now())
+}
+
+// ─── Sync Jobs ────────────────────────────────────────────────────────────────
+
+model SyncJob {
+  id         String         @id @default(cuid())
+  target     SyncTarget
+  operation  SyncOperation
+  memberId   String
+  member     Member         @relation(fields: [memberId], references: [id])
+  payload    Json           // what we're trying to do
+  status     SyncJobStatus  @default(PENDING)
+  attempts   Int            @default(0)
+  result     Json?          // response or error details
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+}
+
+// ─── Google Group Reconciliation ─────────────────────────────────────────────
+
+model GoogleGroupEntry {
+  email        String                  @id
+  matchStatus  GoogleGroupMatchStatus  @default(UNKNOWN)
+  memberId     String?
+  member       Member?                 @relation(fields: [memberId], references: [id])
+  note         String?                 // e.g. "xy's secondary email"
+}
