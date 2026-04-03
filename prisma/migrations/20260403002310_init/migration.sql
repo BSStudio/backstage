@@ -29,7 +29,6 @@ CREATE TABLE "Member" (
     "dormRoom" TEXT,
     "status" "MembershipStatus" NOT NULL DEFAULT 'MEMBER_CANDIDATE_CANDIDATE',
     "joinedSemester" TEXT NOT NULL,
-    "authentikId" TEXT,
     "websiteUsername" TEXT,
     "archived" BOOLEAN NOT NULL DEFAULT false,
     "archivedAt" TIMESTAMP(3),
@@ -110,9 +109,6 @@ CREATE TABLE "GoogleGroupEntry" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Member_email_key" ON "Member"("email");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Member_authentikId_key" ON "Member"("authentikId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "LeadershipRole_memberId_key" ON "LeadershipRole"("memberId");

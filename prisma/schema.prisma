@@ -64,7 +64,7 @@ enum GoogleGroupMatchStatus {
 // Sorts correctly as a string: "2024/2025/2" < "2025/2026/1" < "2025/2026/2"
 
 model Member {
-  id                  String                @id @default(cuid())
+  id                  String                @id // Authentik hashed ID for SSO users, random UUID for legacy
 
   // Identity
   firstName           String
@@ -83,7 +83,6 @@ model Member {
   joinedSemester      String                // e.g. "2025/2026/1"
 
   // External system links
-  authentikId         String?               @unique // nullable for legacy/alumni records
   websiteUsername     String?               // nullable, admin-only, override for sync
 
   // Soft delete / archive
