@@ -11,6 +11,7 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     coverage: {
       include: ["app/**/*.ts", "lib/**/*.ts", "types/**/*.ts"],
+      exclude: ["app/generated/**"],
     },
   },
 });
