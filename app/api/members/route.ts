@@ -14,7 +14,6 @@ const CreateMemberSchema = z.object({
   university: z.string().optional(),
   major: z.string().optional(),
   dormRoom: z.string().optional(),
-  websiteUsername: z.string().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -52,10 +51,6 @@ export async function POST(req: NextRequest) {
 
   const data = parsed.data;
 
-  // Only admins can set websiteUsername
-  const websiteUsername =
-    session.user.role === "ADMIN" ? data.websiteUsername : undefined;
-
   // TODO: ID will come from Authentik when sync is implemented
   const member = await prisma.member.create({
     data: {
@@ -69,7 +64,6 @@ export async function POST(req: NextRequest) {
       major: data.major,
       dormRoom: data.dormRoom,
       joinedSemester: currentSemester(),
-      websiteUsername,
     },
   });
 
