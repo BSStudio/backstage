@@ -78,7 +78,7 @@ function firstHungarianLetter(s: string): string {
   for (const mg of HUNGARIAN_MULTIGRAPHS) {
     if (lower.startsWith(mg)) return mg;
   }
-  return lower[0] ?? "";
+  return lower[0];
 }
 
 /**
@@ -100,7 +100,6 @@ export function deriveUsername(firstName: string, lastName: string): string {
   const first = normalize(firstName);
   const last = normalize(lastName).replace(/[-\s]/g, "");
 
-  if (!first || !last) return first + last;
   return firstHungarianLetter(first) + last;
 }
 
