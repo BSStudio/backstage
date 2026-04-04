@@ -29,7 +29,7 @@ export async function GET({ params }: Params) {
     where: { id },
     include: {
       leadershipRole: true,
-      timeline: { orderBy: { createdAt: "desc" }, take: 20 },
+      timeline: { orderBy: { createdAt: "desc" } },
     },
   });
 
@@ -110,15 +110,37 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     });
   }
 
-  // Audit log
-  await prisma.auditLog.create({
-    data: {
-      actorId: session.user.id,
-      targetId: member.id,
-      action: statusChanging ? "STATUS_CHANGED" : "MEMBER_UPDATED",
-      diff: diff as object,
-    },
-  });
+  // Audit log - separate entries for status changes and field updates
+  if (statusChanging) {
+    const { status: statusDiff, ...fieldDiff } = diff;
+    await prisma.auditLog.create({
+      data: {
+        actorId: session.user.id,
+        targetId: member.id,
+        action: "STATUS_CHANGED",
+        diff: { status: statusDiff } as object,
+      },
+    });
+    if (Object.keys(fieldDiff).length > 0) {
+      await prisma.auditLog.create({
+        data: {
+          actorId: session.user.id,
+          targetId: member.id,
+          action: "MEMBER_UPDATED",
+          diff: fieldDiff as object,
+        },
+      });
+    }
+  } else {
+    await prisma.auditLog.create({
+      data: {
+        actorId: session.user.id,
+        targetId: member.id,
+        action: "MEMBER_UPDATED",
+        diff: diff as object,
+      },
+    });
+  }
 
   return NextResponse.json(updated);
 }
