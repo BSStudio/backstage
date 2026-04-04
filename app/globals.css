@@ -46,6 +46,14 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Status badge colors */
+  --color-status-candidate-candidate: var(--status-candidate-candidate);
+  --color-status-candidate: var(--status-candidate);
+  --color-status-member: var(--status-member);
+  --color-status-active-alumni: var(--status-active-alumni);
+  --color-status-alumni: var(--status-alumni);
+  --color-status-archived: var(--status-archived);
 }
 
 :root {
@@ -55,7 +63,7 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: oklch(0.459 0.155 248);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -66,7 +74,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: oklch(0.459 0.155 248);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -75,12 +83,20 @@
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.459 0.155 248);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-ring: oklch(0.459 0.155 248);
+
+  /* Membership status colors (light) */
+  --status-candidate-candidate: oklch(0.58 0.15 150); /* green */
+  --status-candidate: oklch(0.58 0.12 195); /* teal */
+  --status-member: oklch(0.55 0.16 248); /* blue */
+  --status-active-alumni: oklch(0.72 0.02 250); /* light gray */
+  --status-alumni: oklch(0.55 0.02 250); /* gray */
+  --status-archived: oklch(0.577 0.245 27.325); /* red */
 }
 
 .dark {
@@ -90,8 +106,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.62 0.16 248);
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -101,7 +117,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.62 0.16 248);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -109,12 +125,20 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary: oklch(0.62 0.16 248);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: oklch(0.62 0.16 248);
+
+  /* Membership status colors (dark) */
+  --status-candidate-candidate: oklch(0.72 0.17 150); /* green */
+  --status-candidate: oklch(0.72 0.13 195); /* teal */
+  --status-member: oklch(0.7 0.16 248); /* blue */
+  --status-active-alumni: oklch(0.75 0.02 250); /* light gray */
+  --status-alumni: oklch(0.55 0.02 250); /* gray */
+  --status-archived: oklch(0.704 0.191 22.216); /* red */
 }
 
 @layer base {
