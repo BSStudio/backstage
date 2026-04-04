@@ -39,8 +39,11 @@ beforeEach(async () => {
   });
 });
 
-function params(id: string) {
-  return { params: Promise.resolve({ id }) };
+function reqWithParams(id: string) {
+  return [
+    new NextRequest(new URL(`/api/members/${id}`, "http://localhost")),
+    { params: Promise.resolve({ id }) },
+  ] as const;
 }
 
 function patchReq(id: string, body: Record<string, unknown>) {
@@ -50,7 +53,7 @@ function patchReq(id: string, body: Record<string, unknown>) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     } as never),
-    params(id),
+    { params: Promise.resolve({ id }) },
   ] as const;
 }
 
@@ -60,21 +63,21 @@ describe("GET /api/members/[id]", () => {
   it("returns 401 when not authenticated", async () => {
     mockNoSession();
     const { GET } = await import("@/app/api/members/[id]/route");
-    const res = await GET(params(MEMBER_ID));
+    const res = await GET(...reqWithParams(MEMBER_ID));
     expect(res.status).toBe(401);
   });
 
   it("returns 404 for non-existent member", async () => {
     mockSession({ id: ACTOR_ID, role: "MEMBER" });
     const { GET } = await import("@/app/api/members/[id]/route");
-    const res = await GET(params("non-existent-id"));
+    const res = await GET(...reqWithParams("non-existent-id"));
     expect(res.status).toBe(404);
   });
 
   it("returns member with leadershipRole and timeline", async () => {
     mockSession({ id: ACTOR_ID, role: "MEMBER" });
     const { GET } = await import("@/app/api/members/[id]/route");
-    const res = await GET(params(MEMBER_ID));
+    const res = await GET(...reqWithParams(MEMBER_ID));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -332,28 +335,28 @@ describe("DELETE /api/members/[id]", () => {
   it("returns 401 when not authenticated", async () => {
     mockNoSession();
     const { DELETE } = await import("@/app/api/members/[id]/route");
-    const res = await DELETE(params(MEMBER_ID));
+    const res = await DELETE(...reqWithParams(MEMBER_ID));
     expect(res.status).toBe(401);
   });
 
   it("returns 403 when user is a regular member", async () => {
     mockSession({ id: ACTOR_ID, role: "MEMBER" });
     const { DELETE } = await import("@/app/api/members/[id]/route");
-    const res = await DELETE(params(MEMBER_ID));
+    const res = await DELETE(...reqWithParams(MEMBER_ID));
     expect(res.status).toBe(403);
   });
 
   it("returns 404 for non-existent member", async () => {
     mockSession({ id: ACTOR_ID, role: "LEADER" });
     const { DELETE } = await import("@/app/api/members/[id]/route");
-    const res = await DELETE(params("non-existent"));
+    const res = await DELETE(...reqWithParams("non-existent"));
     expect(res.status).toBe(404);
   });
 
   it("archives member with timeline and audit log", async () => {
     mockSession({ id: ACTOR_ID, role: "LEADER" });
     const { DELETE } = await import("@/app/api/members/[id]/route");
-    const res = await DELETE(params(MEMBER_ID));
+    const res = await DELETE(...reqWithParams(MEMBER_ID));
     const body = await res.json();
 
     expect(res.status).toBe(200);

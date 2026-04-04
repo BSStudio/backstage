@@ -20,7 +20,7 @@ const UpdateMemberSchema = z.object({
   status: z.enum(MEMBERSHIP_STATUSES).optional(),
 });
 
-export async function GET({ params }: Params) {
+export async function GET(_req: NextRequest, { params }: Params) {
   const session = await requireAuth();
   if (session instanceof NextResponse) return session;
 
@@ -145,7 +145,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   return NextResponse.json(updated);
 }
 
-export async function DELETE({ params }: Params) {
+export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await requireRole("ADMIN", "LEADER");
   if (session instanceof NextResponse) return session;
 
