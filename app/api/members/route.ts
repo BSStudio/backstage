@@ -6,14 +6,14 @@ import { requireAuth, requireRole } from "@/lib/session";
 import { currentSemester } from "@/types";
 
 const CreateMemberSchema = z.object({
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  nickname: z.string().optional(),
+  firstName: z.string().trim().min(1),
+  lastName: z.string().trim().min(1),
+  nickname: z.string().trim().optional(),
   email: z.email(),
-  mobile: z.string().optional(),
-  university: z.string().optional(),
-  major: z.string().optional(),
-  dormRoom: z.string().optional(),
+  mobile: z.string().trim().optional(),
+  university: z.string().trim().optional(),
+  major: z.string().trim().optional(),
+  dormRoom: z.string().trim().optional(),
 });
 
 export async function GET(req: NextRequest) {
