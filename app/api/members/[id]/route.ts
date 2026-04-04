@@ -1,0 +1,161 @@
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import prisma from "@/lib/prisma";
+import { requireAuth, requireRole } from "@/lib/session";
+import { MEMBERSHIP_STATUSES } from "@/types";
+
+type Params = { params: Promise<{ id: string }> };
+
+const UpdateMemberSchema = z.object({
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  nickname: z.string().optional(),
+  email: z.email().optional(),
+  mobile: z.string().optional(),
+  university: z.string().optional(),
+  major: z.string().optional(),
+  dormRoom: z.string().optional(),
+  websiteUsername: z.string().optional(),
+  status: z.enum(MEMBERSHIP_STATUSES).optional(),
+});
+
+export async function GET({ params }: Params) {
+  const session = await requireAuth();
+  if (session instanceof NextResponse) return session;
+
+  const { id } = await params;
+  const member = await prisma.member.findUnique({
+    where: { id },
+    include: {
+      leadershipRole: true,
+      timeline: { orderBy: { createdAt: "desc" }, take: 20 },
+    },
+  });
+
+  if (!member) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(member);
+}
+
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const session = await requireAuth();
+  if (session instanceof NextResponse) return session;
+
+  const { id } = await params;
+  const member = await prisma.member.findUnique({ where: { id } });
+  if (!member) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Members can only edit themselves, leaders/admins can edit anyone
+  const isSelf = session.user.id === member.id;
+  const isLeaderOrAdmin = ["ADMIN", "LEADER"].includes(session.user.role);
+  if (!isSelf && !isLeaderOrAdmin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await req.json();
+  const parsed = UpdateMemberSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: z.treeifyError(parsed.error) },
+      { status: 400 },
+    );
+  }
+
+  const data = { ...parsed.data };
+
+  // Only admins can change websiteUsername
+  if (data.websiteUsername !== undefined && session.user.role !== "ADMIN") {
+    delete data.websiteUsername;
+  }
+
+  // Status changes require leader/admin
+  const statusChanging = data.status && data.status !== member.status;
+  if (statusChanging && !isLeaderOrAdmin) {
+    return NextResponse.json(
+      { error: "Only leaders and admins can change status" },
+      { status: 403 },
+    );
+  }
+
+  // Build diff for audit log
+  const diff: Record<string, { old: unknown; new: unknown }> = {};
+  for (const [key, val] of Object.entries(data)) {
+    if (val !== undefined && (member as Record<string, unknown>)[key] !== val) {
+      diff[key] = { old: (member as Record<string, unknown>)[key], new: val };
+    }
+  }
+
+  if (Object.keys(diff).length === 0) {
+    return NextResponse.json(member);
+  }
+
+  const updated = await prisma.member.update({
+    where: { id },
+    data,
+  });
+
+  // Timeline entry for status changes
+  if (statusChanging) {
+    await prisma.timelineEntry.create({
+      data: {
+        memberId: member.id,
+        action: "STATUS_CHANGED",
+        status: data.status,
+      },
+    });
+  }
+
+  // Audit log
+  await prisma.auditLog.create({
+    data: {
+      actorId: session.user.id,
+      targetId: member.id,
+      action: statusChanging ? "STATUS_CHANGED" : "MEMBER_UPDATED",
+      diff: diff as object,
+    },
+  });
+
+  return NextResponse.json(updated);
+}
+
+export async function DELETE({ params }: Params) {
+  const session = await requireRole("ADMIN", "LEADER");
+  if (session instanceof NextResponse) return session;
+
+  const { id } = await params;
+  const member = await prisma.member.findUnique({ where: { id } });
+  if (!member) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  await prisma.member.update({
+    where: { id },
+    data: {
+      archived: true,
+      archivedAt: new Date(),
+    },
+  });
+
+  await prisma.timelineEntry.create({
+    data: {
+      memberId: member.id,
+      action: "MEMBER_ARCHIVED",
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: session.user.id,
+      targetId: member.id,
+      action: "MEMBER_ARCHIVED",
+      diff: { archived: { old: false, new: true } },
+    },
+  });
+
+  return NextResponse.json({ archived: true });
+}
