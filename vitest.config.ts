@@ -17,6 +17,7 @@ export default defineConfig({
         "lib/auth.ts",
         "lib/auth-client.ts",
         "lib/prisma.ts",
+        "lib/utils.ts",
       ],
     },
   },

@@ -14,6 +14,16 @@ export const auth = betterAuth({
         defaultValue: "MEMBER",
         input: false,
       },
+      firstName: {
+        type: "string",
+        required: false,
+        input: false,
+      },
+      lastName: {
+        type: "string",
+        required: false,
+        input: false,
+      },
     },
   },
 
@@ -43,6 +53,8 @@ export const auth = betterAuth({
             const groups: string[] = profile.groups ?? [];
             return {
               role: resolveUserRole(groups),
+              firstName: profile.given_name,
+              lastName: profile.family_name,
               _sub: profile.sub,
             } as Record<string, unknown>;
           },

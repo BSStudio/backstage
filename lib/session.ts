@@ -5,6 +5,12 @@ import type { UserRole } from "@/types";
 
 export type { Session };
 
+export async function getSession(): Promise<Session | null> {
+  return auth.api.getSession({
+    headers: await headers(),
+  });
+}
+
 export async function requireAuth(): Promise<Session | NextResponse> {
   const session = await auth.api.getSession({
     headers: await headers(),

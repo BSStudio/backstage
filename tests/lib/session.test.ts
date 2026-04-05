@@ -16,6 +16,25 @@ beforeEach(() => {
   vi.resetModules();
 });
 
+describe("getSession", () => {
+  it("returns session when authenticated", async () => {
+    const session = { user: { id: "u1", role: "MEMBER" } };
+    mockDeps(session);
+    const mod = await import("@/lib/session");
+
+    const result = await mod.getSession();
+    expect(result).toBe(session);
+  });
+
+  it("returns null when not authenticated", async () => {
+    mockDeps(null);
+    const mod = await import("@/lib/session");
+
+    const result = await mod.getSession();
+    expect(result).toBeNull();
+  });
+});
+
 describe("requireAuth", () => {
   it("returns session when authenticated", async () => {
     const session = { user: { id: "u1", role: "MEMBER" } };

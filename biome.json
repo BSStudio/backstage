@@ -25,7 +25,8 @@
     "domains": {
       "next": "recommended",
       "react": "recommended"
-    }
+    },
+    "includes": ["**", "!components/ui/**"]
   },
   "assist": {
     "actions": {
