@@ -91,12 +91,12 @@
   --sidebar-ring: oklch(0.459 0.155 248);
 
   /* Membership status colors (light) */
-  --status-candidate-candidate: oklch(0.58 0.15 150); /* green */
-  --status-candidate: oklch(0.58 0.12 195); /* teal */
-  --status-member: oklch(0.55 0.16 248); /* blue */
-  --status-active-alumni: oklch(0.72 0.02 250); /* light gray */
-  --status-alumni: oklch(0.55 0.02 250); /* gray */
-  --status-archived: oklch(0.577 0.245 27.325); /* red */
+  --status-candidate-candidate: oklch(0.5 0.19 150); /* green */
+  --status-candidate: oklch(0.52 0.15 195); /* teal */
+  --status-member: oklch(0.5 0.2 248); /* blue */
+  --status-active-alumni: oklch(0.65 0.02 250); /* light gray */
+  --status-alumni: oklch(0.5 0.02 250); /* gray */
+  --status-archived: oklch(0.55 0.24 27); /* red */
 }
 
 .dark {

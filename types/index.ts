@@ -1,14 +1,14 @@
-import {
-  type MembershipStatus,
-  MembershipStatus as MembershipStatusEnum,
-} from "@/app/generated/prisma/client";
+import type { MembershipStatus } from "@/app/generated/prisma/client";
 
 // ─── Zod-compatible enum values ──────────────────────────────────────────────
 
-export const MEMBERSHIP_STATUSES = Object.values(MembershipStatusEnum) as [
-  MembershipStatus,
-  ...MembershipStatus[],
-];
+export const MEMBERSHIP_STATUSES = [
+  "MEMBER_CANDIDATE_CANDIDATE",
+  "MEMBER_CANDIDATE",
+  "MEMBER",
+  "ACTIVE_ALUMNI",
+  "ALUMNI",
+] as const satisfies readonly MembershipStatus[];
 
 // ─── Display labels ───────────────────────────────────────────────────────────
 

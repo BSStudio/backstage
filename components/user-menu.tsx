@@ -13,10 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
-
-function getInitials(firstName: string, lastName: string) {
-  return `${lastName[0] ?? ""}${firstName[0] ?? ""}`.toUpperCase();
-}
+import { getInitials } from "@/lib/members";
 
 export function UserMenu({
   firstName,

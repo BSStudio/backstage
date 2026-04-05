@@ -50,8 +50,9 @@ const mainNav: NavItem[] = [
     icon: UsersRound,
     children: [
       { title: "Aktív", url: "/members" },
+      { title: "Vezetőség", url: "/members/leadership" },
       { title: "Öregtagok", url: "/members/alumni" },
-      { title: "Stúdióvezetők", url: "/members/leaders" },
+      { title: "Stúdióvezetők", url: "/members/studio-leaders" },
       { title: "Archivált", url: "/members/archived" },
     ],
   },
