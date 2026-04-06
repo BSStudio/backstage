@@ -85,11 +85,13 @@ const adminNav: NavItem[] = [
     title: "Google Group",
     url: "/admin/google-group",
     icon: Mails,
+    disabled: true,
   },
   {
     title: "Alkalmazások kezelése",
     url: "/admin/apps",
     icon: Settings,
+    disabled: true,
   },
 ];
 

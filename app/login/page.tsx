@@ -38,7 +38,7 @@ export default function LoginPage() {
             alt="BSS"
             width={120}
             height={36}
-            className="mb-4"
+            className="mb-2"
             priority
           />
           <CardTitle className="text-2xl">Backstage</CardTitle>

@@ -1,6 +1,5 @@
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -22,7 +21,6 @@ export default function DashboardPage() {
             számítógépek állapotát és a gyakran használt alkalmazások linkjeit.
           </CardDescription>
         </CardHeader>
-        <CardContent />
       </Card>
     </div>
   );
