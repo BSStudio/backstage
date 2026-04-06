@@ -1,0 +1,232 @@
+import { z } from "zod";
+import type { PrismaClient } from "@/app/generated/prisma/client";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { currentSemester, MEMBERSHIP_STATUSES, type UserRole } from "@/types";
+
+// ─── Validation schemas ──────────────────────────────────────────────────────
+
+export const CreateMemberSchema = z.object({
+  firstName: z.string().trim().min(1),
+  lastName: z.string().trim().min(1),
+  nickname: z.string().trim().optional(),
+  email: z.email(),
+  mobile: z.string().trim().optional(),
+  university: z.string().trim().optional(),
+  major: z.string().trim().optional(),
+  dormRoom: z.string().trim().optional(),
+});
+
+export const UpdateMemberSchema = z.object({
+  firstName: z.string().trim().min(1).optional(),
+  lastName: z.string().trim().min(1).optional(),
+  nickname: z.string().trim().optional(),
+  email: z.email().optional(),
+  mobile: z.string().trim().optional(),
+  university: z.string().trim().optional(),
+  major: z.string().trim().optional(),
+  dormRoom: z.string().trim().optional(),
+  websiteUsername: z.string().trim().optional(),
+  status: z.enum(MEMBERSHIP_STATUSES).optional(),
+});
+
+export type CreateMemberInput = z.infer<typeof CreateMemberSchema>;
+export type UpdateMemberInput = z.infer<typeof UpdateMemberSchema>;
+
+// ─── Actor context ───────────────────────────────────────────────────────────
+
+export interface Actor {
+  id: string;
+  role: UserRole;
+}
+
+// ─── Service functions ───────────────────────────────────────────────────────
+
+export async function listMembers(
+  prisma: PrismaClient,
+  options: { includeArchived?: boolean } = {},
+) {
+  return prisma.member.findMany({
+    where: {
+      archived: options.includeArchived ? undefined : false,
+    },
+    include: {
+      leadershipRole: true,
+    },
+    orderBy: [{ status: "asc" }, { lastName: "asc" }],
+  });
+}
+
+export async function getMember(prisma: PrismaClient, id: string) {
+  const member = await prisma.member.findUnique({
+    where: { id },
+    include: {
+      leadershipRole: true,
+      timeline: { orderBy: { createdAt: "desc" } },
+    },
+  });
+  if (!member) throw new NotFoundError();
+  return member;
+}
+
+export async function createMember(
+  prisma: PrismaClient,
+  input: unknown,
+  actor: Actor,
+) {
+  const parsed = CreateMemberSchema.safeParse(input);
+  if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
+
+  const data = parsed.data;
+
+  // TODO: ID will come from Authentik when sync is implemented
+  const member = await prisma.member.create({
+    data: {
+      id: crypto.randomUUID(),
+      firstName: data.firstName,
+      lastName: data.lastName,
+      nickname: data.nickname,
+      email: data.email,
+      mobile: data.mobile,
+      university: data.university,
+      major: data.major,
+      dormRoom: data.dormRoom,
+      joinedSemester: currentSemester(),
+    },
+  });
+
+  await prisma.timelineEntry.create({
+    data: {
+      memberId: member.id,
+      action: "MEMBER_CREATED",
+      status: member.status,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: actor.id,
+      targetId: member.id,
+      action: "MEMBER_CREATED",
+      diff: { created: data } as object,
+    },
+  });
+
+  return member;
+}
+
+export async function updateMember(
+  prisma: PrismaClient,
+  id: string,
+  input: unknown,
+  actor: Actor,
+) {
+  const member = await prisma.member.findUnique({ where: { id } });
+  if (!member) throw new NotFoundError();
+
+  // Members can only edit themselves; leaders/admins can edit anyone
+  const isSelf = actor.id === member.id;
+  const isLeaderOrAdmin = (["ADMIN", "LEADER"] as string[]).includes(
+    actor.role,
+  );
+  if (!isSelf && !isLeaderOrAdmin) throw new ForbiddenError();
+
+  const parsed = UpdateMemberSchema.safeParse(input);
+  if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
+
+  const data = { ...parsed.data };
+
+  // Only admins can change websiteUsername
+  if (data.websiteUsername !== undefined && actor.role !== "ADMIN") {
+    delete data.websiteUsername;
+  }
+
+  // Status changes require leader/admin
+  const statusChanging = data.status && data.status !== member.status;
+  if (statusChanging && !isLeaderOrAdmin) {
+    throw new ForbiddenError("Only leaders and admins can change status");
+  }
+
+  // Build diff for audit log
+  const diff: Record<string, { old: unknown; new: unknown }> = {};
+  for (const [key, val] of Object.entries(data)) {
+    if (val !== undefined && (member as Record<string, unknown>)[key] !== val) {
+      diff[key] = { old: (member as Record<string, unknown>)[key], new: val };
+    }
+  }
+
+  if (Object.keys(diff).length === 0) return member;
+
+  const updated = await prisma.member.update({ where: { id }, data });
+
+  // Timeline entry for status changes
+  if (statusChanging) {
+    await prisma.timelineEntry.create({
+      data: {
+        memberId: member.id,
+        action: "STATUS_CHANGED",
+        status: data.status,
+      },
+    });
+  }
+
+  // Audit log - separate entries for status changes and field updates
+  if (statusChanging) {
+    const { status: statusDiff, ...fieldDiff } = diff;
+    await prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        targetId: member.id,
+        action: "STATUS_CHANGED",
+        diff: { status: statusDiff } as object,
+      },
+    });
+    if (Object.keys(fieldDiff).length > 0) {
+      await prisma.auditLog.create({
+        data: {
+          actorId: actor.id,
+          targetId: member.id,
+          action: "MEMBER_UPDATED",
+          diff: fieldDiff as object,
+        },
+      });
+    }
+  } else {
+    await prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        targetId: member.id,
+        action: "MEMBER_UPDATED",
+        diff: diff as object,
+      },
+    });
+  }
+
+  return updated;
+}
+
+export async function archiveMember(
+  prisma: PrismaClient,
+  id: string,
+  actor: Actor,
+) {
+  const member = await prisma.member.findUnique({ where: { id } });
+  if (!member) throw new NotFoundError();
+
+  await prisma.member.update({
+    where: { id },
+    data: { archived: true, archivedAt: new Date() },
+  });
+
+  await prisma.timelineEntry.create({
+    data: { memberId: member.id, action: "MEMBER_ARCHIVED" },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: actor.id,
+      targetId: member.id,
+      action: "MEMBER_ARCHIVED",
+      diff: { archived: { old: false, new: true } },
+    },
+  });
+}
