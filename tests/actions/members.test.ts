@@ -1,0 +1,161 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mockGetSession = vi.fn();
+const mockCreateMember = vi.fn();
+const mockUpdateMember = vi.fn();
+const mockArchiveMember = vi.fn();
+const mockRevalidatePath = vi.fn();
+
+beforeEach(() => {
+  vi.resetModules();
+  mockGetSession.mockReset();
+  mockCreateMember.mockReset();
+  mockUpdateMember.mockReset();
+  mockArchiveMember.mockReset();
+  mockRevalidatePath.mockReset();
+
+  vi.doMock("@/lib/session", () => ({ getSession: mockGetSession }));
+  vi.doMock("@/lib/prisma", () => ({ default: {} }));
+  vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
+  vi.doMock("@/lib/services/members", () => ({
+    createMember: mockCreateMember,
+    updateMember: mockUpdateMember,
+    archiveMember: mockArchiveMember,
+  }));
+});
+
+function session(role: string) {
+  return { user: { id: "actor-id", role } };
+}
+
+// ─── createMemberAction ─────────────────────────────────────────────────────
+
+describe("createMemberAction", () => {
+  it("returns error when not authenticated", async () => {
+    mockGetSession.mockResolvedValue(null);
+    const { createMemberAction } = await import("@/lib/actions/members");
+    const result = await createMemberAction({ firstName: "A" });
+    expect(result).toEqual({
+      success: false,
+      error: "Jogosulatlan hozzáférés",
+    });
+  });
+
+  it("returns error when role is MEMBER", async () => {
+    mockGetSession.mockResolvedValue(session("MEMBER"));
+    const { createMemberAction } = await import("@/lib/actions/members");
+    const result = await createMemberAction({ firstName: "A" });
+    expect(result).toEqual({
+      success: false,
+      error: "Hozzáférés megtagadva",
+    });
+  });
+
+  it("maps ValidationError from service", async () => {
+    const { ValidationError } = await import("@/lib/errors");
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockCreateMember.mockRejectedValue(new ValidationError("bad"));
+    const { createMemberAction } = await import("@/lib/actions/members");
+    const result = await createMemberAction({});
+    expect(result).toEqual({ success: false, error: "Érvénytelen adatok" });
+  });
+
+  it("returns success and revalidates on creation", async () => {
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockCreateMember.mockResolvedValue({ id: "new-id" });
+    const { createMemberAction } = await import("@/lib/actions/members");
+    const result = await createMemberAction({ firstName: "A" });
+    expect(result).toEqual({ success: true, data: { id: "new-id" } });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
+  });
+});
+
+// ─── updateMemberAction ─────────────────────────────────────────────────────
+
+describe("updateMemberAction", () => {
+  it("returns error when not authenticated", async () => {
+    mockGetSession.mockResolvedValue(null);
+    const { updateMemberAction } = await import("@/lib/actions/members");
+    const result = await updateMemberAction("id", {});
+    expect(result).toEqual({
+      success: false,
+      error: "Jogosulatlan hozzáférés",
+    });
+  });
+
+  it("maps NotFoundError from service", async () => {
+    const { NotFoundError } = await import("@/lib/errors");
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockUpdateMember.mockRejectedValue(new NotFoundError());
+    const { updateMemberAction } = await import("@/lib/actions/members");
+    const result = await updateMemberAction("bad-id", {});
+    expect(result).toEqual({ success: false, error: "Nem található" });
+  });
+
+  it("maps ForbiddenError from service", async () => {
+    const { ForbiddenError } = await import("@/lib/errors");
+    mockGetSession.mockResolvedValue(session("MEMBER"));
+    mockUpdateMember.mockRejectedValue(new ForbiddenError());
+    const { updateMemberAction } = await import("@/lib/actions/members");
+    const result = await updateMemberAction("id", {});
+    expect(result).toEqual({
+      success: false,
+      error: "Hozzáférés megtagadva",
+    });
+  });
+
+  it("returns success and revalidates on update", async () => {
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockUpdateMember.mockResolvedValue({ id: "m-1", nickname: "Updated" });
+    const { updateMemberAction } = await import("@/lib/actions/members");
+    const result = await updateMemberAction("m-1", { nickname: "Updated" });
+    expect(result).toEqual({
+      success: true,
+      data: { id: "m-1", nickname: "Updated" },
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members/m-1");
+  });
+});
+
+// ─── archiveMemberAction ────────────────────────────────────────────────────
+
+describe("archiveMemberAction", () => {
+  it("returns error when not authenticated", async () => {
+    mockGetSession.mockResolvedValue(null);
+    const { archiveMemberAction } = await import("@/lib/actions/members");
+    const result = await archiveMemberAction("id");
+    expect(result).toEqual({
+      success: false,
+      error: "Jogosulatlan hozzáférés",
+    });
+  });
+
+  it("returns error when role is MEMBER", async () => {
+    mockGetSession.mockResolvedValue(session("MEMBER"));
+    const { archiveMemberAction } = await import("@/lib/actions/members");
+    const result = await archiveMemberAction("id");
+    expect(result).toEqual({
+      success: false,
+      error: "Hozzáférés megtagadva",
+    });
+  });
+
+  it("maps NotFoundError from service", async () => {
+    const { NotFoundError } = await import("@/lib/errors");
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockArchiveMember.mockRejectedValue(new NotFoundError());
+    const { archiveMemberAction } = await import("@/lib/actions/members");
+    const result = await archiveMemberAction("bad-id");
+    expect(result).toEqual({ success: false, error: "Nem található" });
+  });
+
+  it("returns success and revalidates on archive", async () => {
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockArchiveMember.mockResolvedValue(undefined);
+    const { archiveMemberAction } = await import("@/lib/actions/members");
+    const result = await archiveMemberAction("m-1");
+    expect(result).toEqual({ success: true, data: { archived: true } });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
+  });
+});
