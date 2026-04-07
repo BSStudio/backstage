@@ -1,11 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { MembershipStatus } from "@/app/generated/prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import prisma from "@/lib/prisma";
 import type { Actor } from "@/lib/services/members";
 import {
   archiveMember,
+  batchArchive,
+  batchUpdateStatus,
   createMember,
   updateMember,
 } from "@/lib/services/members";
@@ -96,4 +99,42 @@ export async function archiveMemberAction(id: string): Promise<ActionResult> {
   } catch (error) {
     return mapError(error);
   }
+}
+
+export async function batchArchiveAction(
+  ids: string[],
+): Promise<ActionResult<{ count: number }>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
+
+  const role = session.user.role as UserRole;
+  if (!["ADMIN", "LEADER"].includes(role)) {
+    return { success: false, error: "Hozzáférés megtagadva" };
+  }
+
+  const result = await batchArchive(prisma, ids, actorFromSession(session));
+  revalidatePath("/members");
+  return { success: true, data: result };
+}
+
+export async function batchUpdateStatusAction(
+  ids: string[],
+  status: MembershipStatus,
+): Promise<ActionResult<{ count: number }>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
+
+  const role = session.user.role as UserRole;
+  if (!["ADMIN", "LEADER"].includes(role)) {
+    return { success: false, error: "Hozzáférés megtagadva" };
+  }
+
+  const result = await batchUpdateStatus(
+    prisma,
+    ids,
+    status,
+    actorFromSession(session),
+  );
+  revalidatePath("/members");
+  return { success: true, data: result };
 }

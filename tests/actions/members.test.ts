@@ -4,6 +4,8 @@ const mockGetSession = vi.fn();
 const mockCreateMember = vi.fn();
 const mockUpdateMember = vi.fn();
 const mockArchiveMember = vi.fn();
+const mockBatchArchive = vi.fn();
+const mockBatchUpdateStatus = vi.fn();
 const mockRevalidatePath = vi.fn();
 
 beforeEach(() => {
@@ -12,6 +14,8 @@ beforeEach(() => {
   mockCreateMember.mockReset();
   mockUpdateMember.mockReset();
   mockArchiveMember.mockReset();
+  mockBatchArchive.mockReset();
+  mockBatchUpdateStatus.mockReset();
   mockRevalidatePath.mockReset();
 
   vi.doMock("@/lib/session", () => ({ getSession: mockGetSession }));
@@ -21,6 +25,8 @@ beforeEach(() => {
     createMember: mockCreateMember,
     updateMember: mockUpdateMember,
     archiveMember: mockArchiveMember,
+    batchArchive: mockBatchArchive,
+    batchUpdateStatus: mockBatchUpdateStatus,
   }));
 });
 
@@ -156,6 +162,75 @@ describe("archiveMemberAction", () => {
     const { archiveMemberAction } = await import("@/lib/actions/members");
     const result = await archiveMemberAction("m-1");
     expect(result).toEqual({ success: true, data: { archived: true } });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
+  });
+});
+
+// ─── batchArchiveAction ─────────────────────────────────────────────────────
+
+describe("batchArchiveAction", () => {
+  it("returns error when not authenticated", async () => {
+    mockGetSession.mockResolvedValue(null);
+    const { batchArchiveAction } = await import("@/lib/actions/members");
+    const result = await batchArchiveAction(["id-1"]);
+    expect(result).toEqual({
+      success: false,
+      error: "Jogosulatlan hozzáférés",
+    });
+  });
+
+  it("returns error when role is MEMBER", async () => {
+    mockGetSession.mockResolvedValue(session("MEMBER"));
+    const { batchArchiveAction } = await import("@/lib/actions/members");
+    const result = await batchArchiveAction(["id-1"]);
+    expect(result).toEqual({
+      success: false,
+      error: "Hozzáférés megtagadva",
+    });
+  });
+
+  it("returns success with count and revalidates", async () => {
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockBatchArchive.mockResolvedValue({ count: 3 });
+    const { batchArchiveAction } = await import("@/lib/actions/members");
+    const result = await batchArchiveAction(["a", "b", "c"]);
+    expect(result).toEqual({ success: true, data: { count: 3 } });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
+  });
+});
+
+// ─── batchUpdateStatusAction ────────────────────────────────────────────────
+
+describe("batchUpdateStatusAction", () => {
+  it("returns error when not authenticated", async () => {
+    mockGetSession.mockResolvedValue(null);
+    const { batchUpdateStatusAction } = await import("@/lib/actions/members");
+    const result = await batchUpdateStatusAction(["id-1"], "MEMBER");
+    expect(result).toEqual({
+      success: false,
+      error: "Jogosulatlan hozzáférés",
+    });
+  });
+
+  it("returns error when role is MEMBER", async () => {
+    mockGetSession.mockResolvedValue(session("MEMBER"));
+    const { batchUpdateStatusAction } = await import("@/lib/actions/members");
+    const result = await batchUpdateStatusAction(["id-1"], "MEMBER");
+    expect(result).toEqual({
+      success: false,
+      error: "Hozzáférés megtagadva",
+    });
+  });
+
+  it("returns success with count and revalidates", async () => {
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockBatchUpdateStatus.mockResolvedValue({ count: 2 });
+    const { batchUpdateStatusAction } = await import("@/lib/actions/members");
+    const result = await batchUpdateStatusAction(
+      ["a", "b"],
+      "MEMBER_CANDIDATE",
+    );
+    expect(result).toEqual({ success: true, data: { count: 2 } });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
   });
 });

@@ -3,6 +3,8 @@ import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { Actor } from "@/lib/services/members";
 import {
   archiveMember,
+  batchArchive,
+  batchUpdateStatus,
   createMember,
   getMember,
   listMembers,
@@ -501,5 +503,143 @@ describe("archiveMember", () => {
       actorId: ACTOR.id,
       diff: { archived: { old: false, new: true } },
     });
+  });
+});
+
+// ─── batchArchive ───────────────────────────────────────────────────────────
+
+describe("batchArchive", () => {
+  it("archives multiple members with per-member timeline and audit log", async () => {
+    const prisma = getTestPrisma();
+    const id2 = crypto.randomUUID();
+    await prisma.member.create({
+      data: {
+        id: id2,
+        firstName: "Second",
+        lastName: "Target",
+        email: "second@test.com",
+        joinedSemester: "2025/2026/1",
+      },
+    });
+
+    const result = await batchArchive(prisma, [MEMBER_ID, id2], ACTOR);
+    expect(result).toEqual({ count: 2 });
+
+    const members = await prisma.member.findMany({
+      where: { id: { in: [MEMBER_ID, id2] } },
+    });
+    expect(members.every((m) => m.archived)).toBe(true);
+    expect(members.every((m) => m.archivedAt !== null)).toBe(true);
+
+    const timeline = await prisma.timelineEntry.findMany();
+    expect(timeline).toHaveLength(2);
+    expect(timeline.every((t) => t.action === "MEMBER_ARCHIVED")).toBe(true);
+
+    const audit = await prisma.auditLog.findMany();
+    expect(audit).toHaveLength(2);
+    expect(audit.every((a) => a.action === "MEMBER_ARCHIVED")).toBe(true);
+  });
+
+  it("skips already-archived members", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: { archived: true, archivedAt: new Date() },
+    });
+
+    const result = await batchArchive(prisma, [MEMBER_ID, ACTOR.id], ACTOR);
+    expect(result).toEqual({ count: 1 });
+
+    const timeline = await prisma.timelineEntry.findMany();
+    expect(timeline).toHaveLength(1);
+    expect(timeline[0].memberId).toBe(ACTOR.id);
+  });
+
+  it("returns count 0 when all members are already archived", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.updateMany({
+      data: { archived: true, archivedAt: new Date() },
+    });
+
+    const result = await batchArchive(prisma, [MEMBER_ID, ACTOR.id], ACTOR);
+    expect(result).toEqual({ count: 0 });
+
+    const timeline = await prisma.timelineEntry.findMany();
+    expect(timeline).toHaveLength(0);
+  });
+});
+
+// ─── batchUpdateStatus ──────────────────────────────────────────────────────
+
+describe("batchUpdateStatus", () => {
+  it("updates status for multiple members with per-member timeline and audit log", async () => {
+    const prisma = getTestPrisma();
+    const result = await batchUpdateStatus(
+      prisma,
+      [MEMBER_ID, ACTOR.id],
+      "MEMBER_CANDIDATE",
+      ACTOR,
+    );
+    expect(result).toEqual({ count: 2 });
+
+    const members = await prisma.member.findMany({
+      where: { id: { in: [MEMBER_ID, ACTOR.id] } },
+    });
+    expect(members.every((m) => m.status === "MEMBER_CANDIDATE")).toBe(true);
+
+    const timeline = await prisma.timelineEntry.findMany();
+    expect(timeline).toHaveLength(2);
+    expect(
+      timeline.every(
+        (t) => t.action === "STATUS_CHANGED" && t.status === "MEMBER_CANDIDATE",
+      ),
+    ).toBe(true);
+
+    const audit = await prisma.auditLog.findMany();
+    expect(audit).toHaveLength(2);
+    expect(audit.every((a) => a.action === "STATUS_CHANGED")).toBe(true);
+    expect(
+      audit.every(
+        (a) => (a.diff as Record<string, unknown>).status !== undefined,
+      ),
+    ).toBe(true);
+  });
+
+  it("skips members already at the target status", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: { status: "MEMBER" },
+    });
+
+    const result = await batchUpdateStatus(
+      prisma,
+      [MEMBER_ID, ACTOR.id],
+      "MEMBER",
+      ACTOR,
+    );
+    // Only ACTOR.id should be updated (was MEMBER_CANDIDATE_CANDIDATE)
+    expect(result).toEqual({ count: 1 });
+
+    const timeline = await prisma.timelineEntry.findMany();
+    expect(timeline).toHaveLength(1);
+    expect(timeline[0].memberId).toBe(ACTOR.id);
+  });
+
+  it("skips archived members", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: { archived: true, archivedAt: new Date() },
+    });
+
+    const result = await batchUpdateStatus(
+      prisma,
+      [MEMBER_ID, ACTOR.id],
+      "MEMBER",
+      ACTOR,
+    );
+    expect(result).toEqual({ count: 1 });
+    expect((await prisma.timelineEntry.findMany())[0].memberId).toBe(ACTOR.id);
   });
 });

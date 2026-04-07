@@ -1,5 +1,8 @@
 import { z } from "zod";
-import type { PrismaClient } from "@/app/generated/prisma/client";
+import type {
+  MembershipStatus,
+  PrismaClient,
+} from "@/app/generated/prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { currentSemester, MEMBERSHIP_STATUSES, type UserRole } from "@/types";
 
@@ -229,4 +232,75 @@ export async function archiveMember(
       diff: { archived: { old: false, new: true } },
     },
   });
+}
+
+export async function batchArchive(
+  prisma: PrismaClient,
+  ids: string[],
+  actor: Actor,
+) {
+  const members = await prisma.member.findMany({
+    where: { id: { in: ids }, archived: false },
+  });
+
+  const now = new Date();
+
+  await prisma.member.updateMany({
+    where: { id: { in: members.map((m) => m.id) } },
+    data: { archived: true, archivedAt: now },
+  });
+
+  await prisma.timelineEntry.createMany({
+    data: members.map((m) => ({
+      memberId: m.id,
+      action: "MEMBER_ARCHIVED" as const,
+    })),
+  });
+
+  await prisma.auditLog.createMany({
+    data: members.map((m) => ({
+      actorId: actor.id,
+      targetId: m.id,
+      action: "MEMBER_ARCHIVED" as const,
+      diff: { archived: { old: false, new: true } },
+    })),
+  });
+
+  return { count: members.length };
+}
+
+export async function batchUpdateStatus(
+  prisma: PrismaClient,
+  ids: string[],
+  status: MembershipStatus,
+  actor: Actor,
+) {
+  // Only update members whose status actually differs
+  const members = await prisma.member.findMany({
+    where: { id: { in: ids }, archived: false, status: { not: status } },
+  });
+
+  await prisma.member.updateMany({
+    where: { id: { in: members.map((m) => m.id) } },
+    data: { status },
+  });
+
+  await prisma.timelineEntry.createMany({
+    data: members.map((m) => ({
+      memberId: m.id,
+      action: "STATUS_CHANGED" as const,
+      status,
+    })),
+  });
+
+  await prisma.auditLog.createMany({
+    data: members.map((m) => ({
+      actorId: actor.id,
+      targetId: m.id,
+      action: "STATUS_CHANGED" as const,
+      diff: { status: { old: m.status, new: status } },
+    })),
+  });
+
+  return { count: members.length };
 }

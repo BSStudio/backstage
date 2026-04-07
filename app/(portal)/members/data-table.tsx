@@ -41,7 +41,11 @@ export type DataTableProps = {
   /** Renders inside the toolbar between search and column toggle (for filters) */
   toolbarExtra?: React.ReactNode;
   /** Renders as a second bar below the toolbar when rows are selected */
-  renderSelectionBar?: (selectedCount: number) => React.ReactNode;
+  renderSelectionBar?: (info: {
+    selectedCount: number;
+    selectedRows: MemberRow[];
+    resetSelection: () => void;
+  }) => React.ReactNode;
 };
 
 export function DataTable({
@@ -120,7 +124,13 @@ export function DataTable({
 
       {renderSelectionBar &&
         selectedCount > 0 &&
-        renderSelectionBar(selectedCount)}
+        renderSelectionBar({
+          selectedCount,
+          selectedRows: table
+            .getFilteredSelectedRowModel()
+            .rows.map((r) => r.original),
+          resetSelection: () => setRowSelection({}),
+        })}
 
       <div className="rounded-md border overflow-auto">
         <Table>

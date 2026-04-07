@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import {
   avatarColumn,
   emailColumn,
@@ -14,10 +15,31 @@ import {
   universityColumn,
 } from "@/app/(portal)/members/columns";
 import { DataTable } from "@/app/(portal)/members/data-table";
+import type { MembershipStatus } from "@/app/generated/prisma/client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  batchArchiveAction,
+  batchUpdateStatusAction,
+} from "@/lib/actions/members";
+import { MEMBERSHIP_STATUS_LABELS, MEMBERSHIP_STATUSES } from "@/types";
 
-const columns = [
-  selectColumn,
+const baseColumns = [
   avatarColumn,
   nameColumn,
   statusColumn,
@@ -29,32 +51,130 @@ const columns = [
   joinedSemesterColumn,
 ];
 
-export function MembersTable({ members }: { members: MemberRow[] }) {
+export function MembersTable({
+  members,
+  canManage,
+}: {
+  members: MemberRow[];
+  canManage: boolean;
+}) {
+  const columns = canManage ? [selectColumn, ...baseColumns] : baseColumns;
+  const [isPending, startTransition] = useTransition();
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveData, setArchiveData] = useState<{
+    ids: string[];
+    count: number;
+    reset: () => void;
+  } | null>(null);
+
+  function handleStatusChange(
+    status: MembershipStatus,
+    selectedRows: MemberRow[],
+    resetSelection: () => void,
+  ) {
+    const ids = selectedRows.map((r) => r.id);
+    startTransition(async () => {
+      await batchUpdateStatusAction(ids, status);
+      resetSelection();
+    });
+  }
+
+  function handleArchiveConfirm() {
+    if (!archiveData) return;
+    const { ids, reset } = archiveData;
+    setArchiveOpen(false);
+    startTransition(async () => {
+      await batchArchiveAction(ids);
+      reset();
+    });
+  }
+
   return (
-    <DataTable
-      columns={columns}
-      data={members}
-      initialSorting={[{ id: "status", desc: false }]}
-      initialColumnVisibility={{
-        leadershipRole: false,
-        university: false,
-        major: false,
-      }}
-      renderSelectionBar={(selectedCount) => (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
-          <span className="text-muted-foreground">
-            {selectedCount} kijelölve
-          </span>
-          <div className="ml-auto flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" disabled>
-              Státusz módosítása
-            </Button>
-            <Button variant="outline" size="sm" disabled>
+    <>
+      <DataTable
+        columns={columns}
+        data={members}
+        initialSorting={[{ id: "status", desc: false }]}
+        initialColumnVisibility={{
+          leadershipRole: false,
+          university: false,
+          major: false,
+        }}
+        renderSelectionBar={
+          canManage
+            ? ({ selectedCount, selectedRows, resetSelection }) => (
+                <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">
+                    {selectedCount} kijelölve
+                  </span>
+                  <div className="ml-auto flex flex-wrap gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={isPending}
+                        >
+                          Státusz módosítása
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {MEMBERSHIP_STATUSES.map((status) => (
+                          <DropdownMenuItem
+                            key={status}
+                            onClick={() =>
+                              handleStatusChange(
+                                status,
+                                selectedRows,
+                                resetSelection,
+                              )
+                            }
+                          >
+                            {MEMBERSHIP_STATUS_LABELS[status]}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isPending}
+                      onClick={() => {
+                        setArchiveData({
+                          ids: selectedRows.map((r) => r.id),
+                          count: selectedCount,
+                          reset: resetSelection,
+                        });
+                        setArchiveOpen(true);
+                      }}
+                    >
+                      Archiválás
+                    </Button>
+                  </div>
+                </div>
+              )
+            : undefined
+        }
+      />
+
+      <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archiválás megerősítése</AlertDialogTitle>
+            <AlertDialogDescription>
+              {/* TODO: update when reactivation flow is implemented */}
+              Biztosan archiválod a kijelölt {archiveData?.count} tagot? Ez a
+              művelet jelenleg NEM visszavonható.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Mégse</AlertDialogCancel>
+            <AlertDialogAction onClick={handleArchiveConfirm}>
               Archiválás
-            </Button>
-          </div>
-        </div>
-      )}
-    />
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

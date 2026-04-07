@@ -1,6 +1,6 @@
 import type { MembershipStatus } from "@/app/generated/prisma/client";
 
-/** Initials for avatars — last name first, then first name. */
+/** Initials for avatars - last name first, then first name. */
 export function getInitials(firstName: string, lastName: string) {
   return `${lastName[0]}${firstName[0]}`.toUpperCase();
 }
