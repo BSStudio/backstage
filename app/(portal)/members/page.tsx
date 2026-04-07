@@ -1,3 +1,6 @@
+import { Plus } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/session";
 import { MembersTable } from "./members-table";
@@ -27,9 +30,19 @@ export default async function MembersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Aktív tagok</h1>
-        <p className="text-muted-foreground">{members.length} aktív tag.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Aktív tagok</h1>
+          <p className="text-muted-foreground">{members.length} aktív tag.</p>
+        </div>
+        {canManage && (
+          <Button asChild>
+            <Link href="/members/new">
+              <Plus className="mr-2 h-4 w-4" />
+              Új tag
+            </Link>
+          </Button>
+        )}
       </div>
 
       <MembersTable members={members} canManage={canManage} />
