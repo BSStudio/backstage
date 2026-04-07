@@ -38,7 +38,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   MEMBER_ARCHIVED: "Archiválás",
   MEMBER_REACTIVATED: "Újraaktiválás",
   STATUS_CHANGED: "Státusz módosítás",
-  ROLE_ASSIGNED: "Pozíció kiosztás",
+  ROLE_ASSIGNED: "Pozíció hozzárendelés",
   ROLE_REMOVED: "Pozíció elvétel",
 };
 

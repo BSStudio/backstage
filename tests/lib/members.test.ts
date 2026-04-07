@@ -59,7 +59,7 @@ describe("AUDIT_ACTION_LABELS", () => {
     expect(Object.keys(AUDIT_ACTION_LABELS)).toHaveLength(7);
     expect(AUDIT_ACTION_LABELS.MEMBER_CREATED).toBe("Létrehozás");
     expect(AUDIT_ACTION_LABELS.STATUS_CHANGED).toBe("Státusz módosítás");
-    expect(AUDIT_ACTION_LABELS.ROLE_ASSIGNED).toBe("Pozíció kiosztás");
+    expect(AUDIT_ACTION_LABELS.ROLE_ASSIGNED).toBe("Pozíció hozzárendelés");
     expect(AUDIT_ACTION_LABELS.ROLE_REMOVED).toBe("Pozíció elvétel");
   });
 });
