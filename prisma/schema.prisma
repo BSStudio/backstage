@@ -114,10 +114,9 @@ model LeadershipRole {
 
 // Known Authentik groups
 model AuthentikGroup {
-  id                String  @id @default(cuid())
-  authentikGroupId  String  @unique // actual UUID in Authentik
+  authentikGroupId  String  @id // actual UUID in Authentik
   displayName       String
-} 
+}
 
 // ─── History & Audit ──────────────────────────────────────────────────────────
 

@@ -50,11 +50,10 @@ CREATE TABLE "LeadershipRole" (
 
 -- CreateTable
 CREATE TABLE "AuthentikGroup" (
-    "id" TEXT NOT NULL,
     "authentikGroupId" TEXT NOT NULL,
     "displayName" TEXT NOT NULL,
 
-    CONSTRAINT "AuthentikGroup_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "AuthentikGroup_pkey" PRIMARY KEY ("authentikGroupId")
 );
 
 -- CreateTable
@@ -112,9 +111,6 @@ CREATE UNIQUE INDEX "Member_email_key" ON "Member"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "LeadershipRole_memberId_key" ON "LeadershipRole"("memberId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "AuthentikGroup_authentikGroupId_key" ON "AuthentikGroup"("authentikGroupId");
 
 -- AddForeignKey
 ALTER TABLE "LeadershipRole" ADD CONSTRAINT "LeadershipRole_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "Member"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
