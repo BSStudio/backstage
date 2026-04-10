@@ -28,6 +28,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
+import { NAV_LABELS } from "@/lib/nav-labels";
 import type { UserRole } from "@/types";
 
 type NavItem = {
@@ -40,30 +41,30 @@ type NavItem = {
 
 const mainNav: NavItem[] = [
   {
-    title: "Kezdőlap",
+    title: NAV_LABELS[""],
     url: "/",
     icon: Home,
   },
   {
-    title: "Tagok",
+    title: NAV_LABELS.members,
     url: "/members",
     icon: UsersRound,
     children: [
-      { title: "Aktív", url: "/members" },
-      { title: "Vezetőség", url: "/members/leadership" },
-      { title: "Öregtagok", url: "/members/alumni" },
-      { title: "Stúdióvezetők", url: "/members/studio-leaders" },
-      { title: "Archivált", url: "/members/archived" },
+      { title: NAV_LABELS.membersActive, url: "/members" },
+      { title: NAV_LABELS.leadership, url: "/members/leadership" },
+      { title: NAV_LABELS.alumni, url: "/members/alumni" },
+      { title: NAV_LABELS["studio-leaders"], url: "/members/studio-leaders" },
+      { title: NAV_LABELS.archived, url: "/members/archived" },
     ],
   },
   {
-    title: "Alkalmazások",
+    title: NAV_LABELS.apps,
     url: "/apps",
     icon: LayoutGrid,
     disabled: true,
   },
   {
-    title: "Számítógépek",
+    title: NAV_LABELS.computers,
     url: "/computers",
     icon: Monitor,
     disabled: true,
@@ -72,23 +73,23 @@ const mainNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   {
-    title: "Audit napló",
+    title: NAV_LABELS.audit,
     url: "/admin/audit",
     icon: ScrollText,
   },
   {
-    title: "Szinkronizáció",
+    title: NAV_LABELS["sync-jobs"],
     url: "/admin/sync-jobs",
     icon: FolderSync,
   },
   {
-    title: "Google Group",
+    title: NAV_LABELS["google-group"],
     url: "/admin/google-group",
     icon: Mails,
     disabled: true,
   },
   {
-    title: "Alkalmazások kezelése",
+    title: NAV_LABELS.adminApps,
     url: "/admin/apps",
     icon: Settings,
     disabled: true,

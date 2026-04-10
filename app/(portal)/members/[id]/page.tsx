@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { AuditDiff } from "@/components/audit-diff";
+import { BreadcrumbOverride } from "@/components/breadcrumb-context";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -61,6 +62,9 @@ export default async function MemberDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <BreadcrumbOverride
+        overrides={{ [id]: `${member.lastName} ${member.firstName}` }}
+      />
       {/* Header */}
       <div className="flex items-start gap-4">
         <Avatar className="h-16 w-16">
