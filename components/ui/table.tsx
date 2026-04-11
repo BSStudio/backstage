@@ -1,5 +1,10 @@
 "use client";
 
+// LOCAL MODIFICATIONS — do not blindly overwrite via `shadcn add`.
+// TableHead / TableCell: removed the `[&:has([role=checkbox])]:pr-0` rule.
+// Our checkbox column has its own width (via `size` on the column def) and
+// we want consistent horizontal padding across all cells. Re-apply on update.
+
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
