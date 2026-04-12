@@ -93,12 +93,12 @@ export async function createMember(
       id: crypto.randomUUID(),
       firstName: data.firstName,
       lastName: data.lastName,
-      nickname: data.nickname,
+      nickname: data.nickname || null,
       email: data.email,
-      mobile: data.mobile,
-      university: data.university,
-      major: data.major,
-      dormRoom: data.dormRoom,
+      mobile: data.mobile || null,
+      university: data.university || null,
+      major: data.major || null,
+      dormRoom: data.dormRoom || null,
       joinedSemester: currentSemester(),
     },
   });
@@ -142,7 +142,12 @@ export async function updateMember(
   const parsed = UpdateMemberSchema.safeParse(input);
   if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
 
-  const data = { ...parsed.data };
+  const raw = { ...parsed.data };
+
+  // Convert empty strings to null so clearing a field sets it to null in the DB
+  const data = Object.fromEntries(
+    Object.entries(raw).map(([key, val]) => [key, val === "" ? null : val]),
+  ) as typeof raw;
 
   // Only admins can change websiteUsername
   if (data.websiteUsername !== undefined && actor.role !== "ADMIN") {

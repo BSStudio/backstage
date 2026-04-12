@@ -122,8 +122,7 @@ export function MemberEditSheet({
     const input: Record<string, string> = {};
 
     for (const [key, value] of formData.entries()) {
-      const str = value.toString().trim();
-      if (str) input[key] = str;
+      input[key] = value.toString().trim();
     }
 
     setPendingAction("profile");

@@ -19,8 +19,7 @@ export default function NewMemberPage() {
     const formData = new FormData(e.currentTarget);
     const input: Record<string, string> = {};
     for (const [key, value] of formData.entries()) {
-      const str = value.toString().trim();
-      if (str) input[key] = str;
+      input[key] = value.toString().trim();
     }
 
     startTransition(async () => {

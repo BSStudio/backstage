@@ -227,6 +227,30 @@ describe("createMember", () => {
     ).rejects.toThrow(ValidationError);
   });
 
+  it("stores null for empty optional fields", async () => {
+    const prisma = getTestPrisma();
+    const member = await createMember(
+      prisma,
+      {
+        firstName: "Minimal",
+        lastName: "User",
+        email: "minimal@test.com",
+        nickname: "",
+        mobile: "",
+        university: "",
+        major: "",
+        dormRoom: "",
+      },
+      ACTOR,
+    );
+
+    expect(member.nickname).toBeNull();
+    expect(member.mobile).toBeNull();
+    expect(member.university).toBeNull();
+    expect(member.major).toBeNull();
+    expect(member.dormRoom).toBeNull();
+  });
+
   it("ignores unknown fields in input", async () => {
     const prisma = getTestPrisma();
     const member = await createMember(
@@ -315,6 +339,51 @@ describe("updateMember", () => {
     );
 
     expect(updated.nickname).toBe("Admin Edit");
+  });
+
+  it("clears a field by setting it to null when an empty string is sent", async () => {
+    const prisma = getTestPrisma();
+
+    // First set a value
+    await updateMember(prisma, MEMBER_ID, { dormRoom: "A301" }, ACTOR);
+    const before = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
+    expect(before?.dormRoom).toBe("A301");
+
+    // Then clear it by sending an empty string
+    const updated = await updateMember(
+      prisma,
+      MEMBER_ID,
+      { dormRoom: "" },
+      ACTOR,
+    );
+
+    expect(updated.dormRoom).toBeNull();
+
+    // Verify DB
+    const after = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
+    expect(after?.dormRoom).toBeNull();
+  });
+
+  it("clears multiple optional fields at once", async () => {
+    const prisma = getTestPrisma();
+
+    await updateMember(
+      prisma,
+      MEMBER_ID,
+      { nickname: "Test", university: "BME", major: "VIK" },
+      ACTOR,
+    );
+
+    const updated = await updateMember(
+      prisma,
+      MEMBER_ID,
+      { nickname: "", university: "", major: "" },
+      ACTOR,
+    );
+
+    expect(updated.nickname).toBeNull();
+    expect(updated.university).toBeNull();
+    expect(updated.major).toBeNull();
   });
 
   it("returns unchanged member when no fields differ", async () => {
