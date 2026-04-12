@@ -2,6 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   avatarColumn,
   emailColumn,
@@ -80,7 +81,12 @@ export function MembersTable({
     setPendingAction("status");
     startTransition(async () => {
       try {
-        await batchUpdateStatusAction(ids, status);
+        const result = await batchUpdateStatusAction(ids, status);
+        if (result.success) {
+          toast.success(`${result.data.count} tag státusza módosítva`);
+        } else {
+          toast.error(result.error);
+        }
         resetSelection();
       } finally {
         setPendingAction(null);
@@ -95,7 +101,12 @@ export function MembersTable({
     setPendingAction("archive");
     startTransition(async () => {
       try {
-        await batchArchiveAction(ids);
+        const result = await batchArchiveAction(ids);
+        if (result.success) {
+          toast.success(`${result.data.count} tag archiválva`);
+        } else {
+          toast.error(result.error);
+        }
         reset();
       } finally {
         setPendingAction(null);

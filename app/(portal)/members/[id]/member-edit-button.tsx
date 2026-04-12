@@ -3,6 +3,7 @@
 import { Archive, Loader2, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,7 +44,12 @@ export function MemberEditButton({
   function handleArchive() {
     setArchiveOpen(false);
     startTransition(async () => {
-      await archiveMemberAction(member.id);
+      const result = await archiveMemberAction(member.id);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Tag archiválva");
       router.push("/members");
     });
   }

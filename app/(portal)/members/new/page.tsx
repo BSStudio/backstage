@@ -2,7 +2,8 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
+import { toast } from "sonner";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,11 +12,9 @@ import { createMemberAction } from "@/lib/actions/members";
 export default function NewMemberPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit: React.SubmitEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault();
-    setError(null);
     const formData = new FormData(e.currentTarget);
     const input: Record<string, string> = {};
     for (const [key, value] of formData.entries()) {
@@ -25,9 +24,10 @@ export default function NewMemberPage() {
     startTransition(async () => {
       const result = await createMemberAction(input);
       if (!result.success) {
-        setError(result.error);
+        toast.error(result.error);
         return;
       }
+      toast.success("Tag hozzáadva");
       router.push("/members");
     });
   };
@@ -89,8 +89,6 @@ export default function NewMemberPage() {
               label="Szobaszám"
               placeholder="SCH 1308"
             />
-
-            {error && <p className="text-sm text-destructive">{error}</p>}
 
             <div className="flex gap-2 pt-2">
               <Button type="submit" disabled={isPending}>

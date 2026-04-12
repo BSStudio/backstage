@@ -3,6 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -55,13 +56,10 @@ export function MemberEditSheet({
   const [pendingAction, setPendingAction] = useState<
     "profile" | "assignRole" | "removeRole" | null
   >(null);
-  const [error, setError] = useState<string | null>(null);
-
   const [roleLabel, setRoleLabel] = useState(currentRole?.label ?? "");
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(
     currentRole?.authentikGroupIds ?? [],
   );
-  const [roleError, setRoleError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) setPendingAction(null);
@@ -77,10 +75,10 @@ export function MemberEditSheet({
 
   function handleAssignRole() {
     if (!roleLabel.trim()) {
-      setRoleError("Pozíció neve kötelező");
+      toast.error("Pozíció neve kötelező");
       return;
     }
-    setRoleError(null);
+
     setPendingAction("assignRole");
     startTransition(async () => {
       const result = await assignRoleAction(
@@ -89,25 +87,26 @@ export function MemberEditSheet({
         selectedGroupIds,
       );
       if (!result.success) {
-        setRoleError(result.error);
+        toast.error(result.error);
         setPendingAction(null);
         return;
       }
+      toast.success("Pozíció mentve");
       onOpenChange(false);
       router.refresh();
     });
   }
 
   function handleRemoveRole() {
-    setRoleError(null);
     setPendingAction("removeRole");
     startTransition(async () => {
       const result = await removeRoleAction(member.id);
       if (!result.success) {
-        setRoleError(result.error);
+        toast.error(result.error);
         setPendingAction(null);
         return;
       }
+      toast.success("Pozíció elvéve");
       setRoleLabel("");
       setSelectedGroupIds([]);
       onOpenChange(false);
@@ -117,7 +116,6 @@ export function MemberEditSheet({
 
   const handleSubmit: React.SubmitEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault();
-    setError(null);
     const formData = new FormData(e.currentTarget);
     const input: Record<string, string> = {};
 
@@ -129,10 +127,11 @@ export function MemberEditSheet({
     startTransition(async () => {
       const result = await updateMemberAction(member.id, input);
       if (!result.success) {
-        setError(result.error);
+        toast.error(result.error);
         setPendingAction(null);
         return;
       }
+      toast.success("Adatok mentve");
       onOpenChange(false);
       router.refresh();
     });
@@ -224,8 +223,6 @@ export function MemberEditSheet({
             />
           )}
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
           <SheetFooter className="mb-2">
             <Button type="submit" disabled={isPending}>
               {pendingAction === "profile" && (
@@ -282,10 +279,6 @@ export function MemberEditSheet({
                     ))}
                   </div>
                 </div>
-              )}
-
-              {roleError && (
-                <p className="text-sm text-destructive">{roleError}</p>
               )}
 
               <div className="flex gap-2">
