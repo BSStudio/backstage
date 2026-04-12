@@ -183,7 +183,22 @@ export function AppSidebar({ role }: { role: UserRole }) {
           <NavSection label="Admin" items={adminNav} pathname={pathname} />
         )}
       </SidebarContent>
-      <SidebarFooter />
+      <SidebarFooter>
+        <a
+          href={
+            process.env.NEXT_PUBLIC_APP_VERSION?.startsWith("dev")
+              ? process.env.NEXT_PUBLIC_COMMIT_HASH
+                ? `https://github.com/BSStudio/backstage/commit/${process.env.NEXT_PUBLIC_COMMIT_HASH}`
+                : "https://github.com/BSStudio/backstage"
+              : `https://github.com/BSStudio/backstage/releases/tag/${process.env.NEXT_PUBLIC_APP_VERSION?.split("-")[0]}`
+          }
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-2 pb-1 text-[10px] text-muted-foreground/50 hover:text-muted-foreground group-data-[collapsible=icon]:hidden"
+        >
+          {process.env.NEXT_PUBLIC_APP_VERSION}
+        </a>
+      </SidebarFooter>
     </Sidebar>
   );
 }
