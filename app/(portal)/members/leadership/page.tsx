@@ -1,10 +1,13 @@
 import { Mail, Phone } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { getInitials } from "@/lib/members";
 import prisma from "@/lib/prisma";
 import { cn } from "@/lib/utils";
+
+export const metadata: Metadata = { title: "Vezetőség - Backstage" };
 
 export default async function LeadershipPage() {
   const rawMembers = await prisma.member.findMany({

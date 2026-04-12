@@ -7,6 +7,7 @@ import {
   Shield,
   User,
 } from "lucide-react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AuditDiff } from "@/components/audit-diff";
 import { BreadcrumbOverride } from "@/components/breadcrumb-context";
@@ -31,6 +32,20 @@ import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
 import { MemberEditButton } from "./member-edit-button";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const member = await prisma.member.findUnique({
+    where: { id },
+    select: { lastName: true, firstName: true },
+  });
+  if (!member) return { title: "Tag - Backstage" };
+  return { title: `${member.lastName} ${member.firstName} - Backstage` };
+}
 
 export default async function MemberDetailPage({
   params,

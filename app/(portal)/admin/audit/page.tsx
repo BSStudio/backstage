@@ -23,7 +23,7 @@ import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
-export const metadata: Metadata = { title: "Audit napló — Backstage" };
+export const metadata: Metadata = { title: "Audit napló - Backstage" };
 
 const PAGE_SIZE = 50;
 

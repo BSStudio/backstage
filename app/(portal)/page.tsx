@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import {
   Card,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+export const metadata: Metadata = { title: "Kezdőlap - Backstage" };
 
 export default function DashboardPage() {
   return (

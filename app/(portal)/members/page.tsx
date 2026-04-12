@@ -1,9 +1,12 @@
 import { Plus } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/session";
 import { MembersTable } from "./members-table";
+
+export const metadata: Metadata = { title: "Aktív tagok - Backstage" };
 
 export default async function MembersPage() {
   const session = await requireAuth();
