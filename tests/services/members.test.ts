@@ -3,11 +3,13 @@ import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { Actor } from "@/lib/services/members";
 import {
   archiveMember,
+  assignRole,
   batchArchive,
   batchUpdateStatus,
   createMember,
   getMember,
   listMembers,
+  removeRole,
   updateMember,
 } from "@/lib/services/members";
 import { getTestPrisma } from "../setup";
@@ -641,5 +643,311 @@ describe("batchUpdateStatus", () => {
     );
     expect(result).toEqual({ count: 1 });
     expect((await prisma.timelineEntry.findMany())[0].memberId).toBe(ACTOR.id);
+  });
+});
+
+// ─── assignRole ─────────────────────────────────────────────────────────────
+
+describe("assignRole", () => {
+  it("throws NotFoundError for non-existent member", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      assignRole(prisma, "non-existent", "Lead", [], ACTOR),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it("creates a new leadership role with timeline and audit log", async () => {
+    const prisma = getTestPrisma();
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      "Főszerkesztő",
+      ["group-1", "group-2"],
+      ACTOR,
+    );
+
+    const role = await prisma.leadershipRole.findUnique({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(role).toMatchObject({
+      label: "Főszerkesztő",
+      authentikGroupIds: ["group-1", "group-2"],
+    });
+
+    const timeline = await prisma.timelineEntry.findMany({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(timeline).toHaveLength(1);
+    expect(timeline[0]).toMatchObject({
+      action: "ROLE_ASSIGNED",
+      roleLabel: "Főszerkesztő",
+    });
+
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID },
+    });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      action: "ROLE_ASSIGNED",
+      diff: {
+        label: { old: null, new: "Főszerkesztő" },
+        authentikGroupIds: { old: null, new: ["group-1", "group-2"] },
+      },
+    });
+  });
+
+  it("updates an existing role with ROLE_CHANGED timeline entry and audit log", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "PR-felelős",
+        authentikGroupIds: ["group-1"],
+      },
+    });
+
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      "Főszerkesztő",
+      ["group-1", "group-2"],
+      ACTOR,
+    );
+
+    const role = await prisma.leadershipRole.findUnique({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(role?.label).toBe("Főszerkesztő");
+    expect(role?.authentikGroupIds).toEqual(["group-1", "group-2"]);
+
+    // Timeline entry recorded for the role change
+    const timeline = await prisma.timelineEntry.findMany({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(timeline).toHaveLength(1);
+    expect(timeline[0]).toMatchObject({
+      action: "ROLE_CHANGED",
+      roleLabel: "Főszerkesztő",
+    });
+
+    // Audit log records the change under ROLE_CHANGED
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID },
+    });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      action: "ROLE_CHANGED",
+      diff: {
+        label: { old: "PR-felelős", new: "Főszerkesztő" },
+        authentikGroupIds: { old: ["group-1"], new: ["group-1", "group-2"] },
+      },
+    });
+  });
+
+  it("is a no-op when label and groups are unchanged", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: ["group-1", "group-2"],
+      },
+    });
+
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      "Főszerkesztő",
+      ["group-1", "group-2"],
+      ACTOR,
+    );
+
+    // No timeline or audit entries created
+    const timeline = await prisma.timelineEntry.findMany({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(timeline).toHaveLength(0);
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID },
+    });
+    expect(audit).toHaveLength(0);
+  });
+
+  it("is a no-op when groups are passed in a different order", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: ["group-1", "group-2"],
+      },
+    });
+
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      "Főszerkesztő",
+      ["group-2", "group-1"],
+      ACTOR,
+    );
+
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID },
+    });
+    expect(audit).toHaveLength(0);
+  });
+
+  it("writes a ROLE_CHANGED entry when label is unchanged but group count changes", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: ["group-1"],
+      },
+    });
+
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      "Főszerkesztő",
+      ["group-1", "group-2"],
+      ACTOR,
+    );
+
+    const role = await prisma.leadershipRole.findUnique({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(role?.authentikGroupIds).toEqual(["group-1", "group-2"]);
+
+    const timeline = await prisma.timelineEntry.findMany({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(timeline).toHaveLength(1);
+    expect(timeline[0]).toMatchObject({
+      action: "ROLE_CHANGED",
+      roleLabel: "Főszerkesztő",
+    });
+
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID },
+    });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      action: "ROLE_CHANGED",
+      diff: {
+        label: { old: "Főszerkesztő", new: "Főszerkesztő" },
+        authentikGroupIds: { old: ["group-1"], new: ["group-1", "group-2"] },
+      },
+    });
+  });
+
+  it("writes a ROLE_CHANGED entry when label is unchanged but group IDs differ", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: ["group-1", "group-2"],
+      },
+    });
+
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      "Főszerkesztő",
+      ["group-1", "group-3"],
+      ACTOR,
+    );
+
+    const role = await prisma.leadershipRole.findUnique({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(role?.authentikGroupIds).toEqual(["group-1", "group-3"]);
+
+    const timeline = await prisma.timelineEntry.findMany({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(timeline).toHaveLength(1);
+    expect(timeline[0]).toMatchObject({
+      action: "ROLE_CHANGED",
+      roleLabel: "Főszerkesztő",
+    });
+
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID },
+    });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      action: "ROLE_CHANGED",
+      diff: {
+        label: { old: "Főszerkesztő", new: "Főszerkesztő" },
+        authentikGroupIds: {
+          old: ["group-1", "group-2"],
+          new: ["group-1", "group-3"],
+        },
+      },
+    });
+  });
+});
+
+// ─── removeRole ─────────────────────────────────────────────────────────────
+
+describe("removeRole", () => {
+  it("throws NotFoundError for non-existent member", async () => {
+    const prisma = getTestPrisma();
+    await expect(removeRole(prisma, "non-existent", ACTOR)).rejects.toThrow(
+      NotFoundError,
+    );
+  });
+
+  it("does nothing if member has no role", async () => {
+    const prisma = getTestPrisma();
+    await removeRole(prisma, MEMBER_ID, ACTOR);
+
+    const timeline = await prisma.timelineEntry.findMany({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(timeline).toHaveLength(0);
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID },
+    });
+    expect(audit).toHaveLength(0);
+  });
+
+  it("removes role with timeline and audit log", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: ["group-1"],
+      },
+    });
+
+    await removeRole(prisma, MEMBER_ID, ACTOR);
+
+    const role = await prisma.leadershipRole.findUnique({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(role).toBeNull();
+
+    const timeline = await prisma.timelineEntry.findMany({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(timeline).toHaveLength(1);
+    expect(timeline[0]).toMatchObject({
+      action: "ROLE_REMOVED",
+      roleLabel: "Főszerkesztő",
+    });
+
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID },
+    });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      action: "ROLE_REMOVED",
+      diff: { label: { old: "Főszerkesztő", new: null } },
+    });
   });
 });

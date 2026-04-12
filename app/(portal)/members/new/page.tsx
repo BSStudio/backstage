@@ -2,10 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { createMemberAction } from "@/lib/actions/members";
 
 export default function NewMemberPage() {
@@ -13,7 +12,7 @@ export default function NewMemberPage() {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  const handleSubmit: React.SubmitEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault();
     setError(null);
     const formData = new FormData(e.currentTarget);
@@ -31,7 +30,7 @@ export default function NewMemberPage() {
       }
       router.push("/members");
     });
-  }
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -108,36 +107,6 @@ export default function NewMemberPage() {
           </form>
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function FormField({
-  name,
-  label,
-  type = "text",
-  placeholder,
-  required = false,
-}: {
-  name: string;
-  label: string;
-  type?: string;
-  placeholder?: string;
-  required?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={name}>
-        {label}
-        {required && <span className="text-destructive ml-1">*</span>}
-      </Label>
-      <Input
-        id={name}
-        name={name}
-        type={type}
-        placeholder={placeholder}
-        required={required}
-      />
     </div>
   );
 }

@@ -7,9 +7,11 @@ import prisma from "@/lib/prisma";
 import type { Actor } from "@/lib/services/members";
 import {
   archiveMember,
+  assignRole,
   batchArchive,
   batchUpdateStatus,
   createMember,
+  removeRole,
   updateMember,
 } from "@/lib/services/members";
 import { getSession } from "@/lib/session";
@@ -137,4 +139,54 @@ export async function batchUpdateStatusAction(
   );
   revalidatePath("/members");
   return { success: true, data: result };
+}
+
+export async function assignRoleAction(
+  memberId: string,
+  label: string,
+  authentikGroupIds: string[],
+): Promise<ActionResult> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
+
+  const role = session.user.role as UserRole;
+  if (!["ADMIN", "LEADER"].includes(role)) {
+    return { success: false, error: "Hozzáférés megtagadva" };
+  }
+
+  try {
+    await assignRole(
+      prisma,
+      memberId,
+      label,
+      authentikGroupIds,
+      actorFromSession(session),
+    );
+    revalidatePath("/members");
+    revalidatePath(`/members/${memberId}`);
+    return { success: true, data: null };
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+export async function removeRoleAction(
+  memberId: string,
+): Promise<ActionResult> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
+
+  const role = session.user.role as UserRole;
+  if (!["ADMIN", "LEADER"].includes(role)) {
+    return { success: false, error: "Hozzáférés megtagadva" };
+  }
+
+  try {
+    await removeRole(prisma, memberId, actorFromSession(session));
+    revalidatePath("/members");
+    revalidatePath(`/members/${memberId}`);
+    return { success: true, data: null };
+  } catch (error) {
+    return mapError(error);
+  }
 }

@@ -30,6 +30,7 @@ import {
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
+import { MemberEditButton } from "./member-edit-button";
 
 export default async function MemberDetailPage({
   params,
@@ -38,7 +39,11 @@ export default async function MemberDetailPage({
 }) {
   const { id } = await params;
   const session = await getSession();
-  const isAdmin = session?.user.role === "ADMIN";
+  const role = session?.user.role as string;
+  const isAdmin = role === "ADMIN";
+  const isLeaderOrAdmin = ["ADMIN", "LEADER"].includes(role);
+  const isSelf = session?.user.id === id;
+  const canEdit = isSelf || isLeaderOrAdmin;
 
   const member = await prisma.member.findUnique({
     where: { id },
@@ -49,6 +54,13 @@ export default async function MemberDetailPage({
   });
 
   if (!member) notFound();
+
+  const authentikGroups = isLeaderOrAdmin
+    ? await prisma.authentikGroup.findMany({
+        select: { authentikGroupId: true, displayName: true },
+        orderBy: { displayName: "asc" },
+      })
+    : [];
 
   const auditLogs = isAdmin
     ? await prisma.auditLog.findMany({
@@ -66,45 +78,65 @@ export default async function MemberDetailPage({
         overrides={{ [id]: `${member.lastName} ${member.firstName}` }}
       />
       {/* Header */}
-      <div className="flex items-start gap-4">
-        <Avatar className="h-16 w-16">
-          <AvatarFallback className="text-xl">
-            {getInitials(member.firstName, member.lastName)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">
-              {member.lastName} {member.firstName}
-            </h1>
-            {member.nickname && (
-              <span className="text-lg text-muted-foreground">
-                ({member.nickname})
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className={STATUS_BADGE_CLASS[member.status]}
-            >
-              {MEMBERSHIP_STATUS_LABELS[member.status]}
-            </Badge>
-            {member.leadershipRole && (
-              <Badge variant="outline" className="bg-primary/10 text-primary">
-                {member.leadershipRole.label}
-              </Badge>
-            )}
-            {member.archived && (
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-4">
+          <Avatar className="h-16 w-16 shrink-0">
+            <AvatarFallback className="text-xl">
+              {getInitials(member.firstName, member.lastName)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="text-3xl font-bold tracking-tight">
+                {member.lastName} {member.firstName}
+              </h1>
+              {member.nickname && (
+                <span className="text-lg text-muted-foreground">
+                  ({member.nickname})
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               <Badge
                 variant="outline"
-                className="bg-status-archived/15 text-status-archived border-status-archived/40"
+                className={STATUS_BADGE_CLASS[member.status]}
               >
-                Archivált
+                {MEMBERSHIP_STATUS_LABELS[member.status]}
               </Badge>
-            )}
+              {member.leadershipRole && (
+                <Badge variant="outline" className="bg-primary/10 text-primary">
+                  {member.leadershipRole.label}
+                </Badge>
+              )}
+              {member.archived && (
+                <Badge
+                  variant="outline"
+                  className="bg-status-archived/15 text-status-archived border-status-archived/40"
+                >
+                  Archivált
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
+        {canEdit && (
+          <MemberEditButton
+            member={member}
+            currentRole={
+              member.leadershipRole
+                ? {
+                    label: member.leadershipRole.label,
+                    authentikGroupIds: member.leadershipRole.authentikGroupIds,
+                  }
+                : null
+            }
+            authentikGroups={authentikGroups}
+            canChangeStatus={isLeaderOrAdmin}
+            canChangeUsername={isAdmin}
+            canManageRole={isLeaderOrAdmin}
+            canArchive={isLeaderOrAdmin}
+          />
+        )}
       </div>
 
       {/* Desktop: side-by-side, Mobile: stacked */}
@@ -135,7 +167,7 @@ export default async function MemberDetailPage({
               </ProfileField>
               <ProfileField icon={GraduationCap} label="Egyetem / Szak">
                 {member.university && member.major
-                  ? `${member.university} - ${member.major}`
+                  ? `${member.university} / ${member.major}`
                   : (member.university ?? member.major)}
               </ProfileField>
               <ProfileField icon={Home} label="Szobaszám">

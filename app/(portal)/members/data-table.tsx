@@ -93,6 +93,9 @@ export function DataTable({
             value={(nameColumn.getFilterValue() as string) ?? ""}
             onChange={(event) => nameColumn.setFilterValue(event.target.value)}
             className="text-sm sm:max-w-sm"
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
           />
         )}
         {toolbarExtra}

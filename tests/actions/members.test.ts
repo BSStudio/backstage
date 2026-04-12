@@ -6,6 +6,8 @@ const mockUpdateMember = vi.fn();
 const mockArchiveMember = vi.fn();
 const mockBatchArchive = vi.fn();
 const mockBatchUpdateStatus = vi.fn();
+const mockAssignRole = vi.fn();
+const mockRemoveRole = vi.fn();
 const mockRevalidatePath = vi.fn();
 
 beforeEach(() => {
@@ -16,6 +18,8 @@ beforeEach(() => {
   mockArchiveMember.mockReset();
   mockBatchArchive.mockReset();
   mockBatchUpdateStatus.mockReset();
+  mockAssignRole.mockReset();
+  mockRemoveRole.mockReset();
   mockRevalidatePath.mockReset();
 
   vi.doMock("@/lib/session", () => ({ getSession: mockGetSession }));
@@ -27,6 +31,8 @@ beforeEach(() => {
     archiveMember: mockArchiveMember,
     batchArchive: mockBatchArchive,
     batchUpdateStatus: mockBatchUpdateStatus,
+    assignRole: mockAssignRole,
+    removeRole: mockRemoveRole,
   }));
 });
 
@@ -232,5 +238,91 @@ describe("batchUpdateStatusAction", () => {
     );
     expect(result).toEqual({ success: true, data: { count: 2 } });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
+  });
+});
+
+// ─── assignRoleAction ───────────────────────────────────────────────────────
+
+describe("assignRoleAction", () => {
+  it("returns error when not authenticated", async () => {
+    mockGetSession.mockResolvedValue(null);
+    const { assignRoleAction } = await import("@/lib/actions/members");
+    const result = await assignRoleAction("m-1", "Főszerkesztő", []);
+    expect(result).toEqual({
+      success: false,
+      error: "Jogosulatlan hozzáférés",
+    });
+  });
+
+  it("returns error when role is MEMBER", async () => {
+    mockGetSession.mockResolvedValue(session("MEMBER"));
+    const { assignRoleAction } = await import("@/lib/actions/members");
+    const result = await assignRoleAction("m-1", "Főszerkesztő", []);
+    expect(result).toEqual({
+      success: false,
+      error: "Hozzáférés megtagadva",
+    });
+  });
+
+  it("maps NotFoundError from service", async () => {
+    const { NotFoundError } = await import("@/lib/errors");
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockAssignRole.mockRejectedValue(new NotFoundError());
+    const { assignRoleAction } = await import("@/lib/actions/members");
+    const result = await assignRoleAction("bad-id", "Főszerkesztő", []);
+    expect(result).toEqual({ success: false, error: "Nem található" });
+  });
+
+  it("returns success and revalidates on assignment", async () => {
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockAssignRole.mockResolvedValue(undefined);
+    const { assignRoleAction } = await import("@/lib/actions/members");
+    const result = await assignRoleAction("m-1", "Főszerkesztő", ["group-1"]);
+    expect(result).toEqual({ success: true, data: null });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members/m-1");
+  });
+});
+
+// ─── removeRoleAction ───────────────────────────────────────────────────────
+
+describe("removeRoleAction", () => {
+  it("returns error when not authenticated", async () => {
+    mockGetSession.mockResolvedValue(null);
+    const { removeRoleAction } = await import("@/lib/actions/members");
+    const result = await removeRoleAction("m-1");
+    expect(result).toEqual({
+      success: false,
+      error: "Jogosulatlan hozzáférés",
+    });
+  });
+
+  it("returns error when role is MEMBER", async () => {
+    mockGetSession.mockResolvedValue(session("MEMBER"));
+    const { removeRoleAction } = await import("@/lib/actions/members");
+    const result = await removeRoleAction("m-1");
+    expect(result).toEqual({
+      success: false,
+      error: "Hozzáférés megtagadva",
+    });
+  });
+
+  it("maps NotFoundError from service", async () => {
+    const { NotFoundError } = await import("@/lib/errors");
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockRemoveRole.mockRejectedValue(new NotFoundError());
+    const { removeRoleAction } = await import("@/lib/actions/members");
+    const result = await removeRoleAction("bad-id");
+    expect(result).toEqual({ success: false, error: "Nem található" });
+  });
+
+  it("returns success and revalidates on removal", async () => {
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockRemoveRole.mockResolvedValue(undefined);
+    const { removeRoleAction } = await import("@/lib/actions/members");
+    const result = await removeRoleAction("m-1");
+    expect(result).toEqual({ success: true, data: null });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members/m-1");
   });
 });

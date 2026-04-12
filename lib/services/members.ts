@@ -32,8 +32,14 @@ export const UpdateMemberSchema = z.object({
   status: z.enum(MEMBERSHIP_STATUSES).optional(),
 });
 
+export const AssignRoleSchema = z.object({
+  label: z.string().trim().min(1),
+  authentikGroupIds: z.array(z.string()).default([]),
+});
+
 export type CreateMemberInput = z.infer<typeof CreateMemberSchema>;
 export type UpdateMemberInput = z.infer<typeof UpdateMemberSchema>;
+export type AssignRoleInput = z.infer<typeof AssignRoleSchema>;
 
 // ─── Actor context ───────────────────────────────────────────────────────────
 
@@ -303,4 +309,104 @@ export async function batchUpdateStatus(
   });
 
   return { count: members.length };
+}
+
+export async function assignRole(
+  prisma: PrismaClient,
+  memberId: string,
+  label: string,
+  authentikGroupIds: string[],
+  actor: Actor,
+) {
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    include: { leadershipRole: true },
+  });
+  if (!member) throw new NotFoundError();
+
+  if (member.leadershipRole) {
+    // Update existing role
+    const oldLabel = member.leadershipRole.label;
+    const oldGroupIds = member.leadershipRole.authentikGroupIds;
+
+    const labelChanged = oldLabel !== label;
+    const oldSet = new Set(oldGroupIds);
+    const newSet = new Set(authentikGroupIds);
+    const groupsChanged =
+      oldSet.size !== newSet.size || [...oldSet].some((id) => !newSet.has(id));
+
+    if (!labelChanged && !groupsChanged) return;
+
+    await prisma.leadershipRole.update({
+      where: { memberId },
+      data: { label, authentikGroupIds },
+    });
+
+    await prisma.timelineEntry.create({
+      data: { memberId, action: "ROLE_CHANGED", roleLabel: label },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        targetId: memberId,
+        action: "ROLE_CHANGED",
+        diff: {
+          label: { old: oldLabel, new: label },
+          authentikGroupIds: { old: oldGroupIds, new: authentikGroupIds },
+        },
+      },
+    });
+  } else {
+    // Create new role
+    await prisma.leadershipRole.create({
+      data: { memberId, label, authentikGroupIds },
+    });
+
+    await prisma.timelineEntry.create({
+      data: { memberId, action: "ROLE_ASSIGNED", roleLabel: label },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        targetId: memberId,
+        action: "ROLE_ASSIGNED",
+        diff: {
+          label: { old: null, new: label },
+          authentikGroupIds: { old: null, new: authentikGroupIds },
+        },
+      },
+    });
+  }
+}
+
+export async function removeRole(
+  prisma: PrismaClient,
+  memberId: string,
+  actor: Actor,
+) {
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    include: { leadershipRole: true },
+  });
+  if (!member) throw new NotFoundError();
+  if (!member.leadershipRole) return;
+
+  const oldLabel = member.leadershipRole.label;
+
+  await prisma.leadershipRole.delete({ where: { memberId } });
+
+  await prisma.timelineEntry.create({
+    data: { memberId, action: "ROLE_REMOVED", roleLabel: oldLabel },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: actor.id,
+      targetId: memberId,
+      action: "ROLE_REMOVED",
+      diff: { label: { old: oldLabel, new: null } },
+    },
+  });
 }
