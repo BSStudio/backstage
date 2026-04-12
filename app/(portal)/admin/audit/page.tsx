@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AuditDiff } from "@/components/audit-diff";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,8 @@ import {
 import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+
+export const metadata: Metadata = { title: "Audit napló — Backstage" };
 
 const PAGE_SIZE = 50;
 
@@ -65,7 +68,7 @@ export default async function AuditPage({
     }),
   ]);
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="flex flex-col gap-6">
@@ -86,44 +89,52 @@ export default async function AuditPage({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {logs.map((log) => (
-              <TableRow key={log.id}>
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                  {new Date(log.createdAt).toLocaleString("hu-HU")}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant="outline"
-                    className={AUDIT_ACTION_VARIANT[log.action]}
-                  >
-                    {AUDIT_ACTION_LABELS[log.action]}
-                  </Badge>
-                </TableCell>
-                <TableCell className="font-medium">
-                  <a
-                    href={`/members/${log.targetId}`}
-                    className="hover:underline"
-                  >
-                    {log.target.lastName} {log.target.firstName}
-                  </a>
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {log.actor ? (
-                    <a
-                      href={`/members/${log.actorId}`}
-                      className="hover:underline"
-                    >
-                      {log.actor.lastName} {log.actor.firstName}
-                    </a>
-                  ) : (
-                    (log.actorId ?? "—")
-                  )}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground max-w-[300px]">
-                  <AuditDiff diff={log.diff} />
+            {logs.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="h-24 text-center">
+                  Nincs bejegyzés.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              logs.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                    {new Date(log.createdAt).toLocaleString("hu-HU")}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={AUDIT_ACTION_VARIANT[log.action]}
+                    >
+                      {AUDIT_ACTION_LABELS[log.action]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    <a
+                      href={`/members/${log.targetId}`}
+                      className="hover:underline"
+                    >
+                      {log.target.lastName} {log.target.firstName}
+                    </a>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {log.actor ? (
+                      <a
+                        href={`/members/${log.actorId}`}
+                        className="hover:underline"
+                      >
+                        {log.actor.lastName} {log.actor.firstName}
+                      </a>
+                    ) : (
+                      (log.actorId ?? "—")
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground max-w-[300px]">
+                    <AuditDiff diff={log.diff} />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
