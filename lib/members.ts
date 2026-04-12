@@ -39,6 +39,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   MEMBER_REACTIVATED: "Újraaktiválás",
   STATUS_CHANGED: "Státusz módosítás",
   ROLE_ASSIGNED: "Pozíció hozzárendelés",
+  ROLE_CHANGED: "Pozíció módosítás",
   ROLE_REMOVED: "Pozíció elvétel",
 };
 
@@ -51,6 +52,7 @@ export const AUDIT_ACTION_VARIANT: Record<AuditAction, string> = {
     "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
   STATUS_CHANGED: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
   ROLE_ASSIGNED: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+  ROLE_CHANGED: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
   ROLE_REMOVED: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
 };
 

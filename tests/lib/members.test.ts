@@ -56,7 +56,7 @@ describe("STATUS_BADGE_CLASS", () => {
 
 describe("AUDIT_ACTION_LABELS", () => {
   it("has a Hungarian label for every audit action", () => {
-    expect(Object.keys(AUDIT_ACTION_LABELS)).toHaveLength(7);
+    expect(Object.keys(AUDIT_ACTION_LABELS)).toHaveLength(8);
     expect(AUDIT_ACTION_LABELS.MEMBER_CREATED).toBe("Létrehozás");
     expect(AUDIT_ACTION_LABELS.STATUS_CHANGED).toBe("Státusz módosítás");
     expect(AUDIT_ACTION_LABELS.ROLE_ASSIGNED).toBe("Pozíció hozzárendelés");
@@ -66,7 +66,7 @@ describe("AUDIT_ACTION_LABELS", () => {
 
 describe("AUDIT_ACTION_VARIANT", () => {
   it("has a Tailwind class string for every audit action", () => {
-    expect(Object.keys(AUDIT_ACTION_VARIANT)).toHaveLength(7);
+    expect(Object.keys(AUDIT_ACTION_VARIANT)).toHaveLength(8);
     for (const val of Object.values(AUDIT_ACTION_VARIANT)) {
       expect(val).toContain("bg-");
       expect(val).toContain("text-");
