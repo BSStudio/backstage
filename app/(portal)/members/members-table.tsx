@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import {
   avatarColumn,
@@ -60,6 +61,9 @@ export function MembersTable({
 }) {
   const columns = canManage ? [selectColumn, ...baseColumns] : baseColumns;
   const [isPending, startTransition] = useTransition();
+  const [pendingAction, setPendingAction] = useState<
+    "status" | "archive" | null
+  >(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveData, setArchiveData] = useState<{
     ids: string[];
@@ -73,9 +77,14 @@ export function MembersTable({
     resetSelection: () => void,
   ) {
     const ids = selectedRows.map((r) => r.id);
+    setPendingAction("status");
     startTransition(async () => {
-      await batchUpdateStatusAction(ids, status);
-      resetSelection();
+      try {
+        await batchUpdateStatusAction(ids, status);
+        resetSelection();
+      } finally {
+        setPendingAction(null);
+      }
     });
   }
 
@@ -83,9 +92,14 @@ export function MembersTable({
     if (!archiveData) return;
     const { ids, reset } = archiveData;
     setArchiveOpen(false);
+    setPendingAction("archive");
     startTransition(async () => {
-      await batchArchiveAction(ids);
-      reset();
+      try {
+        await batchArchiveAction(ids);
+        reset();
+      } finally {
+        setPendingAction(null);
+      }
     });
   }
 
@@ -115,6 +129,9 @@ export function MembersTable({
                           size="sm"
                           disabled={isPending}
                         >
+                          {pendingAction === "status" && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          )}
                           Státusz módosítása
                         </Button>
                       </DropdownMenuTrigger>
@@ -148,6 +165,9 @@ export function MembersTable({
                         setArchiveOpen(true);
                       }}
                     >
+                      {pendingAction === "archive" && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
                       Archiválás
                     </Button>
                   </div>

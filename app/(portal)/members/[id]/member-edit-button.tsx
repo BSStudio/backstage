@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Pencil } from "lucide-react";
+import { Archive, Loader2, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
@@ -62,7 +62,11 @@ export function MemberEditButton({
             disabled={isPending}
             onClick={() => setArchiveOpen(true)}
           >
-            <Archive className="mr-2 h-4 w-4" />
+            {isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Archive className="mr-2 h-4 w-4" />
+            )}
             Archiválás
           </Button>
         )}

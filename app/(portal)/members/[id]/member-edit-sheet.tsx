@@ -1,7 +1,8 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,6 +52,9 @@ export function MemberEditSheet({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [pendingAction, setPendingAction] = useState<
+    "profile" | "assignRole" | "removeRole" | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
 
   const [roleLabel, setRoleLabel] = useState(currentRole?.label ?? "");
@@ -58,6 +62,10 @@ export function MemberEditSheet({
     currentRole?.authentikGroupIds ?? [],
   );
   const [roleError, setRoleError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) setPendingAction(null);
+  }, [open]);
 
   function toggleGroup(groupId: string) {
     setSelectedGroupIds((prev) =>
@@ -73,6 +81,7 @@ export function MemberEditSheet({
       return;
     }
     setRoleError(null);
+    setPendingAction("assignRole");
     startTransition(async () => {
       const result = await assignRoleAction(
         member.id,
@@ -81,6 +90,7 @@ export function MemberEditSheet({
       );
       if (!result.success) {
         setRoleError(result.error);
+        setPendingAction(null);
         return;
       }
       onOpenChange(false);
@@ -90,10 +100,12 @@ export function MemberEditSheet({
 
   function handleRemoveRole() {
     setRoleError(null);
+    setPendingAction("removeRole");
     startTransition(async () => {
       const result = await removeRoleAction(member.id);
       if (!result.success) {
         setRoleError(result.error);
+        setPendingAction(null);
         return;
       }
       setRoleLabel("");
@@ -114,10 +126,12 @@ export function MemberEditSheet({
       if (str) input[key] = str;
     }
 
+    setPendingAction("profile");
     startTransition(async () => {
       const result = await updateMemberAction(member.id, input);
       if (!result.success) {
         setError(result.error);
+        setPendingAction(null);
         return;
       }
       onOpenChange(false);
@@ -215,7 +229,10 @@ export function MemberEditSheet({
 
           <SheetFooter className="mb-2">
             <Button type="submit" disabled={isPending}>
-              {isPending ? "Mentés..." : "Mentés"}
+              {pendingAction === "profile" && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Mentés
             </Button>
           </SheetFooter>
         </form>
@@ -279,6 +296,9 @@ export function MemberEditSheet({
                   disabled={isPending}
                   onClick={handleAssignRole}
                 >
+                  {pendingAction === "assignRole" && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
                   {currentRole ? "Pozíció frissítése" : "Pozíció kiosztása"}
                 </Button>
                 {currentRole && (
@@ -289,6 +309,9 @@ export function MemberEditSheet({
                     disabled={isPending}
                     onClick={handleRemoveRole}
                   >
+                    {pendingAction === "removeRole" && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
                     Pozíció elvétele
                   </Button>
                 )}

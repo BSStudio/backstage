@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { FormField } from "@/components/form-field";
@@ -94,7 +95,8 @@ export default function NewMemberPage() {
 
             <div className="flex gap-2 pt-2">
               <Button type="submit" disabled={isPending}>
-                {isPending ? "Mentés..." : "Hozzáadás"}
+                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Hozzáadás
               </Button>
               <Button
                 type="button"
