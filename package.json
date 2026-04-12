@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",
+    "typecheck": "tsc --noEmit",
+    "check": "biome check && tsc --noEmit",
     "prepare": "husky",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
