@@ -2,6 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -16,12 +17,16 @@ import { authClient } from "@/lib/auth-client";
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
 
   const handleLogin = async () => {
     setLoading(true);
+    const callback = searchParams.get("callbackUrl");
+    const safeCallback =
+      callback?.startsWith("/") && !callback.startsWith("//") ? callback : "/";
     await authClient.signIn.oauth2({
       providerId: "authentik",
-      callbackURL: "/",
+      callbackURL: safeCallback,
     });
   };
 
