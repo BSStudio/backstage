@@ -73,6 +73,8 @@ model Member {
   nickname            String?
   email               String                @unique
   mobile              String?
+  avatarUrl           String?               // Path to square avatar image
+  portraitUrl         String?               // Path to 3:4 portrait image
 
   // Academic
   university          String?

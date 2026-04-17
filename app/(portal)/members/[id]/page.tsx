@@ -11,7 +11,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AuditDiff } from "@/components/audit-diff";
 import { BreadcrumbOverride } from "@/components/breadcrumb-context";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -25,12 +24,12 @@ import {
 import {
   AUDIT_ACTION_LABELS,
   AUDIT_ACTION_VARIANT,
-  getInitials,
   STATUS_BADGE_CLASS,
 } from "@/lib/members";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
+import { MemberAvatar } from "./member-avatar";
 import { MemberEditButton } from "./member-edit-button";
 
 export async function generateMetadata({
@@ -95,11 +94,15 @@ export default async function MemberDetailPage({
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
-          <Avatar className="h-16 w-16 shrink-0">
-            <AvatarFallback className="text-xl">
-              {getInitials(member.firstName, member.lastName)}
-            </AvatarFallback>
-          </Avatar>
+          <MemberAvatar
+            memberId={member.id}
+            firstName={member.firstName}
+            lastName={member.lastName}
+            avatarUrl={member.avatarUrl}
+            portraitUrl={member.portraitUrl}
+            canEdit={canEdit}
+            isSelf={isSelf}
+          />
           <div className="flex flex-col gap-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <h1 className="text-3xl font-bold tracking-tight">

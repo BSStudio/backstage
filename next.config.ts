@@ -32,6 +32,9 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_VERSION: appVersion,
     NEXT_PUBLIC_COMMIT_HASH: commitHash,
   },
+  images: {
+    localPatterns: [{ pathname: "/avatars/**" }],
+  },
 };
 
 export default nextConfig;

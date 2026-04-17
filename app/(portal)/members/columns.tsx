@@ -4,7 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import type { Member, MembershipStatus } from "@/app/generated/prisma/client";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -88,6 +88,9 @@ export const avatarColumn: ColumnDef<MemberRow> = {
     const m = row.original;
     return (
       <Avatar className="h-8 w-8">
+        {m.avatarUrl && (
+          <AvatarImage src={m.avatarUrl} alt={`${m.lastName} ${m.firstName}`} />
+        )}
         <AvatarFallback className="text-xs">
           {getInitials(m.firstName, m.lastName)}
         </AvatarFallback>

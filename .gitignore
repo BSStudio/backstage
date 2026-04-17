@@ -23,6 +23,9 @@
 # production
 /build
 
+# uploaded avatars (local storage)
+/public/avatars
+
 # misc
 .DS_Store
 *.pem

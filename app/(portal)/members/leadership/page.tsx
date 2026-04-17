@@ -1,7 +1,7 @@
 import { Mail, Phone } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { getInitials } from "@/lib/members";
 import prisma from "@/lib/prisma";
@@ -63,6 +63,12 @@ export default async function LeadershipPage() {
                   className="group flex flex-col items-center gap-2"
                 >
                   <Avatar className="h-20 w-20">
+                    {m.avatarUrl && (
+                      <AvatarImage
+                        src={m.avatarUrl}
+                        alt={`${m.lastName} ${m.firstName}`}
+                      />
+                    )}
                     <AvatarFallback className="text-lg">
                       {getInitials(m.firstName, m.lastName)}
                     </AvatarFallback>

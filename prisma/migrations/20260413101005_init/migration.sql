@@ -24,6 +24,8 @@ CREATE TABLE "Member" (
     "nickname" TEXT,
     "email" TEXT NOT NULL,
     "mobile" TEXT,
+    "avatarUrl" TEXT,
+    "portraitUrl" TEXT,
     "university" TEXT,
     "major" TEXT,
     "dormRoom" TEXT,

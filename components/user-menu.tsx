@@ -3,7 +3,8 @@
 import { LogOut, UserIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAvatar } from "@/components/avatar-context";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -29,6 +30,7 @@ export function UserMenu({
 }) {
   const displayName = `${lastName} ${firstName}`.trim();
   const router = useRouter();
+  const { avatarUrl } = useAvatar();
 
   const handleLogout = async () => {
     await authClient.signOut();
@@ -39,7 +41,10 @@ export function UserMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
+          <Avatar key={avatarUrl ?? "fallback"} className="h-8 w-8">
+            {avatarUrl && (
+              <AvatarImage src={avatarUrl} alt={`${lastName} ${firstName}`} />
+            )}
             <AvatarFallback>{getInitials(firstName, lastName)}</AvatarFallback>
           </Avatar>
         </Button>
