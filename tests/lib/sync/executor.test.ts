@@ -1,0 +1,195 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getTestPrisma } from "../../setup";
+
+const {
+  mockCreateUser,
+  mockUpdateUser,
+  mockGetUserPk,
+  mockAddUserToGroup,
+  mockRemoveUserFromGroup,
+} = vi.hoisted(() => ({
+  mockCreateUser: vi.fn(),
+  mockUpdateUser: vi.fn(),
+  mockGetUserPk: vi.fn(),
+  mockAddUserToGroup: vi.fn(),
+  mockRemoveUserFromGroup: vi.fn(),
+}));
+
+vi.mock("@/lib/authentik/users", () => ({
+  createUser: mockCreateUser,
+  updateUser: mockUpdateUser,
+  getUserPk: mockGetUserPk,
+  findAvailableUsername: vi.fn(),
+}));
+
+vi.mock("@/lib/authentik/groups", () => ({
+  addUserToGroup: mockAddUserToGroup,
+  removeUserFromGroup: mockRemoveUserFromGroup,
+}));
+
+import { executeSyncJob } from "@/lib/sync/executor";
+
+const MEMBER_ID = "uuid-member-1";
+
+beforeEach(async () => {
+  vi.clearAllMocks();
+  mockGetUserPk.mockResolvedValue(42);
+  mockAddUserToGroup.mockResolvedValue(undefined);
+  mockRemoveUserFromGroup.mockResolvedValue(undefined);
+
+  const prisma = getTestPrisma();
+  await prisma.member.upsert({
+    where: { id: MEMBER_ID },
+    update: {},
+    create: {
+      id: MEMBER_ID,
+      firstName: "Test",
+      lastName: "Member",
+      email: "test@example.com",
+      joinedSemester: "2025/2026/1",
+    },
+  });
+});
+
+describe("executeSyncJob", () => {
+  it("throws when job not found", async () => {
+    await expect(
+      executeSyncJob(getTestPrisma(), "non-existent"),
+    ).rejects.toThrow("SyncJob not found");
+  });
+
+  it("marks job as SUCCESS on happy path", async () => {
+    const prisma = getTestPrisma();
+    mockCreateUser.mockResolvedValue({ pk: 42, uuid: "abc" });
+
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "CREATE_USER",
+        memberId: MEMBER_ID,
+        payload: { username: "test", name: "Test", email: "t@e.com" },
+      },
+    });
+
+    const result = await executeSyncJob(prisma, job.id);
+
+    expect(result.success).toBe(true);
+    const updated = await prisma.syncJob.findUnique({ where: { id: job.id } });
+    expect(updated?.status).toBe("SUCCESS");
+    expect(updated?.attempts).toBe(1);
+  });
+
+  it("marks job as FAILED when client throws", async () => {
+    const prisma = getTestPrisma();
+    mockCreateUser.mockRejectedValue(new Error("username taken"));
+
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "CREATE_USER",
+        memberId: MEMBER_ID,
+        payload: { username: "t", name: "T", email: "t@e.com" },
+      },
+    });
+
+    const result = await executeSyncJob(prisma, job.id);
+
+    expect(result.success).toBe(false);
+    expect(result).toMatchObject({ error: "username taken" });
+    const updated = await prisma.syncJob.findUnique({ where: { id: job.id } });
+    expect(updated?.status).toBe("FAILED");
+    expect(updated?.result).toEqual({ error: "username taken" });
+  });
+
+  it("dispatches UPDATE_USER with resolved pk", async () => {
+    const prisma = getTestPrisma();
+    mockUpdateUser.mockResolvedValue({ pk: 42 });
+
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "UPDATE_USER",
+        memberId: MEMBER_ID,
+        payload: { name: "New Name" },
+      },
+    });
+
+    await executeSyncJob(prisma, job.id);
+
+    expect(mockGetUserPk).toHaveBeenCalledWith(MEMBER_ID);
+    expect(mockUpdateUser).toHaveBeenCalledWith(42, { name: "New Name" });
+  });
+
+  it("dispatches DEACTIVATE_USER with hardcoded payload", async () => {
+    const prisma = getTestPrisma();
+    mockUpdateUser.mockResolvedValue({ pk: 42, is_active: false });
+
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "DEACTIVATE_USER",
+        memberId: MEMBER_ID,
+        payload: {},
+      },
+    });
+
+    await executeSyncJob(prisma, job.id);
+
+    expect(mockUpdateUser).toHaveBeenCalledWith(42, {
+      is_active: false,
+      path: "archived",
+    });
+  });
+
+  it("dispatches ADD_TO_GROUP with payload groupUuid and resolved pk", async () => {
+    const prisma = getTestPrisma();
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "ADD_TO_GROUP",
+        memberId: MEMBER_ID,
+        payload: { groupUuid: "group-xyz" },
+      },
+    });
+
+    await executeSyncJob(prisma, job.id);
+
+    expect(mockAddUserToGroup).toHaveBeenCalledWith("group-xyz", 42);
+  });
+
+  it("dispatches REMOVE_FROM_GROUP with payload groupUuid and resolved pk", async () => {
+    const prisma = getTestPrisma();
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "REMOVE_FROM_GROUP",
+        memberId: MEMBER_ID,
+        payload: { groupUuid: "group-xyz" },
+      },
+    });
+
+    await executeSyncJob(prisma, job.id);
+
+    expect(mockRemoveUserFromGroup).toHaveBeenCalledWith("group-xyz", 42);
+  });
+
+  it("increments attempts on retry", async () => {
+    const prisma = getTestPrisma();
+    mockUpdateUser.mockResolvedValue({ pk: 42 });
+
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "UPDATE_USER",
+        memberId: MEMBER_ID,
+        payload: { name: "X" },
+      },
+    });
+
+    await executeSyncJob(prisma, job.id);
+    await executeSyncJob(prisma, job.id);
+
+    const updated = await prisma.syncJob.findUnique({ where: { id: job.id } });
+    expect(updated?.attempts).toBe(2);
+  });
+});
