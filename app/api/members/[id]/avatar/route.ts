@@ -55,8 +55,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     return NextResponse.json({ avatarUrl, portraitUrl });
   } catch (error) {
-    /* v8 ignore next -- saveAvatar and Prisma only throw Error instances */
-    const message = error instanceof Error ? error.message : "Upload failed";
+    const message = (error as Error).message;
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }
