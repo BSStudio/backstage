@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 type BreadcrumbOverrides = Record<string, string>;
 
@@ -19,11 +19,9 @@ export function BreadcrumbProvider({
 }) {
   const [overrides, setOverrides] = useState<BreadcrumbOverrides>({});
 
-  return (
-    <BreadcrumbContext value={{ overrides, setOverrides }}>
-      {children}
-    </BreadcrumbContext>
-  );
+  const value = useMemo(() => ({ overrides, setOverrides }), [overrides]);
+
+  return <BreadcrumbContext value={value}>{children}</BreadcrumbContext>;
 }
 
 export function useBreadcrumbOverrides() {

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 
 const AvatarContext = createContext<{
   avatarUrl: string | null;
@@ -19,11 +19,9 @@ export function AvatarProvider({
 }) {
   const [avatarUrl, setAvatarUrl] = useState(initialUrl);
 
-  return (
-    <AvatarContext value={{ avatarUrl, setAvatarUrl }}>
-      {children}
-    </AvatarContext>
-  );
+  const value = useMemo(() => ({ avatarUrl, setAvatarUrl }), [avatarUrl]);
+
+  return <AvatarContext value={value}>{children}</AvatarContext>;
 }
 
 export function useAvatar() {
