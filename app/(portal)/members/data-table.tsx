@@ -102,7 +102,7 @@ export function DataTable({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="sm:ml-auto">
-              <Settings2 className="mr-2 h-4 w-4" />
+              <Settings2 className="mr-2 size-4" />
               Oszlopok
             </Button>
           </DropdownMenuTrigger>

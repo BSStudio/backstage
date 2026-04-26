@@ -154,7 +154,7 @@ export function AvatarCropDialog({
         </div>
 
         <div className="flex items-center gap-3 px-1">
-          <ZoomOut className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <ZoomOut className="size-4 shrink-0 text-muted-foreground" />
           <Slider
             min={1}
             max={3}
@@ -162,7 +162,7 @@ export function AvatarCropDialog({
             value={[zoom]}
             onValueChange={([v]) => setZoom(v)}
           />
-          <ZoomIn className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <ZoomIn className="size-4 shrink-0 text-muted-foreground" />
         </div>
 
         <AlertDialogFooter>

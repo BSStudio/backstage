@@ -226,7 +226,7 @@ export function MemberEditSheet({
           <SheetFooter className="mb-2">
             <Button type="submit" disabled={isPending}>
               {pendingAction === "profile" && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 size-4 animate-spin" />
               )}
               Mentés
             </Button>
@@ -289,7 +289,7 @@ export function MemberEditSheet({
                   onClick={handleAssignRole}
                 >
                   {pendingAction === "assignRole" && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 size-4 animate-spin" />
                   )}
                   {currentRole ? "Pozíció frissítése" : "Pozíció kiosztása"}
                 </Button>
@@ -302,7 +302,7 @@ export function MemberEditSheet({
                     onClick={handleRemoveRole}
                   >
                     {pendingAction === "removeRole" && (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="mr-2 size-4 animate-spin" />
                     )}
                     Pozíció elvétele
                   </Button>

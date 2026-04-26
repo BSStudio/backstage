@@ -120,7 +120,7 @@ export function MemberAvatar({
         disabled={isPending}
         onClick={() => setViewOpen(true)}
       >
-        <Avatar key={displayUrl ?? "fallback"} className="h-16 w-16">
+        <Avatar key={displayUrl ?? "fallback"} className="size-16">
           {displayUrl && (
             <AvatarImage src={displayUrl} alt={`${lastName} ${firstName}`} />
           )}
@@ -130,7 +130,7 @@ export function MemberAvatar({
         </Avatar>
         {canEdit && (
           <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-            <Camera className="h-5 w-5 text-white" />
+            <Camera className="size-5 text-white" />
           </div>
         )}
       </button>
@@ -182,7 +182,7 @@ export function MemberAvatar({
                   disabled={isPending}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="mr-2 h-4 w-4" />
+                  <Upload className="mr-2 size-4" />
                   {avatarUrl ? "Csere" : "Feltöltés"}
                 </Button>
                 {avatarUrl && (
@@ -191,7 +191,7 @@ export function MemberAvatar({
                     disabled={isPending}
                     onClick={handleRemove}
                   >
-                    <Trash2 className="mr-2 h-4 w-4" />
+                    <Trash2 className="mr-2 size-4" />
                     Törlés
                   </Button>
                 )}

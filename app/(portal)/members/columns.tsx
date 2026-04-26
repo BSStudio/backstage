@@ -29,9 +29,9 @@ export const COLUMN_LABELS: Record<string, string> = {
 };
 
 export function SortIcon({ sorted }: { sorted: "asc" | "desc" | false }) {
-  if (sorted === "asc") return <ArrowUp className="ml-2 h-3 w-3" />;
-  if (sorted === "desc") return <ArrowDown className="ml-2 h-3 w-3" />;
-  return <ArrowUpDown className="ml-2 h-3 w-3 text-muted-foreground/50" />;
+  if (sorted === "asc") return <ArrowUp className="ml-2 size-3" />;
+  if (sorted === "desc") return <ArrowDown className="ml-2 size-3" />;
+  return <ArrowUpDown className="ml-2 size-3 text-muted-foreground/50" />;
 }
 
 function SortableHeader({
@@ -87,7 +87,7 @@ export const avatarColumn: ColumnDef<MemberRow> = {
   cell: ({ row }) => {
     const m = row.original;
     return (
-      <Avatar className="h-8 w-8">
+      <Avatar className="size-8">
         {m.avatarUrl && (
           <AvatarImage src={m.avatarUrl} alt={`${m.lastName} ${m.firstName}`} />
         )}

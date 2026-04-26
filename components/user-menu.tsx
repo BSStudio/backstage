@@ -40,8 +40,8 @@ export function UserMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar key={avatarUrl ?? "fallback"} className="h-8 w-8">
+        <Button variant="ghost" className="relative size-8 rounded-full">
+          <Avatar key={avatarUrl ?? "fallback"} className="size-8">
             {avatarUrl && (
               <AvatarImage src={avatarUrl} alt={`${lastName} ${firstName}`} />
             )}
@@ -61,13 +61,13 @@ export function UserMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href={`/members/${id}`}>
-            <UserIcon className="mr-2 h-4 w-4" />
+            <UserIcon className="mr-2 size-4" />
             Profil
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>
-          <LogOut className="mr-2 h-4 w-4" />
+          <LogOut className="mr-2 size-4" />
           Kijelentkezés
         </DropdownMenuItem>
       </DropdownMenuContent>

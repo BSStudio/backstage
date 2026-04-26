@@ -53,7 +53,7 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <Button className="w-full" onClick={handleLogin} disabled={loading}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
             Bejelentkezés
           </Button>
         </CardContent>

@@ -92,7 +92,7 @@ export default function NewMemberPage() {
 
             <div className="flex gap-2 pt-2">
               <Button type="submit" disabled={isPending}>
-                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
                 Hozzáadás
               </Button>
               <Button

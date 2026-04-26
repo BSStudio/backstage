@@ -215,7 +215,7 @@ export default async function MemberDetailPage({
                 <div className="absolute left-0 top-[10px] bottom-[10px] w-px bg-border" />
                 {member.timeline.map((entry) => (
                   <div key={entry.id} className="relative mb-6 last:mb-0">
-                    <div className="absolute -left-[29.7px] top-1 h-3 w-3 rounded-full border-2 border-primary bg-background" />
+                    <div className="absolute -left-[29.7px] top-1 size-3 rounded-full border-2 border-primary bg-background" />
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
                         <Badge
@@ -321,7 +321,7 @@ function ProfileField({
 
   return (
     <div className="flex items-start gap-3">
-      <Icon className="mt-3.5 h-4 w-4 shrink-0 text-muted-foreground" />
+      <Icon className="mt-3.5 size-4 shrink-0 text-muted-foreground" />
       <div className="flex flex-col">
         <dt className="text-xs text-muted-foreground">{label}</dt>
         <dd className="text-sm">

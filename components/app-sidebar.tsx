@@ -123,7 +123,7 @@ function NavSection({
                     tooltip="Hamarosan"
                     className="opacity-50"
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="size-4" />
                     <span>{item.title}</span>
                   </SidebarMenuButton>
                 ) : (
@@ -134,7 +134,7 @@ function NavSection({
                     className="data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:hover:bg-primary/90 data-[active=true]:hover:text-primary-foreground"
                   >
                     <Link href={item.url}>
-                      <Icon className="h-4 w-4" />
+                      <Icon className="size-4" />
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>

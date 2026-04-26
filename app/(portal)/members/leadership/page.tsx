@@ -62,7 +62,7 @@ export default async function LeadershipPage() {
                   href={`/members/${m.id}`}
                   className="group flex flex-col items-center gap-2"
                 >
-                  <Avatar className="h-20 w-20">
+                  <Avatar className="size-20">
                     {m.avatarUrl && (
                       <AvatarImage
                         src={m.avatarUrl}

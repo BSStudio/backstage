@@ -58,7 +58,7 @@ export function MemberEditButton({
     <>
       <div className="flex gap-2">
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-          <Pencil className="mr-2 h-4 w-4" />
+          <Pencil className="mr-2 size-4" />
           Szerkesztés
         </Button>
         {canArchive && !member.archived && (
@@ -69,9 +69,9 @@ export function MemberEditButton({
             onClick={() => setArchiveOpen(true)}
           >
             {isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-2 size-4 animate-spin" />
             ) : (
-              <Archive className="mr-2 h-4 w-4" />
+              <Archive className="mr-2 size-4" />
             )}
             Archiválás
           </Button>

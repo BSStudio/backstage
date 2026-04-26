@@ -41,7 +41,7 @@ export default async function MembersPage() {
         {canManage && (
           <Button asChild>
             <Link href="/members/new">
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-2 size-4" />
               Új tag
             </Link>
           </Button>
