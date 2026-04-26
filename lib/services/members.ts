@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type {
   MembershipStatus,
+  Prisma,
   PrismaClient,
 } from "@/app/generated/prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -88,37 +89,39 @@ export async function createMember(
   const data = parsed.data;
 
   // TODO: ID will come from Authentik when sync is implemented
-  const member = await prisma.member.create({
-    data: {
-      id: crypto.randomUUID(),
-      firstName: data.firstName,
-      lastName: data.lastName,
-      nickname: data.nickname || null,
-      email: data.email,
-      mobile: data.mobile || null,
-      university: data.university || null,
-      major: data.major || null,
-      dormRoom: data.dormRoom || null,
-      joinedSemester: currentSemester(),
-    },
-  });
+  const id = crypto.randomUUID();
 
-  await prisma.timelineEntry.create({
-    data: {
-      memberId: member.id,
-      action: "MEMBER_CREATED",
-      status: member.status,
-    },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      actorId: actor.id,
-      targetId: member.id,
-      action: "MEMBER_CREATED",
-      diff: { created: data } as object,
-    },
-  });
+  const [member] = await prisma.$transaction([
+    prisma.member.create({
+      data: {
+        id,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        nickname: data.nickname || null,
+        email: data.email,
+        mobile: data.mobile || null,
+        university: data.university || null,
+        major: data.major || null,
+        dormRoom: data.dormRoom || null,
+        joinedSemester: currentSemester(),
+      },
+    }),
+    prisma.timelineEntry.create({
+      data: {
+        memberId: id,
+        action: "MEMBER_CREATED",
+        status: "MEMBER_CANDIDATE_CANDIDATE",
+      },
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        targetId: id,
+        action: "MEMBER_CREATED",
+        diff: { created: data } as object,
+      },
+    }),
+  ]);
 
   return member;
 }
@@ -170,52 +173,60 @@ export async function updateMember(
 
   if (Object.keys(diff).length === 0) return member;
 
-  const updated = await prisma.member.update({ where: { id }, data });
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.member.update({ where: { id }, data });
 
-  // Timeline entry for status changes
-  if (statusChanging) {
-    await prisma.timelineEntry.create({
-      data: {
-        memberId: member.id,
-        action: "STATUS_CHANGED",
-        status: data.status,
-      },
-    });
-  }
+    const sideEffects: Prisma.PrismaPromise<unknown>[] = [];
 
-  // Audit log - separate entries for status changes and field updates
-  if (statusChanging) {
-    const { status: statusDiff, ...fieldDiff } = diff;
-    await prisma.auditLog.create({
-      data: {
-        actorId: actor.id,
-        targetId: member.id,
-        action: "STATUS_CHANGED",
-        diff: { status: statusDiff } as object,
-      },
-    });
-    if (Object.keys(fieldDiff).length > 0) {
-      await prisma.auditLog.create({
-        data: {
-          actorId: actor.id,
-          targetId: member.id,
-          action: "MEMBER_UPDATED",
-          diff: fieldDiff as object,
-        },
-      });
+    if (statusChanging) {
+      sideEffects.push(
+        tx.timelineEntry.create({
+          data: {
+            memberId: member.id,
+            action: "STATUS_CHANGED",
+            status: data.status,
+          },
+        }),
+      );
+      const { status: statusDiff, ...fieldDiff } = diff;
+      sideEffects.push(
+        tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            targetId: member.id,
+            action: "STATUS_CHANGED",
+            diff: { status: statusDiff } as object,
+          },
+        }),
+      );
+      if (Object.keys(fieldDiff).length > 0) {
+        sideEffects.push(
+          tx.auditLog.create({
+            data: {
+              actorId: actor.id,
+              targetId: member.id,
+              action: "MEMBER_UPDATED",
+              diff: fieldDiff as object,
+            },
+          }),
+        );
+      }
+    } else {
+      sideEffects.push(
+        tx.auditLog.create({
+          data: {
+            actorId: actor.id,
+            targetId: member.id,
+            action: "MEMBER_UPDATED",
+            diff: diff as object,
+          },
+        }),
+      );
     }
-  } else {
-    await prisma.auditLog.create({
-      data: {
-        actorId: actor.id,
-        targetId: member.id,
-        action: "MEMBER_UPDATED",
-        diff: diff as object,
-      },
-    });
-  }
 
-  return updated;
+    await Promise.all(sideEffects);
+    return updated;
+  });
 }
 
 export async function archiveMember(
@@ -226,23 +237,23 @@ export async function archiveMember(
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) throw new NotFoundError();
 
-  await prisma.member.update({
-    where: { id },
-    data: { archived: true, archivedAt: new Date() },
-  });
-
-  await prisma.timelineEntry.create({
-    data: { memberId: member.id, action: "MEMBER_ARCHIVED" },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      actorId: actor.id,
-      targetId: member.id,
-      action: "MEMBER_ARCHIVED",
-      diff: { archived: { old: false, new: true } },
-    },
-  });
+  await prisma.$transaction([
+    prisma.member.update({
+      where: { id },
+      data: { archived: true, archivedAt: new Date() },
+    }),
+    prisma.timelineEntry.create({
+      data: { memberId: member.id, action: "MEMBER_ARCHIVED" },
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        targetId: member.id,
+        action: "MEMBER_ARCHIVED",
+        diff: { archived: { old: false, new: true } },
+      },
+    }),
+  ]);
 }
 
 export async function batchArchive(
@@ -255,27 +266,28 @@ export async function batchArchive(
   });
 
   const now = new Date();
+  const memberIds = members.map((m) => m.id);
 
-  await prisma.member.updateMany({
-    where: { id: { in: members.map((m) => m.id) } },
-    data: { archived: true, archivedAt: now },
-  });
-
-  await prisma.timelineEntry.createMany({
-    data: members.map((m) => ({
-      memberId: m.id,
-      action: "MEMBER_ARCHIVED" as const,
-    })),
-  });
-
-  await prisma.auditLog.createMany({
-    data: members.map((m) => ({
-      actorId: actor.id,
-      targetId: m.id,
-      action: "MEMBER_ARCHIVED" as const,
-      diff: { archived: { old: false, new: true } },
-    })),
-  });
+  await prisma.$transaction([
+    prisma.member.updateMany({
+      where: { id: { in: memberIds } },
+      data: { archived: true, archivedAt: now },
+    }),
+    prisma.timelineEntry.createMany({
+      data: members.map((m) => ({
+        memberId: m.id,
+        action: "MEMBER_ARCHIVED" as const,
+      })),
+    }),
+    prisma.auditLog.createMany({
+      data: members.map((m) => ({
+        actorId: actor.id,
+        targetId: m.id,
+        action: "MEMBER_ARCHIVED" as const,
+        diff: { archived: { old: false, new: true } },
+      })),
+    }),
+  ]);
 
   return { count: members.length };
 }
@@ -291,27 +303,29 @@ export async function batchUpdateStatus(
     where: { id: { in: ids }, archived: false, status: { not: status } },
   });
 
-  await prisma.member.updateMany({
-    where: { id: { in: members.map((m) => m.id) } },
-    data: { status },
-  });
+  const memberIds = members.map((m) => m.id);
 
-  await prisma.timelineEntry.createMany({
-    data: members.map((m) => ({
-      memberId: m.id,
-      action: "STATUS_CHANGED" as const,
-      status,
-    })),
-  });
-
-  await prisma.auditLog.createMany({
-    data: members.map((m) => ({
-      actorId: actor.id,
-      targetId: m.id,
-      action: "STATUS_CHANGED" as const,
-      diff: { status: { old: m.status, new: status } },
-    })),
-  });
+  await prisma.$transaction([
+    prisma.member.updateMany({
+      where: { id: { in: memberIds } },
+      data: { status },
+    }),
+    prisma.timelineEntry.createMany({
+      data: members.map((m) => ({
+        memberId: m.id,
+        action: "STATUS_CHANGED" as const,
+        status,
+      })),
+    }),
+    prisma.auditLog.createMany({
+      data: members.map((m) => ({
+        actorId: actor.id,
+        targetId: m.id,
+        action: "STATUS_CHANGED" as const,
+        diff: { status: { old: m.status, new: status } },
+      })),
+    }),
+  ]);
 
   return { count: members.length };
 }
@@ -342,47 +356,47 @@ export async function assignRole(
 
     if (!labelChanged && !groupsChanged) return;
 
-    await prisma.leadershipRole.update({
-      where: { memberId },
-      data: { label, authentikGroupIds },
-    });
-
-    await prisma.timelineEntry.create({
-      data: { memberId, action: "ROLE_CHANGED", roleLabel: label },
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        actorId: actor.id,
-        targetId: memberId,
-        action: "ROLE_CHANGED",
-        diff: {
-          label: { old: oldLabel, new: label },
-          authentikGroupIds: { old: oldGroupIds, new: authentikGroupIds },
+    await prisma.$transaction([
+      prisma.leadershipRole.update({
+        where: { memberId },
+        data: { label, authentikGroupIds },
+      }),
+      prisma.timelineEntry.create({
+        data: { memberId, action: "ROLE_CHANGED", roleLabel: label },
+      }),
+      prisma.auditLog.create({
+        data: {
+          actorId: actor.id,
+          targetId: memberId,
+          action: "ROLE_CHANGED",
+          diff: {
+            label: { old: oldLabel, new: label },
+            authentikGroupIds: { old: oldGroupIds, new: authentikGroupIds },
+          },
         },
-      },
-    });
+      }),
+    ]);
   } else {
     // Create new role
-    await prisma.leadershipRole.create({
-      data: { memberId, label, authentikGroupIds },
-    });
-
-    await prisma.timelineEntry.create({
-      data: { memberId, action: "ROLE_ASSIGNED", roleLabel: label },
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        actorId: actor.id,
-        targetId: memberId,
-        action: "ROLE_ASSIGNED",
-        diff: {
-          label: { old: null, new: label },
-          authentikGroupIds: { old: null, new: authentikGroupIds },
+    await prisma.$transaction([
+      prisma.leadershipRole.create({
+        data: { memberId, label, authentikGroupIds },
+      }),
+      prisma.timelineEntry.create({
+        data: { memberId, action: "ROLE_ASSIGNED", roleLabel: label },
+      }),
+      prisma.auditLog.create({
+        data: {
+          actorId: actor.id,
+          targetId: memberId,
+          action: "ROLE_ASSIGNED",
+          diff: {
+            label: { old: null, new: label },
+            authentikGroupIds: { old: null, new: authentikGroupIds },
+          },
         },
-      },
-    });
+      }),
+    ]);
   }
 }
 
@@ -400,18 +414,18 @@ export async function removeRole(
 
   const oldLabel = member.leadershipRole.label;
 
-  await prisma.leadershipRole.delete({ where: { memberId } });
-
-  await prisma.timelineEntry.create({
-    data: { memberId, action: "ROLE_REMOVED", roleLabel: oldLabel },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      actorId: actor.id,
-      targetId: memberId,
-      action: "ROLE_REMOVED",
-      diff: { label: { old: oldLabel, new: null } },
-    },
-  });
+  await prisma.$transaction([
+    prisma.leadershipRole.delete({ where: { memberId } }),
+    prisma.timelineEntry.create({
+      data: { memberId, action: "ROLE_REMOVED", roleLabel: oldLabel },
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        targetId: memberId,
+        action: "ROLE_REMOVED",
+        diff: { label: { old: oldLabel, new: null } },
+      },
+    }),
+  ]);
 }
