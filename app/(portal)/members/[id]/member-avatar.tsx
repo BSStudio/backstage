@@ -1,12 +1,19 @@
 "use client";
 
 import { Camera, Trash2, Upload } from "lucide-react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useAvatar } from "@/components/avatar-context";
-import { AvatarCropDialog } from "@/components/avatar-crop-dialog";
+
+const AvatarCropDialog = dynamic(
+  () =>
+    import("@/components/avatar-crop-dialog").then((m) => m.AvatarCropDialog),
+  { ssr: false },
+);
+
 import {
   AlertDialog,
   AlertDialogCancel,
