@@ -1,6 +1,7 @@
 import { NotFoundContent } from "@/components/not-found-content";
 import { PortalShell } from "@/components/portal-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
+import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
 export default async function NotFound() {
@@ -17,8 +18,13 @@ export default async function NotFound() {
     );
   }
 
+  const member = await prisma.member.findUnique({
+    where: { id: session.user.id },
+    select: { avatarUrl: true },
+  });
+
   return (
-    <PortalShell session={session}>
+    <PortalShell session={session} avatarUrl={member?.avatarUrl ?? null}>
       <NotFoundContent />
     </PortalShell>
   );
