@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { AuditDiff } from "@/components/audit-diff";
 import { BreadcrumbOverride } from "@/components/breadcrumb-context";
 import { Badge } from "@/components/ui/badge";
@@ -32,16 +33,23 @@ import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
 import { MemberAvatar } from "./member-avatar";
 import { MemberEditButton } from "./member-edit-button";
 
+const getMemberById = cache((id: string) =>
+  prisma.member.findUnique({
+    where: { id },
+    include: {
+      leadershipRole: true,
+      timeline: { orderBy: { createdAt: "desc" } },
+    },
+  }),
+);
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const member = await prisma.member.findUnique({
-    where: { id },
-    select: { lastName: true, firstName: true },
-  });
+  const member = await getMemberById(id);
   if (!member) return { title: "Tag - Backstage" };
   return { title: `${member.lastName} ${member.firstName} - Backstage` };
 }
@@ -59,13 +67,7 @@ export default async function MemberDetailPage({
   const isSelf = session?.user.id === id;
   const canEdit = isSelf || isLeaderOrAdmin;
 
-  const member = await prisma.member.findUnique({
-    where: { id },
-    include: {
-      leadershipRole: true,
-      timeline: { orderBy: { createdAt: "desc" } },
-    },
-  });
+  const member = await getMemberById(id);
 
   if (!member) notFound();
 
