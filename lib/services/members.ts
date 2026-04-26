@@ -5,6 +5,10 @@ import type {
   PrismaClient,
 } from "@/app/generated/prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import {
+  createAuthentikUser,
+  orchestrateDeactivate,
+} from "@/lib/sync/authentik/orchestrators";
 import { currentSemester, MEMBERSHIP_STATUSES, type UserRole } from "@/types";
 
 // ─── Validation schemas ──────────────────────────────────────────────────────
@@ -87,14 +91,20 @@ export async function createMember(
   if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
 
   const data = parsed.data;
+  const status: MembershipStatus = "MEMBER_CANDIDATE_CANDIDATE";
 
-  // TODO: ID will come from Authentik when sync is implemented
-  const id = crypto.randomUUID();
+  const authentikUser = await createAuthentikUser({
+    firstName: data.firstName,
+    lastName: data.lastName,
+    email: data.email,
+    mobile: data.mobile ?? null,
+    status,
+  });
 
   const [member] = await prisma.$transaction([
     prisma.member.create({
       data: {
-        id,
+        id: authentikUser.uuid,
         firstName: data.firstName,
         lastName: data.lastName,
         nickname: data.nickname || null,
@@ -103,27 +113,43 @@ export async function createMember(
         university: data.university || null,
         major: data.major || null,
         dormRoom: data.dormRoom || null,
+        status,
         joinedSemester: currentSemester(),
       },
     }),
     prisma.timelineEntry.create({
       data: {
-        memberId: id,
+        memberId: authentikUser.uuid,
         action: "MEMBER_CREATED",
-        status: "MEMBER_CANDIDATE_CANDIDATE",
+        status,
       },
     }),
     prisma.auditLog.create({
       data: {
         actorId: actor.id,
-        targetId: id,
+        targetId: authentikUser.uuid,
         action: "MEMBER_CREATED",
         diff: { created: data } as object,
       },
     }),
+    prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "CREATE_USER",
+        memberId: authentikUser.uuid,
+        payload: {
+          username: authentikUser.username,
+          name: authentikUser.name,
+          email: authentikUser.email,
+        },
+        status: "SUCCESS",
+        attempts: 1,
+        result: authentikUser as object,
+      },
+    }),
   ]);
 
-  return member;
+  return { member, syncErrors: [] as string[] };
 }
 
 export async function updateMember(
@@ -254,6 +280,11 @@ export async function archiveMember(
       },
     }),
   ]);
+
+  const syncResult = await orchestrateDeactivate(prisma, member.id);
+  return {
+    syncErrors: syncResult.success ? [] : [syncResult.error],
+  };
 }
 
 export async function batchArchive(

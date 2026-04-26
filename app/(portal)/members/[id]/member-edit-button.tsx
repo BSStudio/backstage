@@ -49,7 +49,13 @@ export function MemberEditButton({
         toast.error(result.error);
         return;
       }
-      toast.success("Tag archiválva");
+      if (result.syncErrors && result.syncErrors.length > 0) {
+        toast.warning(
+          `Tag archiválva, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
+        );
+      } else {
+        toast.success("Tag archiválva");
+      }
       router.push("/members");
     });
   }

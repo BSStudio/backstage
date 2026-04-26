@@ -21,10 +21,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const member = await createMember(prisma, body, {
+    const { member, syncErrors } = await createMember(prisma, body, {
       id: session.user.id,
       role: session.user.role as "ADMIN" | "LEADER",
     });
+    /* v8 ignore next 3 -- createMember currently throws on Authentik failure (no partial-success path); branch preserved for future orchestrations */
+    if (syncErrors.length > 0) {
+      return NextResponse.json({ member, syncErrors }, { status: 207 });
+    }
     return NextResponse.json(member, { status: 201 });
   } catch (error) {
     return mapServiceError(error);

@@ -43,10 +43,13 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   try {
     const { id } = await params;
-    await archiveMember(prisma, id, {
+    const { syncErrors } = await archiveMember(prisma, id, {
       id: session.user.id,
       role: session.user.role as "ADMIN" | "LEADER",
     });
+    if (syncErrors.length > 0) {
+      return NextResponse.json({ archived: true, syncErrors }, { status: 207 });
+    }
     return NextResponse.json({ archived: true });
   } catch (error) {
     return mapServiceError(error);

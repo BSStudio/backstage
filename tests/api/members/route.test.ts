@@ -9,6 +9,24 @@ beforeEach(async () => {
   vi.resetModules();
   mockPrisma();
 
+  vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
+    createAuthentikUser: vi.fn(async (data) => ({
+      pk: 1,
+      uuid: `authentik-${data.email}`,
+      username: data.email.split("@")[0],
+      name: `${data.lastName} ${data.firstName}`,
+      email: data.email,
+      is_active: true,
+      path: "users",
+      attributes: {},
+      groups: [],
+    })),
+    orchestrateDeactivate: vi.fn(async () => ({
+      success: true,
+      result: null,
+    })),
+  }));
+
   const prisma = getTestPrisma();
   await prisma.member.upsert({
     where: { id: ACTOR_ID },

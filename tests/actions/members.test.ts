@@ -74,10 +74,17 @@ describe("createMemberAction", () => {
 
   it("returns success and revalidates on creation", async () => {
     mockGetSession.mockResolvedValue(session("LEADER"));
-    mockCreateMember.mockResolvedValue({ id: "new-id" });
+    mockCreateMember.mockResolvedValue({
+      member: { id: "new-id" },
+      syncErrors: [],
+    });
     const { createMemberAction } = await import("@/lib/actions/members");
     const result = await createMemberAction({ firstName: "A" });
-    expect(result).toEqual({ success: true, data: { id: "new-id" } });
+    expect(result).toEqual({
+      success: true,
+      data: { id: "new-id" },
+      syncErrors: [],
+    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
   });
 });
@@ -164,10 +171,14 @@ describe("archiveMemberAction", () => {
 
   it("returns success and revalidates on archive", async () => {
     mockGetSession.mockResolvedValue(session("LEADER"));
-    mockArchiveMember.mockResolvedValue(undefined);
+    mockArchiveMember.mockResolvedValue({ syncErrors: [] });
     const { archiveMemberAction } = await import("@/lib/actions/members");
     const result = await archiveMemberAction("m-1");
-    expect(result).toEqual({ success: true, data: { archived: true } });
+    expect(result).toEqual({
+      success: true,
+      data: { archived: true },
+      syncErrors: [],
+    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
   });
 });

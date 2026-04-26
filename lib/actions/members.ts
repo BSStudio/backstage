@@ -20,7 +20,7 @@ import type { UserRole } from "@/types";
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 type ActionResult<T = unknown> =
-  | { success: true; data: T }
+  | { success: true; data: T; syncErrors?: string[] }
   | { success: false; error: string };
 
 function actorFromSession(session: {
@@ -55,9 +55,13 @@ export async function createMemberAction(
   }
 
   try {
-    const member = await createMember(prisma, input, actorFromSession(session));
+    const { member, syncErrors } = await createMember(
+      prisma,
+      input,
+      actorFromSession(session),
+    );
     revalidatePath("/members");
-    return { success: true, data: member };
+    return { success: true, data: member, syncErrors };
   } catch (error) {
     return mapError(error);
   }
@@ -95,9 +99,13 @@ export async function archiveMemberAction(id: string): Promise<ActionResult> {
   }
 
   try {
-    await archiveMember(prisma, id, actorFromSession(session));
+    const { syncErrors } = await archiveMember(
+      prisma,
+      id,
+      actorFromSession(session),
+    );
     revalidatePath("/members");
-    return { success: true, data: { archived: true } };
+    return { success: true, data: { archived: true }, syncErrors };
   } catch (error) {
     return mapError(error);
   }

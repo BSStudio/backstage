@@ -1,4 +1,17 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockCreateAuthentikUser, mockOrchestrateDeactivate } = vi.hoisted(
+  () => ({
+    mockCreateAuthentikUser: vi.fn(),
+    mockOrchestrateDeactivate: vi.fn(),
+  }),
+);
+
+vi.mock("@/lib/sync/authentik/orchestrators", () => ({
+  createAuthentikUser: mockCreateAuthentikUser,
+  orchestrateDeactivate: mockOrchestrateDeactivate,
+}));
+
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { Actor } from "@/lib/services/members";
 import {
@@ -20,7 +33,27 @@ const MEMBER_ACTOR: Actor = { id: "test-member-id", role: "MEMBER" };
 
 const MEMBER_ID = "test-member-id";
 
+let nextAuthentikUuid = 0;
+
 beforeEach(async () => {
+  vi.clearAllMocks();
+  nextAuthentikUuid = 0;
+  mockCreateAuthentikUser.mockImplementation((data: { email: string }) => {
+    nextAuthentikUuid++;
+    return Promise.resolve({
+      pk: nextAuthentikUuid,
+      uuid: `authentik-uuid-${nextAuthentikUuid}`,
+      username: data.email.split("@")[0],
+      name: "Authentik User",
+      email: data.email,
+      is_active: true,
+      path: "users",
+      attributes: {},
+      groups: [],
+    });
+  });
+  mockOrchestrateDeactivate.mockResolvedValue({ success: true, result: null });
+
   const prisma = getTestPrisma();
 
   // Actor record (needed for audit log FK)
@@ -151,7 +184,7 @@ describe("createMember", () => {
     const prisma = getTestPrisma();
     const { currentSemester } = await import("@/types");
 
-    const member = await createMember(
+    const { member, syncErrors } = await createMember(
       prisma,
       {
         firstName: "New",
@@ -165,6 +198,29 @@ describe("createMember", () => {
       },
       ACTOR,
     );
+
+    expect(syncErrors).toEqual([]);
+    expect(mockCreateAuthentikUser).toHaveBeenCalledWith({
+      firstName: "New",
+      lastName: "Member",
+      email: "new@test.com",
+      mobile: "+36301234567",
+      status: "MEMBER_CANDIDATE_CANDIDATE",
+    });
+
+    // Member id should match Authentik uuid
+    expect(member.id).toMatch(/^authentik-uuid-/);
+
+    // SyncJob recorded as SUCCESS
+    const syncJobs = await prisma.syncJob.findMany({
+      where: { memberId: member.id },
+    });
+    expect(syncJobs).toHaveLength(1);
+    expect(syncJobs[0]).toMatchObject({
+      operation: "CREATE_USER",
+      status: "SUCCESS",
+      attempts: 1,
+    });
 
     expect(member).toMatchObject({
       firstName: "New",
@@ -229,7 +285,7 @@ describe("createMember", () => {
 
   it("stores null for empty optional fields", async () => {
     const prisma = getTestPrisma();
-    const member = await createMember(
+    const { member } = await createMember(
       prisma,
       {
         firstName: "Minimal",
@@ -253,7 +309,7 @@ describe("createMember", () => {
 
   it("ignores unknown fields in input", async () => {
     const prisma = getTestPrisma();
-    const member = await createMember(
+    const { member } = await createMember(
       prisma,
       {
         firstName: "Test",
@@ -551,7 +607,11 @@ describe("archiveMember", () => {
 
   it("archives member with timeline and audit log", async () => {
     const prisma = getTestPrisma();
-    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    const result = await archiveMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.syncErrors).toEqual([]);
+    expect(mockOrchestrateDeactivate).toHaveBeenCalledTimes(1);
+    expect(mockOrchestrateDeactivate.mock.calls[0][1]).toBe(MEMBER_ID);
 
     const member = await prisma.member.findUnique({
       where: { id: MEMBER_ID },
@@ -574,6 +634,23 @@ describe("archiveMember", () => {
       actorId: ACTOR.id,
       diff: { archived: { old: false, new: true } },
     });
+  });
+
+  it("returns syncErrors when Authentik deactivation fails", async () => {
+    const prisma = getTestPrisma();
+    mockOrchestrateDeactivate.mockResolvedValueOnce({
+      success: false,
+      error: "Authentik unreachable",
+    });
+
+    const result = await archiveMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.syncErrors).toEqual(["Authentik unreachable"]);
+    // DB write still happened
+    const member = await prisma.member.findUnique({
+      where: { id: MEMBER_ID },
+    });
+    expect(member?.archived).toBe(true);
   });
 });
 

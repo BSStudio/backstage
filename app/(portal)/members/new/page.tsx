@@ -27,7 +27,13 @@ export default function NewMemberPage() {
         toast.error(result.error);
         return;
       }
-      toast.success("Tag hozzáadva");
+      if (result.syncErrors && result.syncErrors.length > 0) {
+        toast.warning(
+          `Tag hozzáadva, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
+        );
+      } else {
+        toast.success("Tag hozzáadva");
+      }
       router.push("/members");
     });
   };

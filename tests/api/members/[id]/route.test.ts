@@ -10,6 +10,14 @@ beforeEach(async () => {
   vi.resetModules();
   mockPrisma();
 
+  vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
+    createAuthentikUser: vi.fn(),
+    orchestrateDeactivate: vi.fn(async () => ({
+      success: true,
+      result: null,
+    })),
+  }));
+
   const prisma = getTestPrisma();
 
   await prisma.member.upsert({
@@ -152,5 +160,24 @@ describe("DELETE /api/members/[id]", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({ archived: true });
+  });
+
+  it("returns 207 with syncErrors when Authentik deactivation fails", async () => {
+    mockSession({ id: ACTOR_ID, role: "LEADER" });
+    vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
+      createAuthentikUser: vi.fn(),
+      orchestrateDeactivate: vi.fn(async () => ({
+        success: false,
+        error: "Authentik unreachable",
+      })),
+    }));
+    const { DELETE } = await import("@/app/api/members/[id]/route");
+    const res = await DELETE(...reqWithParams(MEMBER_ID));
+    expect(res.status).toBe(207);
+    const body = await res.json();
+    expect(body).toEqual({
+      archived: true,
+      syncErrors: ["Authentik unreachable"],
+    });
   });
 });
