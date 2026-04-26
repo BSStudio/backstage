@@ -168,7 +168,7 @@ export const statusWithArchivedColumn: ColumnDef<MemberRow> = {
         {statusBadge(status)}
         <Badge
           variant="outline"
-          className="bg-status-archived/15 text-status-archived border-status-archived/40 dark:bg-status-archived/20 dark:border-status-archived/30"
+          className="bg-status-archived/15 text-status-archived border-status-archived/40"
         >
           Archivált
         </Badge>

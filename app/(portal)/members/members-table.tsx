@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   avatarColumn,
@@ -60,7 +60,10 @@ export function MembersTable({
   members: MemberRow[];
   canManage: boolean;
 }) {
-  const columns = canManage ? [selectColumn, ...baseColumns] : baseColumns;
+  const columns = useMemo(
+    () => (canManage ? [selectColumn, ...baseColumns] : baseColumns),
+    [canManage],
+  );
   const [isPending, startTransition] = useTransition();
   const [pendingAction, setPendingAction] = useState<
     "status" | "archive" | null
