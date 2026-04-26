@@ -25,6 +25,11 @@ beforeEach(async () => {
       success: true,
       result: null,
     })),
+    orchestrateUpdateAttributes: vi.fn(async () => ({
+      success: true,
+      result: null,
+    })),
+    orchestrateStatusChange: vi.fn(async () => []),
   }));
 
   const prisma = getTestPrisma();

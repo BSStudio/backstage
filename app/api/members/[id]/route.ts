@@ -27,11 +27,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const updated = await updateMember(prisma, id, body, {
+    const { member, syncErrors } = await updateMember(prisma, id, body, {
       id: session.user.id,
       role: session.user.role as "ADMIN" | "LEADER" | "MEMBER",
     });
-    return NextResponse.json(updated);
+    if (syncErrors.length > 0) {
+      return NextResponse.json({ member, syncErrors }, { status: 207 });
+    }
+    return NextResponse.json(member);
   } catch (error) {
     return mapServiceError(error);
   }

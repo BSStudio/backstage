@@ -75,7 +75,7 @@ export async function updateMemberAction(
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
   try {
-    const updated = await updateMember(
+    const { member, syncErrors } = await updateMember(
       prisma,
       id,
       input,
@@ -83,7 +83,7 @@ export async function updateMemberAction(
     );
     revalidatePath("/members");
     revalidatePath(`/members/${id}`);
-    return { success: true, data: updated };
+    return { success: true, data: member, syncErrors };
   } catch (error) {
     return mapError(error);
   }

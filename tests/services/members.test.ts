@@ -1,15 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockCreateAuthentikUser, mockOrchestrateDeactivate } = vi.hoisted(
-  () => ({
-    mockCreateAuthentikUser: vi.fn(),
-    mockOrchestrateDeactivate: vi.fn(),
-  }),
-);
+const {
+  mockCreateAuthentikUser,
+  mockOrchestrateDeactivate,
+  mockOrchestrateUpdateAttributes,
+  mockOrchestrateStatusChange,
+} = vi.hoisted(() => ({
+  mockCreateAuthentikUser: vi.fn(),
+  mockOrchestrateDeactivate: vi.fn(),
+  mockOrchestrateUpdateAttributes: vi.fn(),
+  mockOrchestrateStatusChange: vi.fn(),
+}));
 
 vi.mock("@/lib/sync/authentik/orchestrators", () => ({
   createAuthentikUser: mockCreateAuthentikUser,
   orchestrateDeactivate: mockOrchestrateDeactivate,
+  orchestrateUpdateAttributes: mockOrchestrateUpdateAttributes,
+  orchestrateStatusChange: mockOrchestrateStatusChange,
 }));
 
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -53,6 +60,11 @@ beforeEach(async () => {
     });
   });
   mockOrchestrateDeactivate.mockResolvedValue({ success: true, result: null });
+  mockOrchestrateUpdateAttributes.mockResolvedValue({
+    success: true,
+    result: null,
+  });
+  mockOrchestrateStatusChange.mockResolvedValue([]);
 
   const prisma = getTestPrisma();
 
@@ -352,7 +364,7 @@ describe("updateMember", () => {
 
   it("allows member to edit themselves", async () => {
     const prisma = getTestPrisma();
-    const updated = await updateMember(
+    const { member: updated } = await updateMember(
       prisma,
       MEMBER_ID,
       { nickname: "Self" },
@@ -374,7 +386,7 @@ describe("updateMember", () => {
 
   it("allows leader to edit any member", async () => {
     const prisma = getTestPrisma();
-    const updated = await updateMember(
+    const { member: updated } = await updateMember(
       prisma,
       MEMBER_ID,
       { university: "BME", major: "VIK" },
@@ -387,7 +399,7 @@ describe("updateMember", () => {
 
   it("allows admin to edit any member", async () => {
     const prisma = getTestPrisma();
-    const updated = await updateMember(
+    const { member: updated } = await updateMember(
       prisma,
       MEMBER_ID,
       { nickname: "Admin Edit" },
@@ -406,7 +418,7 @@ describe("updateMember", () => {
     expect(before?.dormRoom).toBe("A301");
 
     // Then clear it by sending an empty string
-    const updated = await updateMember(
+    const { member: updated } = await updateMember(
       prisma,
       MEMBER_ID,
       { dormRoom: "" },
@@ -430,7 +442,7 @@ describe("updateMember", () => {
       ACTOR,
     );
 
-    const updated = await updateMember(
+    const { member: updated } = await updateMember(
       prisma,
       MEMBER_ID,
       { nickname: "", university: "", major: "" },
@@ -444,7 +456,7 @@ describe("updateMember", () => {
 
   it("returns unchanged member when no fields differ", async () => {
     const prisma = getTestPrisma();
-    const result = await updateMember(
+    const { member: result } = await updateMember(
       prisma,
       MEMBER_ID,
       { firstName: "Target" },
@@ -482,7 +494,7 @@ describe("updateMember", () => {
 
   it("allows leader to change status with timeline entry", async () => {
     const prisma = getTestPrisma();
-    const updated = await updateMember(
+    const { member: updated } = await updateMember(
       prisma,
       MEMBER_ID,
       { status: "MEMBER_CANDIDATE" },
@@ -515,7 +527,7 @@ describe("updateMember", () => {
 
   it("allows admin to change status", async () => {
     const prisma = getTestPrisma();
-    const updated = await updateMember(
+    const { member: updated } = await updateMember(
       prisma,
       MEMBER_ID,
       { status: "MEMBER" },
@@ -566,7 +578,7 @@ describe("updateMember", () => {
 
   it("strips websiteUsername when set by non-admin", async () => {
     const prisma = getTestPrisma();
-    const updated = await updateMember(
+    const { member: updated } = await updateMember(
       prisma,
       MEMBER_ID,
       { websiteUsername: "override", nickname: "Also Changed" },
@@ -579,7 +591,7 @@ describe("updateMember", () => {
 
   it("allows admin to set websiteUsername", async () => {
     const prisma = getTestPrisma();
-    const updated = await updateMember(
+    const { member: updated } = await updateMember(
       prisma,
       MEMBER_ID,
       { websiteUsername: "custom" },
@@ -592,6 +604,95 @@ describe("updateMember", () => {
       where: { id: MEMBER_ID },
     });
     expect(member?.websiteUsername).toBe("custom");
+  });
+
+  it("calls orchestrateUpdateAttributes when an Authentik-synced field changes", async () => {
+    const prisma = getTestPrisma();
+    await updateMember(
+      prisma,
+      MEMBER_ID,
+      { firstName: "Updated", mobile: "+36301111111" },
+      ACTOR,
+    );
+
+    expect(mockOrchestrateUpdateAttributes).toHaveBeenCalledTimes(1);
+    const args = mockOrchestrateUpdateAttributes.mock.calls[0];
+    expect(args[1]).toBe(MEMBER_ID);
+    expect(args[2]).toEqual({
+      name: "Updated Member",
+      email: "target@test.com",
+      attributes: {
+        first_name: "Updated",
+        last_name: "Member",
+        mobile: "+36301111111",
+      },
+    });
+    expect(mockOrchestrateStatusChange).not.toHaveBeenCalled();
+  });
+
+  it("includes avatar_url in attributes when member has one", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: { avatarUrl: "/avatars/target-square.webp" },
+    });
+
+    await updateMember(prisma, MEMBER_ID, { firstName: "Renamed" }, ACTOR);
+
+    expect(mockOrchestrateUpdateAttributes).toHaveBeenCalledTimes(1);
+    const args = mockOrchestrateUpdateAttributes.mock.calls[0];
+    expect(args[2].attributes).toEqual({
+      first_name: "Renamed",
+      last_name: "Member",
+      avatar_url: "/avatars/target-square.webp",
+    });
+  });
+
+  it("does not call orchestrateUpdateAttributes when only non-synced fields change", async () => {
+    const prisma = getTestPrisma();
+    await updateMember(
+      prisma,
+      MEMBER_ID,
+      { nickname: "Nicknamed", university: "BME" },
+      ACTOR,
+    );
+
+    expect(mockOrchestrateUpdateAttributes).not.toHaveBeenCalled();
+  });
+
+  it("calls orchestrateStatusChange on status change", async () => {
+    const prisma = getTestPrisma();
+    await updateMember(prisma, MEMBER_ID, { status: "MEMBER" }, ACTOR);
+
+    expect(mockOrchestrateStatusChange).toHaveBeenCalledTimes(1);
+    const args = mockOrchestrateStatusChange.mock.calls[0];
+    expect(args[1]).toBe(MEMBER_ID);
+    expect(args[2]).toBe("MEMBER_CANDIDATE_CANDIDATE");
+    expect(args[3]).toBe("MEMBER");
+  });
+
+  it("collects syncErrors from failed orchestrators", async () => {
+    const prisma = getTestPrisma();
+    mockOrchestrateUpdateAttributes.mockResolvedValueOnce({
+      success: false,
+      error: "attr sync failed",
+    });
+    mockOrchestrateStatusChange.mockResolvedValueOnce([
+      { success: false, error: "remove group failed" },
+      { success: true, result: null },
+    ]);
+
+    const result = await updateMember(
+      prisma,
+      MEMBER_ID,
+      { firstName: "X", status: "MEMBER" },
+      ACTOR,
+    );
+
+    expect(result.syncErrors).toEqual([
+      "attr sync failed",
+      "remove group failed",
+    ]);
   });
 });
 

@@ -131,7 +131,13 @@ export function MemberEditSheet({
         setPendingAction(null);
         return;
       }
-      toast.success("Adatok mentve");
+      if (result.syncErrors && result.syncErrors.length > 0) {
+        toast.warning(
+          `Adatok mentve, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
+        );
+      } else {
+        toast.success("Adatok mentve");
+      }
       onOpenChange(false);
       router.refresh();
     });

@@ -8,6 +8,8 @@ import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import {
   createAuthentikUser,
   orchestrateDeactivate,
+  orchestrateStatusChange,
+  orchestrateUpdateAttributes,
 } from "@/lib/sync/authentik/orchestrators";
 import { currentSemester, MEMBERSHIP_STATUSES, type UserRole } from "@/types";
 
@@ -52,6 +54,28 @@ export interface Actor {
   id: string;
   role: UserRole;
 }
+
+function buildAuthentikAttributes(
+  member: Pick<
+    Prisma.MemberGetPayload<Record<string, never>>,
+    "firstName" | "lastName" | "mobile" | "avatarUrl"
+  >,
+): Record<string, unknown> {
+  const attrs: Record<string, unknown> = {
+    first_name: member.firstName,
+    last_name: member.lastName,
+  };
+  if (member.mobile) attrs.mobile = member.mobile;
+  if (member.avatarUrl) attrs.avatar_url = member.avatarUrl;
+  return attrs;
+}
+
+const AUTHENTIK_SYNCED_FIELDS = new Set([
+  "firstName",
+  "lastName",
+  "email",
+  "mobile",
+]);
 
 // ─── Service functions ───────────────────────────────────────────────────────
 
@@ -197,9 +221,10 @@ export async function updateMember(
     }
   }
 
-  if (Object.keys(diff).length === 0) return member;
+  if (Object.keys(diff).length === 0)
+    return { member, syncErrors: [] as string[] };
 
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     const updated = await tx.member.update({ where: { id }, data });
 
     const sideEffects: Prisma.PrismaPromise<unknown>[] = [];
@@ -253,6 +278,36 @@ export async function updateMember(
     await Promise.all(sideEffects);
     return updated;
   });
+
+  const syncErrors: string[] = [];
+
+  // Sync Authentik attributes if any synced field changed
+  const syncedFieldChanged = Object.keys(diff).some((k) =>
+    AUTHENTIK_SYNCED_FIELDS.has(k),
+  );
+  if (syncedFieldChanged) {
+    const result = await orchestrateUpdateAttributes(prisma, member.id, {
+      name: `${updated.firstName} ${updated.lastName}`.trim(),
+      email: updated.email,
+      attributes: buildAuthentikAttributes(updated),
+    });
+    if (!result.success) syncErrors.push(result.error);
+  }
+
+  // Sync group membership on status change
+  if (statusChanging && data.status) {
+    const results = await orchestrateStatusChange(
+      prisma,
+      member.id,
+      member.status,
+      data.status,
+    );
+    for (const r of results) {
+      if (!r.success) syncErrors.push(r.error);
+    }
+  }
+
+  return { member: updated, syncErrors };
 }
 
 export async function archiveMember(

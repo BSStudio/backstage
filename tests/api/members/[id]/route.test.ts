@@ -16,6 +16,11 @@ beforeEach(async () => {
       success: true,
       result: null,
     })),
+    orchestrateUpdateAttributes: vi.fn(async () => ({
+      success: true,
+      result: null,
+    })),
+    orchestrateStatusChange: vi.fn(async () => []),
   }));
 
   const prisma = getTestPrisma();
@@ -126,6 +131,24 @@ describe("PATCH /api/members/[id]", () => {
     const { PATCH } = await import("@/app/api/members/[id]/route");
     const res = await PATCH(...patchReq(MEMBER_ID, { nickname: "Updated" }));
     expect(res.status).toBe(200);
+  });
+
+  it("returns 207 with syncErrors when Authentik attribute sync fails", async () => {
+    mockSession({ id: ACTOR_ID, role: "LEADER" });
+    vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
+      createAuthentikUser: vi.fn(),
+      orchestrateDeactivate: vi.fn(),
+      orchestrateUpdateAttributes: vi.fn(async () => ({
+        success: false,
+        error: "Authentik unreachable",
+      })),
+      orchestrateStatusChange: vi.fn(async () => []),
+    }));
+    const { PATCH } = await import("@/app/api/members/[id]/route");
+    const res = await PATCH(...patchReq(MEMBER_ID, { firstName: "Renamed" }));
+    expect(res.status).toBe(207);
+    const body = await res.json();
+    expect(body.syncErrors).toEqual(["Authentik unreachable"]);
   });
 });
 

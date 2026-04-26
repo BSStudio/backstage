@@ -125,12 +125,16 @@ describe("updateMemberAction", () => {
 
   it("returns success and revalidates on update", async () => {
     mockGetSession.mockResolvedValue(session("LEADER"));
-    mockUpdateMember.mockResolvedValue({ id: "m-1", nickname: "Updated" });
+    mockUpdateMember.mockResolvedValue({
+      member: { id: "m-1", nickname: "Updated" },
+      syncErrors: [],
+    });
     const { updateMemberAction } = await import("@/lib/actions/members");
     const result = await updateMemberAction("m-1", { nickname: "Updated" });
     expect(result).toEqual({
       success: true,
       data: { id: "m-1", nickname: "Updated" },
+      syncErrors: [],
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members/m-1");
