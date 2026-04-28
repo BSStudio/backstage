@@ -91,7 +91,13 @@ export function MemberEditSheet({
         setPendingAction(null);
         return;
       }
-      toast.success("Pozíció mentve");
+      if (result.syncErrors && result.syncErrors.length > 0) {
+        toast.warning(
+          `Pozíció mentve, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
+        );
+      } else {
+        toast.success("Pozíció mentve");
+      }
       onOpenChange(false);
       router.refresh();
     });
@@ -106,7 +112,13 @@ export function MemberEditSheet({
         setPendingAction(null);
         return;
       }
-      toast.success("Pozíció elvéve");
+      if (result.syncErrors && result.syncErrors.length > 0) {
+        toast.warning(
+          `Pozíció elvéve, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
+        );
+      } else {
+        toast.success("Pozíció elvéve");
+      }
       setRoleLabel("");
       setSelectedGroupIds([]);
       onOpenChange(false);

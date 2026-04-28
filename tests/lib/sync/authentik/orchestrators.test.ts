@@ -30,6 +30,7 @@ vi.mock("@/lib/authentik/groups", () => ({
 }));
 
 import {
+  buildAuthentikAttributes,
   createAuthentikUser,
   orchestrateAddToGroup,
   orchestrateDeactivate,
@@ -225,5 +226,60 @@ describe("orchestrateAddToGroup / orchestrateRemoveFromGroup", () => {
       where: { memberId: MEMBER_ID },
     });
     expect(jobs[0].operation).toBe("REMOVE_FROM_GROUP");
+  });
+});
+
+describe("buildAuthentikAttributes", () => {
+  it("includes first_name and last_name always", () => {
+    const attrs = buildAuthentikAttributes({
+      firstName: "János",
+      lastName: "Kovács",
+      mobile: null,
+      avatarUrl: null,
+    });
+    expect(attrs).toEqual({ first_name: "János", last_name: "Kovács" });
+  });
+
+  it("adds mobile when set", () => {
+    const attrs = buildAuthentikAttributes({
+      firstName: "A",
+      lastName: "B",
+      mobile: "+36301234567",
+      avatarUrl: null,
+    });
+    expect(attrs).toEqual({
+      first_name: "A",
+      last_name: "B",
+      mobile: "+36301234567",
+    });
+  });
+
+  it("adds avatar_url when set", () => {
+    const attrs = buildAuthentikAttributes({
+      firstName: "A",
+      lastName: "B",
+      mobile: null,
+      avatarUrl: "/avatars/x-square.webp",
+    });
+    expect(attrs).toEqual({
+      first_name: "A",
+      last_name: "B",
+      avatar_url: "/avatars/x-square.webp",
+    });
+  });
+
+  it("includes both mobile and avatar_url when set", () => {
+    const attrs = buildAuthentikAttributes({
+      firstName: "A",
+      lastName: "B",
+      mobile: "+36301234567",
+      avatarUrl: "/avatars/x-square.webp",
+    });
+    expect(attrs).toEqual({
+      first_name: "A",
+      last_name: "B",
+      mobile: "+36301234567",
+      avatar_url: "/avatars/x-square.webp",
+    });
   });
 });

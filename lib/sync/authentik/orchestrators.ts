@@ -7,6 +7,21 @@ import { deriveUsername } from "@/types";
 import { executeSyncJob, type SyncResult } from "../executor";
 import { getStatusGroupUuid } from "./group-mapping";
 
+export function buildAuthentikAttributes(member: {
+  firstName: string;
+  lastName: string;
+  mobile: string | null;
+  avatarUrl: string | null;
+}): Record<string, unknown> {
+  const attrs: Record<string, unknown> = {
+    first_name: member.firstName,
+    last_name: member.lastName,
+  };
+  if (member.mobile) attrs.mobile = member.mobile;
+  if (member.avatarUrl) attrs.avatar_url = member.avatarUrl;
+  return attrs;
+}
+
 export async function createAuthentikUser(data: {
   firstName: string;
   lastName: string;

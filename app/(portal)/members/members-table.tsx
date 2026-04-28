@@ -86,7 +86,13 @@ export function MembersTable({
       try {
         const result = await batchUpdateStatusAction(ids, status);
         if (result.success) {
-          toast.success(`${result.data.count} tag státusza módosítva`);
+          if (result.syncErrors && result.syncErrors.length > 0) {
+            toast.warning(
+              `${result.data.count} tag státusza módosítva, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
+            );
+          } else {
+            toast.success(`${result.data.count} tag státusza módosítva`);
+          }
         } else {
           toast.error(result.error);
         }
@@ -106,7 +112,13 @@ export function MembersTable({
       try {
         const result = await batchArchiveAction(ids);
         if (result.success) {
-          toast.success(`${result.data.count} tag archiválva`);
+          if (result.syncErrors && result.syncErrors.length > 0) {
+            toast.warning(
+              `${result.data.count} tag archiválva, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
+            );
+          } else {
+            toast.success(`${result.data.count} tag archiválva`);
+          }
         } else {
           toast.error(result.error);
         }

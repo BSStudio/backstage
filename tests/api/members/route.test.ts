@@ -30,6 +30,25 @@ beforeEach(async () => {
       result: null,
     })),
     orchestrateStatusChange: vi.fn(async () => []),
+    orchestrateAddToGroup: vi.fn(async () => ({
+      success: true,
+      result: null,
+    })),
+    orchestrateRemoveFromGroup: vi.fn(async () => ({
+      success: true,
+      result: null,
+    })),
+    buildAuthentikAttributes: (m: {
+      firstName: string;
+      lastName: string;
+      mobile: string | null;
+      avatarUrl: string | null;
+    }) => ({
+      first_name: m.firstName,
+      last_name: m.lastName,
+      ...(m.mobile ? { mobile: m.mobile } : {}),
+      ...(m.avatarUrl ? { avatar_url: m.avatarUrl } : {}),
+    }),
   }));
 
   const prisma = getTestPrisma();

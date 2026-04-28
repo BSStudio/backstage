@@ -84,8 +84,14 @@ export function MemberAvatar({
         return;
       }
 
-      const { avatarUrl: newUrl } = await res.json();
-      toast.success("Profilkép frissítve");
+      const { avatarUrl: newUrl, syncErrors = [] } = await res.json();
+      if (syncErrors.length > 0) {
+        toast.warning(
+          `Profilkép frissítve, de a szinkronizálás során hiba történt: ${syncErrors.join(", ")}`,
+        );
+      } else {
+        toast.success("Profilkép frissítve");
+      }
       setDeleted(false);
       const busted = `?v=${Date.now()}`;
       setCacheBuster(busted);
@@ -106,7 +112,14 @@ export function MemberAvatar({
         return;
       }
 
-      toast.success("Profilkép eltávolítva");
+      const { syncErrors = [] } = await res.json();
+      if (syncErrors.length > 0) {
+        toast.warning(
+          `Profilkép eltávolítva, de a szinkronizálás során hiba történt: ${syncErrors.join(", ")}`,
+        );
+      } else {
+        toast.success("Profilkép eltávolítva");
+      }
       setDeleted(true);
       setCacheBuster("");
       if (isSelf) setAvatarUrl(null);

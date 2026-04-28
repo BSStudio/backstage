@@ -5,11 +5,15 @@ const {
   mockOrchestrateDeactivate,
   mockOrchestrateUpdateAttributes,
   mockOrchestrateStatusChange,
+  mockOrchestrateAddToGroup,
+  mockOrchestrateRemoveFromGroup,
 } = vi.hoisted(() => ({
   mockCreateAuthentikUser: vi.fn(),
   mockOrchestrateDeactivate: vi.fn(),
   mockOrchestrateUpdateAttributes: vi.fn(),
   mockOrchestrateStatusChange: vi.fn(),
+  mockOrchestrateAddToGroup: vi.fn(),
+  mockOrchestrateRemoveFromGroup: vi.fn(),
 }));
 
 vi.mock("@/lib/sync/authentik/orchestrators", () => ({
@@ -17,6 +21,22 @@ vi.mock("@/lib/sync/authentik/orchestrators", () => ({
   orchestrateDeactivate: mockOrchestrateDeactivate,
   orchestrateUpdateAttributes: mockOrchestrateUpdateAttributes,
   orchestrateStatusChange: mockOrchestrateStatusChange,
+  orchestrateAddToGroup: mockOrchestrateAddToGroup,
+  orchestrateRemoveFromGroup: mockOrchestrateRemoveFromGroup,
+  buildAuthentikAttributes: (m: {
+    firstName: string;
+    lastName: string;
+    mobile: string | null;
+    avatarUrl: string | null;
+  }) => {
+    const attrs: Record<string, unknown> = {
+      first_name: m.firstName,
+      last_name: m.lastName,
+    };
+    if (m.mobile) attrs.mobile = m.mobile;
+    if (m.avatarUrl) attrs.avatar_url = m.avatarUrl;
+    return attrs;
+  },
 }));
 
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -65,6 +85,11 @@ beforeEach(async () => {
     result: null,
   });
   mockOrchestrateStatusChange.mockResolvedValue([]);
+  mockOrchestrateAddToGroup.mockResolvedValue({ success: true, result: null });
+  mockOrchestrateRemoveFromGroup.mockResolvedValue({
+    success: true,
+    result: null,
+  });
 
   const prisma = getTestPrisma();
 
@@ -772,7 +797,7 @@ describe("batchArchive", () => {
     });
 
     const result = await batchArchive(prisma, [MEMBER_ID, id2], ACTOR);
-    expect(result).toEqual({ count: 2 });
+    expect(result).toEqual({ count: 2, syncErrors: [] });
 
     const members = await prisma.member.findMany({
       where: { id: { in: [MEMBER_ID, id2] } },
@@ -797,7 +822,7 @@ describe("batchArchive", () => {
     });
 
     const result = await batchArchive(prisma, [MEMBER_ID, ACTOR.id], ACTOR);
-    expect(result).toEqual({ count: 1 });
+    expect(result).toEqual({ count: 1, syncErrors: [] });
 
     const timeline = await prisma.timelineEntry.findMany();
     expect(timeline).toHaveLength(1);
@@ -811,10 +836,22 @@ describe("batchArchive", () => {
     });
 
     const result = await batchArchive(prisma, [MEMBER_ID, ACTOR.id], ACTOR);
-    expect(result).toEqual({ count: 0 });
+    expect(result).toEqual({ count: 0, syncErrors: [] });
 
     const timeline = await prisma.timelineEntry.findMany();
     expect(timeline).toHaveLength(0);
+  });
+
+  it("collects syncErrors from failed deactivations", async () => {
+    const prisma = getTestPrisma();
+    mockOrchestrateDeactivate
+      .mockResolvedValueOnce({ success: false, error: "first failed" })
+      .mockResolvedValueOnce({ success: false, error: "second failed" });
+
+    const result = await batchArchive(prisma, [MEMBER_ID, ACTOR.id], ACTOR);
+
+    expect(result.count).toBe(2);
+    expect(result.syncErrors).toEqual(["first failed", "second failed"]);
   });
 });
 
@@ -829,7 +866,7 @@ describe("batchUpdateStatus", () => {
       "MEMBER_CANDIDATE",
       ACTOR,
     );
-    expect(result).toEqual({ count: 2 });
+    expect(result).toEqual({ count: 2, syncErrors: [] });
 
     const members = await prisma.member.findMany({
       where: { id: { in: [MEMBER_ID, ACTOR.id] } },
@@ -868,7 +905,7 @@ describe("batchUpdateStatus", () => {
       ACTOR,
     );
     // Only ACTOR.id should be updated (was MEMBER_CANDIDATE_CANDIDATE)
-    expect(result).toEqual({ count: 1 });
+    expect(result).toEqual({ count: 1, syncErrors: [] });
 
     const timeline = await prisma.timelineEntry.findMany();
     expect(timeline).toHaveLength(1);
@@ -888,8 +925,26 @@ describe("batchUpdateStatus", () => {
       "MEMBER",
       ACTOR,
     );
-    expect(result).toEqual({ count: 1 });
+    expect(result).toEqual({ count: 1, syncErrors: [] });
     expect((await prisma.timelineEntry.findMany())[0].memberId).toBe(ACTOR.id);
+  });
+
+  it("collects syncErrors from failed status changes", async () => {
+    const prisma = getTestPrisma();
+    mockOrchestrateStatusChange.mockResolvedValueOnce([
+      { success: false, error: "remove failed" },
+      { success: true, result: null },
+    ]);
+
+    const result = await batchUpdateStatus(
+      prisma,
+      [MEMBER_ID],
+      "MEMBER",
+      ACTOR,
+    );
+
+    expect(result.count).toBe(1);
+    expect(result.syncErrors).toEqual(["remove failed"]);
   });
 });
 
@@ -1136,6 +1191,24 @@ describe("assignRole", () => {
       },
     });
   });
+
+  it("collects syncErrors from failed group operations", async () => {
+    const prisma = getTestPrisma();
+    mockOrchestrateAddToGroup.mockResolvedValueOnce({
+      success: false,
+      error: "add failed",
+    });
+
+    const result = await assignRole(
+      prisma,
+      MEMBER_ID,
+      "Lead",
+      ["group-1"],
+      ACTOR,
+    );
+
+    expect(result.syncErrors).toEqual(["add failed"]);
+  });
 });
 
 // ─── removeRole ─────────────────────────────────────────────────────────────
@@ -1196,5 +1269,23 @@ describe("removeRole", () => {
       action: "ROLE_REMOVED",
       diff: { label: { old: "Főszerkesztő", new: null } },
     });
+  });
+
+  it("collects syncErrors from failed group removals", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Lead",
+        authentikGroupIds: ["group-1", "group-2"],
+      },
+    });
+    mockOrchestrateRemoveFromGroup
+      .mockResolvedValueOnce({ success: false, error: "remove 1 failed" })
+      .mockResolvedValueOnce({ success: true, result: null });
+
+    const result = await removeRole(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.syncErrors).toEqual(["remove 1 failed"]);
   });
 });

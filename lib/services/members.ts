@@ -6,8 +6,11 @@ import type {
 } from "@/app/generated/prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import {
+  buildAuthentikAttributes,
   createAuthentikUser,
+  orchestrateAddToGroup,
   orchestrateDeactivate,
+  orchestrateRemoveFromGroup,
   orchestrateStatusChange,
   orchestrateUpdateAttributes,
 } from "@/lib/sync/authentik/orchestrators";
@@ -53,21 +56,6 @@ export type AssignRoleInput = z.infer<typeof AssignRoleSchema>;
 export interface Actor {
   id: string;
   role: UserRole;
-}
-
-function buildAuthentikAttributes(
-  member: Pick<
-    Prisma.MemberGetPayload<Record<string, never>>,
-    "firstName" | "lastName" | "mobile" | "avatarUrl"
-  >,
-): Record<string, unknown> {
-  const attrs: Record<string, unknown> = {
-    first_name: member.firstName,
-    last_name: member.lastName,
-  };
-  if (member.mobile) attrs.mobile = member.mobile;
-  if (member.avatarUrl) attrs.avatar_url = member.avatarUrl;
-  return attrs;
 }
 
 const AUTHENTIK_SYNCED_FIELDS = new Set([
@@ -375,7 +363,14 @@ export async function batchArchive(
     }),
   ]);
 
-  return { count: members.length };
+  const syncResults = await Promise.all(
+    members.map((m) => orchestrateDeactivate(prisma, m.id)),
+  );
+  const syncErrors = syncResults
+    .filter((r): r is { success: false; error: string } => !r.success)
+    .map((r) => r.error);
+
+  return { count: members.length, syncErrors };
 }
 
 export async function batchUpdateStatus(
@@ -413,7 +408,15 @@ export async function batchUpdateStatus(
     }),
   ]);
 
-  return { count: members.length };
+  const groupResultsPerMember = await Promise.all(
+    members.map((m) => orchestrateStatusChange(prisma, m.id, m.status, status)),
+  );
+  const syncErrors = groupResultsPerMember
+    .flat()
+    .filter((r): r is { success: false; error: string } => !r.success)
+    .map((r) => r.error);
+
+  return { count: members.length, syncErrors };
 }
 
 export async function assignRole(
@@ -429,6 +432,9 @@ export async function assignRole(
   });
   if (!member) throw new NotFoundError();
 
+  let toAdd: string[] = [];
+  let toRemove: string[] = [];
+
   if (member.leadershipRole) {
     // Update existing role
     const oldLabel = member.leadershipRole.label;
@@ -440,7 +446,10 @@ export async function assignRole(
     const groupsChanged =
       oldSet.size !== newSet.size || [...oldSet].some((id) => !newSet.has(id));
 
-    if (!labelChanged && !groupsChanged) return;
+    if (!labelChanged && !groupsChanged) return { syncErrors: [] as string[] };
+
+    toAdd = authentikGroupIds.filter((id) => !oldSet.has(id));
+    toRemove = oldGroupIds.filter((id) => !newSet.has(id));
 
     await prisma.$transaction([
       prisma.leadershipRole.update({
@@ -464,6 +473,8 @@ export async function assignRole(
     ]);
   } else {
     // Create new role
+    toAdd = authentikGroupIds;
+
     await prisma.$transaction([
       prisma.leadershipRole.create({
         data: { memberId, label, authentikGroupIds },
@@ -484,6 +495,20 @@ export async function assignRole(
       }),
     ]);
   }
+
+  const addResults = await Promise.all(
+    toAdd.map((groupId) => orchestrateAddToGroup(prisma, memberId, groupId)),
+  );
+  const removeResults = await Promise.all(
+    toRemove.map((groupId) =>
+      orchestrateRemoveFromGroup(prisma, memberId, groupId),
+    ),
+  );
+  const syncErrors = [...addResults, ...removeResults]
+    .filter((r): r is { success: false; error: string } => !r.success)
+    .map((r) => r.error);
+
+  return { syncErrors };
 }
 
 export async function removeRole(
@@ -496,9 +521,10 @@ export async function removeRole(
     include: { leadershipRole: true },
   });
   if (!member) throw new NotFoundError();
-  if (!member.leadershipRole) return;
+  if (!member.leadershipRole) return { syncErrors: [] as string[] };
 
   const oldLabel = member.leadershipRole.label;
+  const oldGroupIds = member.leadershipRole.authentikGroupIds;
 
   await prisma.$transaction([
     prisma.leadershipRole.delete({ where: { memberId } }),
@@ -514,4 +540,15 @@ export async function removeRole(
       },
     }),
   ]);
+
+  const removeResults = await Promise.all(
+    oldGroupIds.map((groupId) =>
+      orchestrateRemoveFromGroup(prisma, memberId, groupId),
+    ),
+  );
+  const syncErrors = removeResults
+    .filter((r): r is { success: false; error: string } => !r.success)
+    .map((r) => r.error);
+
+  return { syncErrors };
 }

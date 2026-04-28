@@ -21,6 +21,25 @@ beforeEach(async () => {
       result: null,
     })),
     orchestrateStatusChange: vi.fn(async () => []),
+    orchestrateAddToGroup: vi.fn(async () => ({
+      success: true,
+      result: null,
+    })),
+    orchestrateRemoveFromGroup: vi.fn(async () => ({
+      success: true,
+      result: null,
+    })),
+    buildAuthentikAttributes: (m: {
+      firstName: string;
+      lastName: string;
+      mobile: string | null;
+      avatarUrl: string | null;
+    }) => ({
+      first_name: m.firstName,
+      last_name: m.lastName,
+      ...(m.mobile ? { mobile: m.mobile } : {}),
+      ...(m.avatarUrl ? { avatar_url: m.avatarUrl } : {}),
+    }),
   }));
 
   const prisma = getTestPrisma();
@@ -143,6 +162,19 @@ describe("PATCH /api/members/[id]", () => {
         error: "Authentik unreachable",
       })),
       orchestrateStatusChange: vi.fn(async () => []),
+      orchestrateAddToGroup: vi.fn(),
+      orchestrateRemoveFromGroup: vi.fn(),
+      buildAuthentikAttributes: (m: {
+        firstName: string;
+        lastName: string;
+        mobile: string | null;
+        avatarUrl: string | null;
+      }) => ({
+        first_name: m.firstName,
+        last_name: m.lastName,
+        ...(m.mobile ? { mobile: m.mobile } : {}),
+        ...(m.avatarUrl ? { avatar_url: m.avatarUrl } : {}),
+      }),
     }));
     const { PATCH } = await import("@/app/api/members/[id]/route");
     const res = await PATCH(...patchReq(MEMBER_ID, { firstName: "Renamed" }));
@@ -193,6 +225,21 @@ describe("DELETE /api/members/[id]", () => {
         success: false,
         error: "Authentik unreachable",
       })),
+      orchestrateUpdateAttributes: vi.fn(),
+      orchestrateStatusChange: vi.fn(async () => []),
+      orchestrateAddToGroup: vi.fn(),
+      orchestrateRemoveFromGroup: vi.fn(),
+      buildAuthentikAttributes: (m: {
+        firstName: string;
+        lastName: string;
+        mobile: string | null;
+        avatarUrl: string | null;
+      }) => ({
+        first_name: m.firstName,
+        last_name: m.lastName,
+        ...(m.mobile ? { mobile: m.mobile } : {}),
+        ...(m.avatarUrl ? { avatar_url: m.avatarUrl } : {}),
+      }),
     }));
     const { DELETE } = await import("@/app/api/members/[id]/route");
     const res = await DELETE(...reqWithParams(MEMBER_ID));

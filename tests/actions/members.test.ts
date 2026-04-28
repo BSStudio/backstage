@@ -212,10 +212,14 @@ describe("batchArchiveAction", () => {
 
   it("returns success with count and revalidates", async () => {
     mockGetSession.mockResolvedValue(session("LEADER"));
-    mockBatchArchive.mockResolvedValue({ count: 3 });
+    mockBatchArchive.mockResolvedValue({ count: 3, syncErrors: [] });
     const { batchArchiveAction } = await import("@/lib/actions/members");
     const result = await batchArchiveAction(["a", "b", "c"]);
-    expect(result).toEqual({ success: true, data: { count: 3 } });
+    expect(result).toEqual({
+      success: true,
+      data: { count: 3 },
+      syncErrors: [],
+    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
   });
 });
@@ -245,13 +249,17 @@ describe("batchUpdateStatusAction", () => {
 
   it("returns success with count and revalidates", async () => {
     mockGetSession.mockResolvedValue(session("LEADER"));
-    mockBatchUpdateStatus.mockResolvedValue({ count: 2 });
+    mockBatchUpdateStatus.mockResolvedValue({ count: 2, syncErrors: [] });
     const { batchUpdateStatusAction } = await import("@/lib/actions/members");
     const result = await batchUpdateStatusAction(
       ["a", "b"],
       "MEMBER_CANDIDATE",
     );
-    expect(result).toEqual({ success: true, data: { count: 2 } });
+    expect(result).toEqual({
+      success: true,
+      data: { count: 2 },
+      syncErrors: [],
+    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
   });
 });
@@ -290,10 +298,10 @@ describe("assignRoleAction", () => {
 
   it("returns success and revalidates on assignment", async () => {
     mockGetSession.mockResolvedValue(session("LEADER"));
-    mockAssignRole.mockResolvedValue(undefined);
+    mockAssignRole.mockResolvedValue({ syncErrors: [] });
     const { assignRoleAction } = await import("@/lib/actions/members");
     const result = await assignRoleAction("m-1", "Főszerkesztő", ["group-1"]);
-    expect(result).toEqual({ success: true, data: null });
+    expect(result).toEqual({ success: true, data: null, syncErrors: [] });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members/m-1");
   });
@@ -333,10 +341,10 @@ describe("removeRoleAction", () => {
 
   it("returns success and revalidates on removal", async () => {
     mockGetSession.mockResolvedValue(session("LEADER"));
-    mockRemoveRole.mockResolvedValue(undefined);
+    mockRemoveRole.mockResolvedValue({ syncErrors: [] });
     const { removeRoleAction } = await import("@/lib/actions/members");
     const result = await removeRoleAction("m-1");
-    expect(result).toEqual({ success: true, data: null });
+    expect(result).toEqual({ success: true, data: null, syncErrors: [] });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members/m-1");
   });

@@ -10,6 +10,32 @@ beforeEach(async () => {
   vi.resetModules();
   mockPrisma();
 
+  vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
+    createAuthentikUser: vi.fn(),
+    orchestrateDeactivate: vi.fn(),
+    orchestrateUpdateAttributes: vi.fn(),
+    orchestrateStatusChange: vi.fn(async () => []),
+    orchestrateAddToGroup: vi.fn(async () => ({
+      success: true,
+      result: null,
+    })),
+    orchestrateRemoveFromGroup: vi.fn(async () => ({
+      success: true,
+      result: null,
+    })),
+    buildAuthentikAttributes: (m: {
+      firstName: string;
+      lastName: string;
+      mobile: string | null;
+      avatarUrl: string | null;
+    }) => ({
+      first_name: m.firstName,
+      last_name: m.lastName,
+      ...(m.mobile ? { mobile: m.mobile } : {}),
+      ...(m.avatarUrl ? { avatar_url: m.avatarUrl } : {}),
+    }),
+  }));
+
   const prisma = getTestPrisma();
 
   await prisma.member.upsert({
@@ -118,6 +144,35 @@ describe("PUT /api/members/[id]/roles", () => {
     expect(body).toEqual({ assigned: true });
   });
 
+  it("returns 207 with syncErrors when Authentik group add fails", async () => {
+    mockSession({ id: ACTOR_ID, role: "LEADER" });
+    vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
+      createAuthentikUser: vi.fn(),
+      orchestrateDeactivate: vi.fn(),
+      orchestrateUpdateAttributes: vi.fn(),
+      orchestrateStatusChange: vi.fn(async () => []),
+      orchestrateAddToGroup: vi.fn(async () => ({
+        success: false,
+        error: "add failed",
+      })),
+      orchestrateRemoveFromGroup: vi.fn(async () => ({
+        success: true,
+        result: null,
+      })),
+      buildAuthentikAttributes: () => ({}),
+    }));
+    const { PUT } = await import("@/app/api/members/[id]/roles/route");
+    const res = await PUT(
+      ...putReq(MEMBER_ID, {
+        label: "Főszerkesztő",
+        authentikGroupIds: ["group-1"],
+      }),
+    );
+    expect(res.status).toBe(207);
+    const body = await res.json();
+    expect(body).toEqual({ assigned: true, syncErrors: ["add failed"] });
+  });
+
   it("updates an existing role (upsert semantics)", async () => {
     const prisma = getTestPrisma();
     await prisma.leadershipRole.create({
@@ -169,10 +224,41 @@ describe("DELETE /api/members/[id]/roles", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 204 on successful removal (no existing role is a no-op)", async () => {
+  it("returns 200 on successful removal (no existing role is a no-op)", async () => {
     mockSession({ id: ACTOR_ID, role: "LEADER" });
     const { DELETE } = await import("@/app/api/members/[id]/roles/route");
     const res = await DELETE(...reqWithParams(MEMBER_ID));
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ removed: true });
+  });
+
+  it("returns 207 with syncErrors when Authentik group remove fails", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Lead",
+        authentikGroupIds: ["group-1"],
+      },
+    });
+    mockSession({ id: ACTOR_ID, role: "LEADER" });
+    vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
+      createAuthentikUser: vi.fn(),
+      orchestrateDeactivate: vi.fn(),
+      orchestrateUpdateAttributes: vi.fn(),
+      orchestrateStatusChange: vi.fn(async () => []),
+      orchestrateAddToGroup: vi.fn(),
+      orchestrateRemoveFromGroup: vi.fn(async () => ({
+        success: false,
+        error: "remove failed",
+      })),
+      buildAuthentikAttributes: () => ({}),
+    }));
+    const { DELETE } = await import("@/app/api/members/[id]/roles/route");
+    const res = await DELETE(...reqWithParams(MEMBER_ID));
+    expect(res.status).toBe(207);
+    const body = await res.json();
+    expect(body).toEqual({ removed: true, syncErrors: ["remove failed"] });
   });
 });

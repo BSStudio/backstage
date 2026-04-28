@@ -24,7 +24,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       throw new ValidationError(z.treeifyError(parsed.error));
     }
 
-    await assignRole(
+    const { syncErrors } = await assignRole(
       prisma,
       id,
       parsed.data.label,
@@ -34,6 +34,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
         role: session.user.role as "ADMIN" | "LEADER",
       },
     );
+    if (syncErrors.length > 0) {
+      return NextResponse.json({ assigned: true, syncErrors }, { status: 207 });
+    }
     return NextResponse.json({ assigned: true });
   } catch (error) {
     return mapServiceError(error);
@@ -46,11 +49,14 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   try {
     const { id } = await params;
-    await removeRole(prisma, id, {
+    const { syncErrors } = await removeRole(prisma, id, {
       id: session.user.id,
       role: session.user.role as "ADMIN" | "LEADER",
     });
-    return new NextResponse(null, { status: 204 });
+    if (syncErrors.length > 0) {
+      return NextResponse.json({ removed: true, syncErrors }, { status: 207 });
+    }
+    return NextResponse.json({ removed: true });
   } catch (error) {
     return mapServiceError(error);
   }

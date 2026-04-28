@@ -122,9 +122,13 @@ export async function batchArchiveAction(
     return { success: false, error: "Hozzáférés megtagadva" };
   }
 
-  const result = await batchArchive(prisma, ids, actorFromSession(session));
+  const { count, syncErrors } = await batchArchive(
+    prisma,
+    ids,
+    actorFromSession(session),
+  );
   revalidatePath("/members");
-  return { success: true, data: result };
+  return { success: true, data: { count }, syncErrors };
 }
 
 export async function batchUpdateStatusAction(
@@ -139,14 +143,14 @@ export async function batchUpdateStatusAction(
     return { success: false, error: "Hozzáférés megtagadva" };
   }
 
-  const result = await batchUpdateStatus(
+  const { count, syncErrors } = await batchUpdateStatus(
     prisma,
     ids,
     status,
     actorFromSession(session),
   );
   revalidatePath("/members");
-  return { success: true, data: result };
+  return { success: true, data: { count }, syncErrors };
 }
 
 export async function assignRoleAction(
@@ -163,7 +167,7 @@ export async function assignRoleAction(
   }
 
   try {
-    await assignRole(
+    const { syncErrors } = await assignRole(
       prisma,
       memberId,
       label,
@@ -172,7 +176,7 @@ export async function assignRoleAction(
     );
     revalidatePath("/members");
     revalidatePath(`/members/${memberId}`);
-    return { success: true, data: null };
+    return { success: true, data: null, syncErrors };
   } catch (error) {
     return mapError(error);
   }
@@ -190,10 +194,14 @@ export async function removeRoleAction(
   }
 
   try {
-    await removeRole(prisma, memberId, actorFromSession(session));
+    const { syncErrors } = await removeRole(
+      prisma,
+      memberId,
+      actorFromSession(session),
+    );
     revalidatePath("/members");
     revalidatePath(`/members/${memberId}`);
-    return { success: true, data: null };
+    return { success: true, data: null, syncErrors };
   } catch (error) {
     return mapError(error);
   }
