@@ -18,16 +18,7 @@ vi.mock("@/lib/avatar-storage", () => ({
   deleteAvatars: mockDeleteAvatars,
 }));
 
-beforeEach(async () => {
-  vi.resetModules();
-  mockPrisma();
-  mockSaveAvatar.mockClear();
-  mockDeleteAvatars.mockClear();
-  mockSaveAvatar.mockImplementation((_id: string, variant: string) =>
-    Promise.resolve(`/avatars/${_id}-${variant}.webp`),
-  );
-  mockDeleteAvatars.mockImplementation(() => Promise.resolve());
-
+function mockOrchestratorsSuccess() {
   vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
     createAuthentikUser: vi.fn(),
     orchestrateDeactivate: vi.fn(),
@@ -50,6 +41,17 @@ beforeEach(async () => {
       ...(m.avatarUrl ? { avatar_url: m.avatarUrl } : {}),
     }),
   }));
+}
+
+beforeEach(async () => {
+  vi.resetModules();
+  mockPrisma();
+  mockSaveAvatar.mockClear();
+  mockDeleteAvatars.mockClear();
+  mockSaveAvatar.mockImplementation((_id: string, variant: string) =>
+    Promise.resolve(`/avatars/${_id}-${variant}.webp`),
+  );
+  mockDeleteAvatars.mockImplementation(() => Promise.resolve());
 
   const prisma = getTestPrisma();
 
@@ -128,6 +130,7 @@ describe("POST /api/members/[id]/avatar", () => {
 
   it("allows member to upload own avatar", async () => {
     mockSession({ id: MEMBER_ID, role: "MEMBER" });
+    mockOrchestratorsSuccess();
     const { POST } = await import("@/app/api/members/[id]/avatar/route");
     const res = await POST(
       makePostReq(MEMBER_ID, { square: dummyBlob, portrait: dummyBlob }),
@@ -141,6 +144,7 @@ describe("POST /api/members/[id]/avatar", () => {
 
   it("allows leader to upload for any member", async () => {
     mockSession({ id: ACTOR_ID, role: "LEADER" });
+    mockOrchestratorsSuccess();
     const { POST } = await import("@/app/api/members/[id]/avatar/route");
     const res = await POST(
       makePostReq(MEMBER_ID, { square: dummyBlob, portrait: dummyBlob }),
@@ -196,6 +200,7 @@ describe("POST /api/members/[id]/avatar", () => {
 
   it("updates member record with avatar URLs", async () => {
     mockSession({ id: MEMBER_ID, role: "MEMBER" });
+    mockOrchestratorsSuccess();
     const { POST } = await import("@/app/api/members/[id]/avatar/route");
     await POST(
       makePostReq(MEMBER_ID, { square: dummyBlob, portrait: dummyBlob }),
@@ -254,6 +259,7 @@ describe("DELETE /api/members/[id]/avatar", () => {
 
   it("allows member to delete own avatar", async () => {
     mockSession({ id: MEMBER_ID, role: "MEMBER" });
+    mockOrchestratorsSuccess();
     const { DELETE } = await import("@/app/api/members/[id]/avatar/route");
     const res = await DELETE(makeDeleteReq(MEMBER_ID), makeParams(MEMBER_ID));
     expect(res.status).toBe(200);
@@ -263,6 +269,7 @@ describe("DELETE /api/members/[id]/avatar", () => {
 
   it("allows admin to delete any member's avatar", async () => {
     mockSession({ id: ACTOR_ID, role: "ADMIN" });
+    mockOrchestratorsSuccess();
     const { DELETE } = await import("@/app/api/members/[id]/avatar/route");
     const res = await DELETE(makeDeleteReq(MEMBER_ID), makeParams(MEMBER_ID));
     expect(res.status).toBe(200);
@@ -280,6 +287,7 @@ describe("DELETE /api/members/[id]/avatar", () => {
 
   it("calls deleteAvatars and clears DB fields", async () => {
     mockSession({ id: MEMBER_ID, role: "MEMBER" });
+    mockOrchestratorsSuccess();
 
     // Pre-set avatar URLs
     const prisma = getTestPrisma();

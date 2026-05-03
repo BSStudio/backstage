@@ -6,10 +6,7 @@ import { getTestPrisma, mockPrisma } from "../../../setup";
 const ACTOR_ID = "test-actor-id";
 const MEMBER_ID = "test-member-id";
 
-beforeEach(async () => {
-  vi.resetModules();
-  mockPrisma();
-
+function mockOrchestratorsSuccess() {
   vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
     createAuthentikUser: vi.fn(),
     orchestrateDeactivate: vi.fn(async () => ({
@@ -41,6 +38,11 @@ beforeEach(async () => {
       ...(m.avatarUrl ? { avatar_url: m.avatarUrl } : {}),
     }),
   }));
+}
+
+beforeEach(async () => {
+  vi.resetModules();
+  mockPrisma();
 
   const prisma = getTestPrisma();
 
@@ -147,6 +149,7 @@ describe("PATCH /api/members/[id]", () => {
 
   it("returns 200 on successful update", async () => {
     mockSession({ id: ACTOR_ID, role: "LEADER" });
+    mockOrchestratorsSuccess();
     const { PATCH } = await import("@/app/api/members/[id]/route");
     const res = await PATCH(...patchReq(MEMBER_ID, { nickname: "Updated" }));
     expect(res.status).toBe(200);
@@ -210,6 +213,7 @@ describe("DELETE /api/members/[id]", () => {
 
   it("returns 200 on successful archive", async () => {
     mockSession({ id: ACTOR_ID, role: "LEADER" });
+    mockOrchestratorsSuccess();
     const { DELETE } = await import("@/app/api/members/[id]/route");
     const res = await DELETE(...reqWithParams(MEMBER_ID));
     expect(res.status).toBe(200);
