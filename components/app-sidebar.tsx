@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ExternalLink,
   FolderSync,
   Home,
   LayoutGrid,
@@ -36,7 +37,7 @@ type NavItem = {
   url: string;
   icon: React.ComponentType<{ className?: string }>;
   disabled?: boolean;
-  children?: { title: string; url: string }[];
+  children?: { title: string; url: string; external?: boolean }[];
 };
 
 const mainNav: NavItem[] = [
@@ -53,7 +54,11 @@ const mainNav: NavItem[] = [
       { title: NAV_LABELS.membersActive, url: "/members" },
       { title: NAV_LABELS.leadership, url: "/members/leadership" },
       { title: NAV_LABELS.alumni, url: "/members/alumni" },
-      { title: NAV_LABELS["studio-leaders"], url: "/members/studio-leaders" },
+      {
+        title: NAV_LABELS["studio-leaders"],
+        url: "https://wiki.bsstudio.hu/doc/studiovezetok-AdWWlRMuAI",
+        external: true,
+      },
       { title: NAV_LABELS.archived, url: "/members/archived" },
     ],
   },
@@ -145,10 +150,22 @@ function NavSection({
                       <SidebarMenuSubItem key={child.url}>
                         <SidebarMenuSubButton
                           asChild
-                          isActive={pathname === child.url}
+                          isActive={!child.external && pathname === child.url}
                           className="data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:hover:bg-primary/90 data-[active=true]:hover:text-primary-foreground"
                         >
-                          <Link href={child.url}>{child.title}</Link>
+                          {child.external ? (
+                            <a
+                              href={child.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5"
+                            >
+                              <span>{child.title}</span>
+                              <ExternalLink className="size-3 opacity-60" />
+                            </a>
+                          ) : (
+                            <Link href={child.url}>{child.title}</Link>
+                          )}
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                     ))}
