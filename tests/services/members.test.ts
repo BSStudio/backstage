@@ -62,8 +62,11 @@ const MEMBER_ID = "test-member-id";
 
 let nextAuthentikUuid = 0;
 
+const LEADERSHIP_UUID = "leadership-group-uuid";
+
 beforeEach(async () => {
   vi.clearAllMocks();
+  vi.stubEnv("AUTHENTIK_GROUP_LEADERSHIP_UUID", LEADERSHIP_UUID);
   nextAuthentikUuid = 0;
   mockCreateAuthentikUser.mockImplementation((data: { email: string }) => {
     nextAuthentikUuid++;
@@ -1209,6 +1212,35 @@ describe("assignRole", () => {
 
     expect(result.syncErrors).toEqual(["add failed"]);
   });
+
+  it("adds member to common Leadership group on new role assignment", async () => {
+    const prisma = getTestPrisma();
+    await assignRole(prisma, MEMBER_ID, "Lead", ["group-1"], ACTOR);
+
+    const calledGroupIds = mockOrchestrateAddToGroup.mock.calls.map(
+      (call) => call[2],
+    );
+    expect(calledGroupIds).toContain(LEADERSHIP_UUID);
+    expect(calledGroupIds).toContain("group-1");
+  });
+
+  it("does not re-add member to Leadership group on role update", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "PR-felelős",
+        authentikGroupIds: ["group-1"],
+      },
+    });
+
+    await assignRole(prisma, MEMBER_ID, "Főszerkesztő", ["group-2"], ACTOR);
+
+    const calledGroupIds = mockOrchestrateAddToGroup.mock.calls.map(
+      (call) => call[2],
+    );
+    expect(calledGroupIds).not.toContain(LEADERSHIP_UUID);
+  });
 });
 
 // ─── removeRole ─────────────────────────────────────────────────────────────
@@ -1282,10 +1314,29 @@ describe("removeRole", () => {
     });
     mockOrchestrateRemoveFromGroup
       .mockResolvedValueOnce({ success: false, error: "remove 1 failed" })
-      .mockResolvedValueOnce({ success: true, result: null });
+      .mockResolvedValue({ success: true, result: null });
 
     const result = await removeRole(prisma, MEMBER_ID, ACTOR);
 
     expect(result.syncErrors).toEqual(["remove 1 failed"]);
+  });
+
+  it("removes member from common Leadership group on role removal", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Lead",
+        authentikGroupIds: ["group-1"],
+      },
+    });
+
+    await removeRole(prisma, MEMBER_ID, ACTOR);
+
+    const calledGroupIds = mockOrchestrateRemoveFromGroup.mock.calls.map(
+      (call) => call[2],
+    );
+    expect(calledGroupIds).toContain(LEADERSHIP_UUID);
+    expect(calledGroupIds).toContain("group-1");
   });
 });

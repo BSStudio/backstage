@@ -37,6 +37,7 @@ function mockOrchestratorsSuccess() {
 beforeEach(async () => {
   vi.resetModules();
   mockPrisma();
+  vi.stubEnv("AUTHENTIK_GROUP_LEADERSHIP_UUID", "leadership-group-uuid");
 
   const prisma = getTestPrisma();
 
@@ -173,7 +174,11 @@ describe("PUT /api/members/[id]/roles", () => {
     );
     expect(res.status).toBe(207);
     const body = await res.json();
-    expect(body).toEqual({ assigned: true, syncErrors: ["add failed"] });
+    // Both the role-specific group and the common Leadership group fail
+    expect(body).toEqual({
+      assigned: true,
+      syncErrors: ["add failed", "add failed"],
+    });
   });
 
   it("updates an existing role (upsert semantics)", async () => {
@@ -264,6 +269,10 @@ describe("DELETE /api/members/[id]/roles", () => {
     const res = await DELETE(...reqWithParams(MEMBER_ID));
     expect(res.status).toBe(207);
     const body = await res.json();
-    expect(body).toEqual({ removed: true, syncErrors: ["remove failed"] });
+    // Both the role-specific group and the common Leadership group fail
+    expect(body).toEqual({
+      removed: true,
+      syncErrors: ["remove failed", "remove failed"],
+    });
   });
 });

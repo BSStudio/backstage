@@ -15,3 +15,11 @@ export function getStatusGroupUuid(status: MembershipStatus): string {
   }
   return uuid;
 }
+
+export function getLeadershipGroupUuid(): string {
+  const uuid = process.env.AUTHENTIK_GROUP_LEADERSHIP_UUID;
+  if (!uuid) {
+    throw new Error("Missing Authentik group UUID for Leadership");
+  }
+  return uuid;
+}

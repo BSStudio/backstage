@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getStatusGroupUuid } from "@/lib/sync/authentik/group-mapping";
+import {
+  getLeadershipGroupUuid,
+  getStatusGroupUuid,
+} from "@/lib/sync/authentik/group-mapping";
 
 beforeEach(() => {
   vi.stubEnv("AUTHENTIK_GROUP_CANDIDATE_CANDIDATE", "uuid-cc");
   vi.stubEnv("AUTHENTIK_GROUP_CANDIDATE", "uuid-c");
   vi.stubEnv("AUTHENTIK_GROUP_MEMBER", "uuid-m");
   vi.stubEnv("AUTHENTIK_GROUP_ALUMNI", "uuid-a");
+  vi.stubEnv("AUTHENTIK_GROUP_LEADERSHIP_UUID", "uuid-l");
 });
 
 afterEach(() => {
@@ -28,6 +32,19 @@ describe("getStatusGroupUuid", () => {
     vi.stubEnv("AUTHENTIK_GROUP_MEMBER", "");
     expect(() => getStatusGroupUuid("MEMBER")).toThrow(
       "Missing Authentik group UUID for status MEMBER",
+    );
+  });
+});
+
+describe("getLeadershipGroupUuid", () => {
+  it("returns the configured Leadership group UUID", () => {
+    expect(getLeadershipGroupUuid()).toBe("uuid-l");
+  });
+
+  it("throws when env var is missing", () => {
+    vi.stubEnv("AUTHENTIK_GROUP_LEADERSHIP_UUID", "");
+    expect(() => getLeadershipGroupUuid()).toThrow(
+      "Missing Authentik group UUID for Leadership",
     );
   });
 });

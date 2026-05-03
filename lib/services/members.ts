@@ -5,6 +5,7 @@ import type {
   PrismaClient,
 } from "@/app/generated/prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { getLeadershipGroupUuid } from "@/lib/sync/authentik/group-mapping";
 import {
   buildAuthentikAttributes,
   createAuthentikUser,
@@ -473,7 +474,7 @@ export async function assignRole(
     ]);
   } else {
     // Create new role
-    toAdd = authentikGroupIds;
+    toAdd = [getLeadershipGroupUuid(), ...authentikGroupIds];
 
     await prisma.$transaction([
       prisma.leadershipRole.create({
@@ -541,8 +542,9 @@ export async function removeRole(
     }),
   ]);
 
+  const groupsToRemove = [getLeadershipGroupUuid(), ...oldGroupIds];
   const removeResults = await Promise.all(
-    oldGroupIds.map((groupId) =>
+    groupsToRemove.map((groupId) =>
       orchestrateRemoveFromGroup(prisma, memberId, groupId),
     ),
   );
