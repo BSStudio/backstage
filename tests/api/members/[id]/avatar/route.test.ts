@@ -238,6 +238,28 @@ describe("POST /api/members/[id]/avatar", () => {
     const body = await res.json();
     expect(body.syncErrors).toEqual(["Authentik unreachable"]);
   });
+
+  it("maps a service error to a JSON response via mapServiceError", async () => {
+    mockSession({ id: MEMBER_ID, role: "MEMBER" });
+    const { NotFoundError } = await import("@/lib/errors");
+    vi.doMock("@/lib/services/members", () => ({
+      ensureCanModifyAvatar: vi.fn(),
+      uploadMemberAvatar: vi.fn(async () => {
+        throw new NotFoundError();
+      }),
+      removeMemberAvatar: vi.fn(),
+    }));
+    try {
+      const { POST } = await import("@/app/api/members/[id]/avatar/route");
+      const res = await POST(
+        makePostReq(MEMBER_ID, { square: dummyBlob, portrait: dummyBlob }),
+        makeParams(MEMBER_ID),
+      );
+      expect(res.status).toBe(404);
+    } finally {
+      vi.doUnmock("@/lib/services/members");
+    }
+  });
 });
 
 // ─── DELETE /api/members/[id]/avatar ────────────────────────────────────────
@@ -313,6 +335,16 @@ describe("DELETE /api/members/[id]/avatar", () => {
 
   it("returns 207 with syncErrors when Authentik attribute sync fails", async () => {
     mockSession({ id: MEMBER_ID, role: "MEMBER" });
+
+    const prisma = getTestPrisma();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: {
+        avatarUrl: "/avatars/old-square.webp",
+        portraitUrl: "/avatars/old-portrait.webp",
+      },
+    });
+
     vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
       createAuthentikUser: vi.fn(),
       orchestrateDeactivate: vi.fn(),
@@ -334,5 +366,24 @@ describe("DELETE /api/members/[id]/avatar", () => {
       portraitUrl: null,
       syncErrors: ["Authentik unreachable"],
     });
+  });
+
+  it("maps a service error to a JSON response via mapServiceError", async () => {
+    mockSession({ id: MEMBER_ID, role: "MEMBER" });
+    const { NotFoundError } = await import("@/lib/errors");
+    vi.doMock("@/lib/services/members", () => ({
+      ensureCanModifyAvatar: vi.fn(),
+      uploadMemberAvatar: vi.fn(),
+      removeMemberAvatar: vi.fn(async () => {
+        throw new NotFoundError();
+      }),
+    }));
+    try {
+      const { DELETE } = await import("@/app/api/members/[id]/avatar/route");
+      const res = await DELETE(makeDeleteReq(MEMBER_ID), makeParams(MEMBER_ID));
+      expect(res.status).toBe(404);
+    } finally {
+      vi.doUnmock("@/lib/services/members");
+    }
   });
 });

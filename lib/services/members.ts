@@ -165,6 +165,84 @@ export async function createMember(
   return { member, syncErrors: [] as string[] };
 }
 
+export function ensureCanModifyAvatar(actor: Actor, targetId: string): void {
+  const isSelf = actor.id === targetId;
+  const isLeaderOrAdmin = (["ADMIN", "LEADER"] as string[]).includes(
+    actor.role,
+  );
+  if (!isSelf && !isLeaderOrAdmin) throw new ForbiddenError();
+}
+
+export async function uploadMemberAvatar(
+  prisma: PrismaClient,
+  id: string,
+  data: { avatarUrl: string; portraitUrl: string },
+  actor: Actor,
+) {
+  const member = await prisma.member.findUnique({ where: { id } });
+  if (!member) throw new NotFoundError();
+  ensureCanModifyAvatar(actor, id);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const updated = await tx.member.update({ where: { id }, data });
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        targetId: id,
+        action: "AVATAR_UPLOADED",
+        diff: {} as object,
+      },
+    });
+    return updated;
+  });
+
+  const syncErrors: string[] = [];
+  const result = await orchestrateUpdateAttributes(prisma, id, {
+    attributes: buildAuthentikAttributes(updated),
+  });
+  if (!result.success) syncErrors.push(result.error);
+
+  return { member: updated, syncErrors };
+}
+
+export async function removeMemberAvatar(
+  prisma: PrismaClient,
+  id: string,
+  actor: Actor,
+) {
+  const member = await prisma.member.findUnique({ where: { id } });
+  if (!member) throw new NotFoundError();
+  ensureCanModifyAvatar(actor, id);
+
+  if (!member.avatarUrl && !member.portraitUrl) {
+    return { member, syncErrors: [] as string[] };
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const updated = await tx.member.update({
+      where: { id },
+      data: { avatarUrl: null, portraitUrl: null },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        targetId: id,
+        action: "AVATAR_REMOVED",
+        diff: {} as object,
+      },
+    });
+    return updated;
+  });
+
+  const syncErrors: string[] = [];
+  const result = await orchestrateUpdateAttributes(prisma, id, {
+    attributes: buildAuthentikAttributes(updated),
+  });
+  if (!result.success) syncErrors.push(result.error);
+
+  return { member: updated, syncErrors };
+}
+
 export async function updateMember(
   prisma: PrismaClient,
   id: string,

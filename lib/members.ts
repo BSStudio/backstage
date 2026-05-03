@@ -41,6 +41,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   ROLE_ASSIGNED: "Pozíció hozzárendelés",
   ROLE_CHANGED: "Pozíció módosítás",
   ROLE_REMOVED: "Pozíció elvétel",
+  AVATAR_UPLOADED: "Profilkép feltöltés",
+  AVATAR_REMOVED: "Profilkép törlés",
 };
 
 /** Tailwind classes for audit action badges. */
@@ -54,6 +56,8 @@ export const AUDIT_ACTION_VARIANT: Record<AuditAction, string> = {
   ROLE_ASSIGNED: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
   ROLE_CHANGED: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
   ROLE_REMOVED: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  AVATAR_UPLOADED: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
+  AVATAR_REMOVED: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
 };
 
 /** Parse an audit log diff into structured entries. Returns null for non-diff objects. */

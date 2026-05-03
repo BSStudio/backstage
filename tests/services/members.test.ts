@@ -49,8 +49,10 @@ import {
   createMember,
   getMember,
   listMembers,
+  removeMemberAvatar,
   removeRole,
   updateMember,
+  uploadMemberAvatar,
 } from "@/lib/services/members";
 import { getTestPrisma } from "../setup";
 
@@ -1338,5 +1340,140 @@ describe("removeRole", () => {
     );
     expect(calledGroupIds).toContain(LEADERSHIP_UUID);
     expect(calledGroupIds).toContain("group-1");
+  });
+});
+
+// ─── uploadMemberAvatar ─────────────────────────────────────────────────────
+
+describe("uploadMemberAvatar", () => {
+  const URLS = { avatarUrl: "/a.webp", portraitUrl: "/p.webp" };
+
+  it("throws NotFoundError for non-existent member", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      uploadMemberAvatar(prisma, "non-existent", URLS, ACTOR),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it("throws ForbiddenError when member tries to upload for another member", async () => {
+    const prisma = getTestPrisma();
+    const OTHER_MEMBER: Actor = { id: "some-other-member", role: "MEMBER" };
+    await expect(
+      uploadMemberAvatar(prisma, MEMBER_ID, URLS, OTHER_MEMBER),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("allows member to upload their own avatar", async () => {
+    const prisma = getTestPrisma();
+    const SELF: Actor = { id: MEMBER_ID, role: "MEMBER" };
+
+    const result = await uploadMemberAvatar(prisma, MEMBER_ID, URLS, SELF);
+
+    expect(result.member.avatarUrl).toBe("/a.webp");
+    expect(result.member.portraitUrl).toBe("/p.webp");
+  });
+
+  it("writes an AVATAR_UPLOADED audit log entry on first upload", async () => {
+    const prisma = getTestPrisma();
+    await uploadMemberAvatar(prisma, MEMBER_ID, URLS, ACTOR);
+
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID },
+    });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({ action: "AVATAR_UPLOADED" });
+  });
+
+  it("writes an AVATAR_UPLOADED audit log entry on replace (URLs unchanged)", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: URLS,
+    });
+
+    await uploadMemberAvatar(prisma, MEMBER_ID, URLS, ACTOR);
+
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID },
+    });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({ action: "AVATAR_UPLOADED" });
+  });
+
+  it("collects syncErrors when Authentik update fails", async () => {
+    const prisma = getTestPrisma();
+    mockOrchestrateUpdateAttributes.mockResolvedValueOnce({
+      success: false,
+      error: "Authentik unreachable",
+    });
+
+    const result = await uploadMemberAvatar(prisma, MEMBER_ID, URLS, ACTOR);
+
+    expect(result.syncErrors).toEqual(["Authentik unreachable"]);
+  });
+});
+
+// ─── removeMemberAvatar ─────────────────────────────────────────────────────
+
+describe("removeMemberAvatar", () => {
+  it("throws NotFoundError for non-existent member", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      removeMemberAvatar(prisma, "non-existent", ACTOR),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it("throws ForbiddenError when member tries to remove another member's avatar", async () => {
+    const prisma = getTestPrisma();
+    const OTHER_MEMBER: Actor = { id: "some-other-member", role: "MEMBER" };
+    await expect(
+      removeMemberAvatar(prisma, MEMBER_ID, OTHER_MEMBER),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("is a no-op when member has no avatar", async () => {
+    const prisma = getTestPrisma();
+    await removeMemberAvatar(prisma, MEMBER_ID, ACTOR);
+
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID },
+    });
+    expect(audit).toHaveLength(0);
+    expect(mockOrchestrateUpdateAttributes).not.toHaveBeenCalled();
+  });
+
+  it("clears URLs and writes AVATAR_REMOVED audit log entry", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: { avatarUrl: "/old.webp", portraitUrl: "/old-p.webp" },
+    });
+
+    const result = await removeMemberAvatar(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.member.avatarUrl).toBeNull();
+    expect(result.member.portraitUrl).toBeNull();
+
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID },
+    });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({ action: "AVATAR_REMOVED" });
+  });
+
+  it("collects syncErrors when Authentik update fails", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: { avatarUrl: "/old.webp", portraitUrl: "/old-p.webp" },
+    });
+    mockOrchestrateUpdateAttributes.mockResolvedValueOnce({
+      success: false,
+      error: "Authentik unreachable",
+    });
+
+    const result = await removeMemberAvatar(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.syncErrors).toEqual(["Authentik unreachable"]);
   });
 });

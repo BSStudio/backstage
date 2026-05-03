@@ -49,6 +49,8 @@ enum AuditAction {
   ROLE_ASSIGNED
   ROLE_CHANGED
   ROLE_REMOVED
+  AVATAR_UPLOADED
+  AVATAR_REMOVED
 }
 
 enum GoogleGroupMatchStatus {

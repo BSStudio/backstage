@@ -1,12 +1,15 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { deleteAvatars, saveAvatar } from "@/lib/avatar-storage";
+import { mapServiceError } from "@/lib/errors";
 import prisma from "@/lib/prisma";
-import { requireAuth } from "@/lib/session";
 import {
-  buildAuthentikAttributes,
-  orchestrateUpdateAttributes,
-} from "@/lib/sync/authentik/orchestrators";
+  ensureCanModifyAvatar,
+  removeMemberAvatar,
+  uploadMemberAvatar,
+} from "@/lib/services/members";
+import { requireAuth } from "@/lib/session";
+import type { UserRole } from "@/types";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -15,19 +18,16 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (session instanceof NextResponse) return session;
 
   const { id } = await params;
-
-  // Members can upload their own avatar; leaders/admins can upload for anyone
-  const isSelf = session.user.id === id;
-  const isLeaderOrAdmin = ["ADMIN", "LEADER"].includes(
-    session.user.role as string,
-  );
-  if (!isSelf && !isLeaderOrAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const actor = { id: session.user.id, role: session.user.role as UserRole };
 
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  try {
+    ensureCanModifyAvatar(actor, id);
+  } catch (error) {
+    return mapServiceError(error);
   }
 
   const formData = await req.formData();
@@ -46,32 +46,34 @@ export async function POST(req: NextRequest, { params }: Params) {
     portraitFile.arrayBuffer().then((ab) => Buffer.from(ab)),
   ]);
 
+  let avatarUrl: string;
+  let portraitUrl: string;
   try {
-    const [avatarUrl, portraitUrl] = await Promise.all([
+    [avatarUrl, portraitUrl] = await Promise.all([
       saveAvatar(id, "square", squareBuffer),
       saveAvatar(id, "portrait", portraitBuffer),
     ]);
-
-    const updated = await prisma.member.update({
-      where: { id },
-      data: { avatarUrl, portraitUrl },
-    });
-
-    const syncResult = await orchestrateUpdateAttributes(prisma, id, {
-      attributes: buildAuthentikAttributes(updated),
-    });
-
-    if (!syncResult.success) {
-      return NextResponse.json(
-        { avatarUrl, portraitUrl, syncErrors: [syncResult.error] },
-        { status: 207 },
-      );
-    }
-
-    return NextResponse.json({ avatarUrl, portraitUrl });
   } catch (error) {
     const message = (error as Error).message;
     return NextResponse.json({ error: message }, { status: 400 });
+  }
+
+  try {
+    const { syncErrors } = await uploadMemberAvatar(
+      prisma,
+      id,
+      { avatarUrl, portraitUrl },
+      actor,
+    );
+    if (syncErrors.length > 0) {
+      return NextResponse.json(
+        { avatarUrl, portraitUrl, syncErrors },
+        { status: 207 },
+      );
+    }
+    return NextResponse.json({ avatarUrl, portraitUrl });
+  } catch (error) {
+    return mapServiceError(error);
   }
 }
 
@@ -80,41 +82,30 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (session instanceof NextResponse) return session;
 
   const { id } = await params;
-
-  const isSelf = session.user.id === id;
-  const isLeaderOrAdmin = ["ADMIN", "LEADER"].includes(
-    session.user.role as string,
-  );
-  if (!isSelf && !isLeaderOrAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const actor = { id: session.user.id, role: session.user.role as UserRole };
 
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  try {
+    ensureCanModifyAvatar(actor, id);
+  } catch (error) {
+    return mapServiceError(error);
+  }
 
   await deleteAvatars(id);
 
-  const updated = await prisma.member.update({
-    where: { id },
-    data: { avatarUrl: null, portraitUrl: null },
-  });
-
-  const syncResult = await orchestrateUpdateAttributes(prisma, id, {
-    attributes: buildAuthentikAttributes(updated),
-  });
-
-  if (!syncResult.success) {
-    return NextResponse.json(
-      {
-        avatarUrl: null,
-        portraitUrl: null,
-        syncErrors: [syncResult.error],
-      },
-      { status: 207 },
-    );
+  try {
+    const { syncErrors } = await removeMemberAvatar(prisma, id, actor);
+    if (syncErrors.length > 0) {
+      return NextResponse.json(
+        { avatarUrl: null, portraitUrl: null, syncErrors },
+        { status: 207 },
+      );
+    }
+    return NextResponse.json({ avatarUrl: null, portraitUrl: null });
+  } catch (error) {
+    return mapServiceError(error);
   }
-
-  return NextResponse.json({ avatarUrl: null, portraitUrl: null });
 }
