@@ -1,8 +1,7 @@
-import { mkdir, unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { avatarStorage } from "./storage/factory";
 
-const AVATAR_DIR = path.join(process.cwd(), "public", "avatars");
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const FILENAME_RE = /^[a-zA-Z0-9_-]+-(square|portrait)\.webp$/;
 
 // WebP magic bytes: "RIFF" at offset 0, "WEBP" at offset 8
 function isWebP(buffer: Buffer): boolean {
@@ -32,26 +31,21 @@ export async function saveAvatar(
   if (buffer.length > MAX_FILE_SIZE) throw new Error("File too large");
   if (!isWebP(buffer)) throw new Error("Invalid image format");
 
-  await mkdir(AVATAR_DIR, { recursive: true });
   const filename = `${memberId}-${variant}.webp`;
-  const filePath = path.join(AVATAR_DIR, filename);
-
-  /* v8 ignore next -- defense in depth; isSafeId already prevents path traversal */
-  if (!filePath.startsWith(AVATAR_DIR)) throw new Error("Invalid file path");
-
-  await writeFile(filePath, buffer);
+  await avatarStorage().put(filename, buffer, "image/webp");
   return `/avatars/${filename}`;
 }
 
 export async function deleteAvatars(memberId: string): Promise<void> {
   if (!isSafeId(memberId)) throw new Error("Invalid member ID");
-
   for (const variant of ["square", "portrait"] as const) {
-    const filePath = path.join(AVATAR_DIR, `${memberId}-${variant}.webp`);
-    try {
-      await unlink(filePath);
-    } catch {
-      // File may not exist
-    }
+    await avatarStorage().remove(`${memberId}-${variant}.webp`);
   }
+}
+
+export async function getAvatar(
+  filename: string,
+): Promise<{ body: Uint8Array; contentType: string } | null> {
+  if (!FILENAME_RE.test(filename)) return null;
+  return avatarStorage().fetch(filename);
 }

@@ -1,18 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockMkdir, mockWriteFile, mockUnlink } = vi.hoisted(() => ({
-  mockMkdir: vi.fn(),
-  mockWriteFile: vi.fn(),
-  mockUnlink: vi.fn(),
-}));
+const { mockMkdir, mockWriteFile, mockUnlink, mockReadFile } = vi.hoisted(
+  () => ({
+    mockMkdir: vi.fn(),
+    mockWriteFile: vi.fn(),
+    mockUnlink: vi.fn(),
+    mockReadFile: vi.fn(),
+  }),
+);
 
 vi.mock("node:fs/promises", () => ({
   mkdir: mockMkdir,
   writeFile: mockWriteFile,
   unlink: mockUnlink,
+  readFile: mockReadFile,
 }));
 
-import { deleteAvatars, saveAvatar } from "@/lib/avatar-storage";
+import { deleteAvatars, getAvatar, saveAvatar } from "@/lib/avatar-storage";
+import { resetAvatarStorageCache } from "@/lib/storage/factory";
 
 // Minimal valid WebP: RIFF....WEBP + padding to 12 bytes
 function makeWebP(size = 64): Buffer {
@@ -24,6 +29,9 @@ function makeWebP(size = 64): Buffer {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  delete process.env.AVATAR_STORAGE;
+  delete process.env.AVATAR_LOCAL_PATH;
+  resetAvatarStorageCache();
 });
 
 describe("saveAvatar", () => {
@@ -111,5 +119,37 @@ describe("deleteAvatars", () => {
     mockUnlink.mockRejectedValue(new Error("ENOENT"));
     await expect(deleteAvatars("abc-123")).resolves.toBeUndefined();
     expect(mockUnlink).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("getAvatar", () => {
+  it("returns body and content type when file exists", async () => {
+    const buf = makeWebP();
+    mockReadFile.mockResolvedValueOnce(buf);
+
+    const result = await getAvatar("abc-123-square.webp");
+
+    expect(result).not.toBeNull();
+    expect(result?.contentType).toBe("image/webp");
+    expect(result && Buffer.from(result.body)).toEqual(buf);
+  });
+
+  it("returns null when file does not exist", async () => {
+    mockReadFile.mockRejectedValueOnce(new Error("ENOENT"));
+    const result = await getAvatar("abc-123-square.webp");
+    expect(result).toBeNull();
+  });
+
+  it("rejects path traversal in filename", async () => {
+    const result = await getAvatar("../etc/passwd");
+    expect(result).toBeNull();
+    expect(mockReadFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects filenames not matching <id>-<variant>.webp", async () => {
+    expect(await getAvatar("abc.webp")).toBeNull();
+    expect(await getAvatar("abc-square.png")).toBeNull();
+    expect(await getAvatar("abc-other.webp")).toBeNull();
+    expect(mockReadFile).not.toHaveBeenCalled();
   });
 });

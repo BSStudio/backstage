@@ -24,7 +24,7 @@
 /build
 
 # uploaded avatars (local storage)
-/public/avatars
+/storage
 
 # misc
 .DS_Store
