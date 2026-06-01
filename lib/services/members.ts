@@ -15,6 +15,13 @@ import {
   orchestrateStatusChange,
   orchestrateUpdateAttributes,
 } from "@/lib/sync/authentik/orchestrators";
+import { getWebsiteStatusLabel } from "@/lib/sync/website/group-mapping";
+import {
+  orchestrateCreateWebsiteUser,
+  orchestrateDeactivateWebsiteUser,
+  orchestrateUpdateWebsiteUser,
+} from "@/lib/sync/website/orchestrators";
+import type { UpdateWebsiteUserInput } from "@/lib/website/users";
 import { currentSemester, MEMBERSHIP_STATUSES, type UserRole } from "@/types";
 
 // ─── Validation schemas ──────────────────────────────────────────────────────
@@ -65,6 +72,15 @@ const AUTHENTIK_SYNCED_FIELDS = new Set([
   "mobile",
 ]);
 
+const WEBSITE_SYNCED_FIELDS = new Set([
+  "firstName",
+  "lastName",
+  "nickname",
+  "email",
+  "mobile",
+  "status",
+]);
+
 // ─── Service functions ───────────────────────────────────────────────────────
 
 export async function listMembers(
@@ -113,6 +129,9 @@ export async function createMember(
     status,
   });
 
+  const websiteUsername = authentikUser.username;
+  const joinedSemester = currentSemester();
+
   const [member] = await prisma.$transaction([
     prisma.member.create({
       data: {
@@ -126,7 +145,7 @@ export async function createMember(
         major: data.major || null,
         dormRoom: data.dormRoom || null,
         status,
-        joinedSemester: currentSemester(),
+        joinedSemester,
       },
     }),
     prisma.timelineEntry.create({
@@ -161,7 +180,31 @@ export async function createMember(
     }),
   ]);
 
-  return { member, syncErrors: [] as string[] };
+  const syncErrors: string[] = [];
+  const websiteResult = await orchestrateCreateWebsiteUser(prisma, member.id, {
+    username: websiteUsername,
+    fullname: `${data.lastName} ${data.firstName}`.trim(),
+    nickname: data.nickname ?? data.firstName,
+    email: data.email,
+    mobile: data.mobile ?? "",
+    joinedSemester,
+  });
+  if (websiteResult.success) {
+    // Persist the Drupal uid returned by CREATE_USER so later syncs can target
+    // the account directly without a username lookup.
+    const userId = (websiteResult.result as { userId?: string } | null)?.userId;
+    if (userId) {
+      await prisma.member.update({
+        where: { id: member.id },
+        data: { websiteUserId: userId },
+      });
+      member.websiteUserId = userId;
+    }
+  } else {
+    syncErrors.push(websiteResult.error);
+  }
+
+  return { member, syncErrors };
 }
 
 export function ensureCanModifyAvatar(actor: Actor, targetId: string): void {
@@ -368,6 +411,28 @@ export async function updateMember(
     }
   }
 
+  // Sync website if any website-tracked field changed
+  const websiteFieldChanged = Object.keys(diff).some((k) =>
+    WEBSITE_SYNCED_FIELDS.has(k),
+  );
+  if (websiteFieldChanged) {
+    const fields: UpdateWebsiteUserInput = {};
+    if (diff.firstName || diff.lastName) {
+      fields.fullname = `${updated.lastName} ${updated.firstName}`.trim();
+    }
+    if (diff.nickname) fields.nickname = updated.nickname ?? updated.firstName;
+    if (diff.email) fields.email = updated.email;
+    if (diff.mobile) fields.mobile = updated.mobile ?? "";
+    if (diff.status) fields.position = getWebsiteStatusLabel(updated.status);
+
+    const result = await orchestrateUpdateWebsiteUser(
+      prisma,
+      member.id,
+      fields,
+    );
+    if (!result.success) syncErrors.push(result.error);
+  }
+
   return { member: updated, syncErrors };
 }
 
@@ -397,10 +462,17 @@ export async function archiveMember(
     }),
   ]);
 
-  const syncResult = await orchestrateDeactivate(prisma, member.id);
-  return {
-    syncErrors: syncResult.success ? [] : [syncResult.error],
-  };
+  const syncErrors: string[] = [];
+  const authentikResult = await orchestrateDeactivate(prisma, member.id);
+  if (!authentikResult.success) syncErrors.push(authentikResult.error);
+
+  const websiteResult = await orchestrateDeactivateWebsiteUser(
+    prisma,
+    member.id,
+  );
+  if (!websiteResult.success) syncErrors.push(websiteResult.error);
+
+  return { syncErrors };
 }
 
 export async function batchArchive(
@@ -437,7 +509,10 @@ export async function batchArchive(
   ]);
 
   const syncResults = await Promise.all(
-    members.map((m) => orchestrateDeactivate(prisma, m.id)),
+    members.flatMap((m) => [
+      orchestrateDeactivate(prisma, m.id),
+      orchestrateDeactivateWebsiteUser(prisma, m.id),
+    ]),
   );
   const syncErrors = syncResults
     .filter((r): r is { success: false; error: string } => !r.success)
@@ -484,8 +559,14 @@ export async function batchUpdateStatus(
   const groupResultsPerMember = await Promise.all(
     members.map((m) => orchestrateStatusChange(prisma, m.id, m.status, status)),
   );
-  const syncErrors = groupResultsPerMember
-    .flat()
+  const websiteResults = await Promise.all(
+    members.map((m) =>
+      orchestrateUpdateWebsiteUser(prisma, m.id, {
+        position: getWebsiteStatusLabel(status),
+      }),
+    ),
+  );
+  const syncErrors = [...groupResultsPerMember.flat(), ...websiteResults]
     .filter((r): r is { success: false; error: string } => !r.success)
     .map((r) => r.error);
 
@@ -577,7 +658,12 @@ export async function assignRole(
       orchestrateRemoveFromGroup(prisma, memberId, groupId),
     ),
   );
-  const syncErrors = [...addResults, ...removeResults]
+
+  const websiteResult = await orchestrateUpdateWebsiteUser(prisma, memberId, {
+    role: label,
+  });
+
+  const syncErrors = [...addResults, ...removeResults, websiteResult]
     .filter((r): r is { success: false; error: string } => !r.success)
     .map((r) => r.error);
 
@@ -620,7 +706,12 @@ export async function removeRole(
       orchestrateRemoveFromGroup(prisma, memberId, groupId),
     ),
   );
-  const syncErrors = removeResults
+
+  const websiteResult = await orchestrateUpdateWebsiteUser(prisma, memberId, {
+    role: "",
+  });
+
+  const syncErrors = [...removeResults, websiteResult]
     .filter((r): r is { success: false; error: string } => !r.success)
     .map((r) => r.error);
 

@@ -5,10 +5,12 @@ import type {
 } from "@/app/generated/prisma/client";
 import { Prisma } from "@/app/generated/prisma/client";
 import { authentikHandlers } from "./authentik/operations";
+import { websiteHandlers } from "./website/operations";
 
 export type OperationHandler = (
   payload: Record<string, unknown>,
   memberId: string,
+  prisma: PrismaClient,
 ) => Promise<unknown>;
 
 export type OperationHandlers = Partial<
@@ -17,7 +19,7 @@ export type OperationHandlers = Partial<
 
 const HANDLERS_BY_TARGET: Record<SyncTarget, OperationHandlers> = {
   AUTHENTIK: authentikHandlers,
-  WEBSITE: {}, // stubbed — no operations implemented yet
+  WEBSITE: websiteHandlers,
 };
 
 export type SyncResult =
@@ -44,7 +46,7 @@ export async function executeSyncJob(
 
   try {
     const payload = job.payload as Record<string, unknown>;
-    const result = await handler(payload, job.memberId);
+    const result = await handler(payload, job.memberId, prisma);
     await prisma.syncJob.update({
       where: { id: jobId },
       data: {

@@ -25,6 +25,16 @@ export function mockSession(overrides: { id?: string; role?: UserRole } = {}) {
   return session;
 }
 
+const ok = { success: true as const, result: null };
+
+export function mockWebsiteOrchestrators() {
+  vi.doMock("@/lib/sync/website/orchestrators", () => ({
+    orchestrateCreateWebsiteUser: vi.fn(async () => ok),
+    orchestrateUpdateWebsiteUser: vi.fn(async () => ok),
+    orchestrateDeactivateWebsiteUser: vi.fn(async () => ok),
+  }));
+}
+
 export function mockNoSession() {
   const response = NextResponse.json(
     { error: "Unauthorized" },

@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mockNoSession, mockSession } from "../../helpers";
+import {
+  mockNoSession,
+  mockSession,
+  mockWebsiteOrchestrators,
+} from "../../helpers";
 import { getTestPrisma, mockPrisma } from "../../setup";
 
 const ACTOR_ID = "test-actor-id";
@@ -8,6 +12,7 @@ const ACTOR_ID = "test-actor-id";
 beforeEach(async () => {
   vi.resetModules();
   mockPrisma();
+  mockWebsiteOrchestrators();
 
   vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
     createAuthentikUser: vi.fn(async (data) => ({

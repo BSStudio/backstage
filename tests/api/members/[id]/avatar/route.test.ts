@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mockNoSession, mockSession } from "../../../../helpers";
+import {
+  mockNoSession,
+  mockSession,
+  mockWebsiteOrchestrators,
+} from "../../../../helpers";
 import { getTestPrisma, mockPrisma } from "../../../../setup";
 
 const ACTOR_ID = "test-actor-id";
@@ -19,6 +23,7 @@ vi.mock("@/lib/avatar-storage", () => ({
 }));
 
 function mockOrchestratorsSuccess() {
+  mockWebsiteOrchestrators();
   vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
     createAuthentikUser: vi.fn(),
     orchestrateDeactivate: vi.fn(),
@@ -46,6 +51,7 @@ function mockOrchestratorsSuccess() {
 beforeEach(async () => {
   vi.resetModules();
   mockPrisma();
+  mockWebsiteOrchestrators();
   mockSaveAvatar.mockClear();
   mockDeleteAvatars.mockClear();
   mockSaveAvatar.mockImplementation((_id: string, variant: string) =>

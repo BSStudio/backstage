@@ -7,12 +7,22 @@ const {
   mockGetUserPk,
   mockAddUserToGroup,
   mockRemoveUserFromGroup,
+  mockUpdateWebsiteUser,
+  mockDeactivateWebsiteUser,
 } = vi.hoisted(() => ({
   mockCreateUser: vi.fn(),
   mockUpdateUser: vi.fn(),
   mockGetUserPk: vi.fn(),
   mockAddUserToGroup: vi.fn(),
   mockRemoveUserFromGroup: vi.fn(),
+  mockUpdateWebsiteUser: vi.fn(),
+  mockDeactivateWebsiteUser: vi.fn(),
+}));
+
+vi.mock("@/lib/website/users", () => ({
+  createWebsiteUser: vi.fn(),
+  updateWebsiteUser: mockUpdateWebsiteUser,
+  deactivateWebsiteUser: mockDeactivateWebsiteUser,
 }));
 
 vi.mock("@/lib/authentik/users", () => ({
@@ -30,12 +40,15 @@ vi.mock("@/lib/authentik/groups", () => ({
 import { executeSyncJob } from "@/lib/sync/executor";
 
 const MEMBER_ID = "uuid-member-1";
+const UNLINKED_MEMBER_ID = "uuid-member-2";
 
 beforeEach(async () => {
   vi.clearAllMocks();
   mockGetUserPk.mockResolvedValue(42);
   mockAddUserToGroup.mockResolvedValue(undefined);
   mockRemoveUserFromGroup.mockResolvedValue(undefined);
+  mockUpdateWebsiteUser.mockResolvedValue(undefined);
+  mockDeactivateWebsiteUser.mockResolvedValue(undefined);
 
   const prisma = getTestPrisma();
   await prisma.member.upsert({
@@ -46,6 +59,18 @@ beforeEach(async () => {
       firstName: "Test",
       lastName: "Member",
       email: "test@example.com",
+      joinedSemester: "2025/2026/1",
+      websiteUserId: "9001",
+    },
+  });
+  await prisma.member.upsert({
+    where: { id: UNLINKED_MEMBER_ID },
+    update: {},
+    create: {
+      id: UNLINKED_MEMBER_ID,
+      firstName: "Unlinked",
+      lastName: "Member",
+      email: "unlinked@example.com",
       joinedSemester: "2025/2026/1",
     },
   });
@@ -190,6 +215,95 @@ describe("executeSyncJob", () => {
     await executeSyncJob(prisma, job.id);
 
     const updated = await prisma.syncJob.findUnique({ where: { id: job.id } });
+    expect(updated?.attempts).toBe(2);
+  });
+});
+
+describe("executeSyncJob — WEBSITE target", () => {
+  it("resolves the Drupal uid from the member record at execute time", async () => {
+    const prisma = getTestPrisma();
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "WEBSITE",
+        operation: "UPDATE_USER",
+        memberId: MEMBER_ID,
+        payload: { nickname: "Tesi" },
+      },
+    });
+
+    const result = await executeSyncJob(prisma, job.id);
+
+    expect(result).toEqual({ success: true, result: { userId: "9001" } });
+    expect(mockUpdateWebsiteUser).toHaveBeenCalledWith("9001", {
+      nickname: "Tesi",
+    });
+  });
+
+  it("resolves the uid for DEACTIVATE_USER too", async () => {
+    const prisma = getTestPrisma();
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "WEBSITE",
+        operation: "DEACTIVATE_USER",
+        memberId: MEMBER_ID,
+        payload: {},
+      },
+    });
+
+    await executeSyncJob(prisma, job.id);
+
+    expect(mockDeactivateWebsiteUser).toHaveBeenCalledWith("9001");
+  });
+
+  it("persists a FAILED job when the member has no linked website account", async () => {
+    const prisma = getTestPrisma();
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "WEBSITE",
+        operation: "UPDATE_USER",
+        memberId: UNLINKED_MEMBER_ID,
+        payload: { nickname: "Newbie" },
+      },
+    });
+
+    const result = await executeSyncJob(prisma, job.id);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Member Unlinked: nincs összekötött weboldal-fiók",
+    });
+    expect(mockUpdateWebsiteUser).not.toHaveBeenCalled();
+
+    const updated = await prisma.syncJob.findUnique({ where: { id: job.id } });
+    expect(updated?.status).toBe("FAILED");
+  });
+
+  it("succeeds on retry once the uid is backfilled", async () => {
+    const prisma = getTestPrisma();
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "WEBSITE",
+        operation: "UPDATE_USER",
+        memberId: UNLINKED_MEMBER_ID,
+        payload: { nickname: "Newbie" },
+      },
+    });
+
+    expect((await executeSyncJob(prisma, job.id)).success).toBe(false);
+
+    await prisma.member.update({
+      where: { id: UNLINKED_MEMBER_ID },
+      data: { websiteUserId: "9042" },
+    });
+
+    const retry = await executeSyncJob(prisma, job.id);
+
+    expect(retry.success).toBe(true);
+    expect(mockUpdateWebsiteUser).toHaveBeenCalledWith("9042", {
+      nickname: "Newbie",
+    });
+    const updated = await prisma.syncJob.findUnique({ where: { id: job.id } });
+    expect(updated?.status).toBe("SUCCESS");
     expect(updated?.attempts).toBe(2);
   });
 });
