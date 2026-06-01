@@ -88,7 +88,7 @@ model Member {
   joinedSemester      String                // e.g. "2025/2026/1"
 
   // External system links
-  websiteUsername     String?               // Auto-derived from name via deriveUsername(); only set here to override the default
+  websiteUserId       String?               // Drupal numeric uid on bsstudio.hu
 
   // Soft delete / archive
   archived            Boolean               @default(false)

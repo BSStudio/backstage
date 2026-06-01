@@ -61,7 +61,6 @@ beforeEach(async () => {
       lastName: "Actor",
       email: "actor@test.com",
       joinedSemester: "2025/2026/1",
-      websiteUsername: "test.actor",
     },
   });
 });

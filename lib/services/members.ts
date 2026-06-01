@@ -39,7 +39,6 @@ export const UpdateMemberSchema = z.object({
   university: z.string().trim().optional(),
   major: z.string().trim().optional(),
   dormRoom: z.string().trim().optional(),
-  websiteUsername: z.string().trim().optional(),
   status: z.enum(MEMBERSHIP_STATUSES).optional(),
 });
 
@@ -268,11 +267,6 @@ export async function updateMember(
   const data = Object.fromEntries(
     Object.entries(raw).map(([key, val]) => [key, val === "" ? null : val]),
   ) as typeof raw;
-
-  // Only admins can change websiteUsername
-  if (data.websiteUsername !== undefined && actor.role !== "ADMIN") {
-    delete data.websiteUsername;
-  }
 
   // Status changes require leader/admin
   const statusChanging = data.status && data.status !== member.status;

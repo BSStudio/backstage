@@ -31,7 +31,7 @@ CREATE TABLE "Member" (
     "dormRoom" TEXT,
     "status" "MembershipStatus" NOT NULL DEFAULT 'MEMBER_CANDIDATE_CANDIDATE',
     "joinedSemester" TEXT NOT NULL,
-    "websiteUsername" TEXT,
+    "websiteUserId" TEXT,
     "archived" BOOLEAN NOT NULL DEFAULT false,
     "archivedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

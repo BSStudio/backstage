@@ -271,7 +271,6 @@ describe("createMember", () => {
       nickname: "Newbie",
       status: "MEMBER_CANDIDATE_CANDIDATE",
       archived: false,
-      websiteUsername: null,
     });
     expect(member.joinedSemester).toBe(currentSemester());
 
@@ -602,38 +601,6 @@ describe("updateMember", () => {
       where: { memberId: MEMBER_ID },
     });
     expect(timeline).toHaveLength(0);
-  });
-
-  // ─── websiteUsername ────────────────────────────────────────────────────────
-
-  it("strips websiteUsername when set by non-admin", async () => {
-    const prisma = getTestPrisma();
-    const { member: updated } = await updateMember(
-      prisma,
-      MEMBER_ID,
-      { websiteUsername: "override", nickname: "Also Changed" },
-      ACTOR,
-    );
-
-    expect(updated.websiteUsername).toBeNull();
-    expect(updated.nickname).toBe("Also Changed");
-  });
-
-  it("allows admin to set websiteUsername", async () => {
-    const prisma = getTestPrisma();
-    const { member: updated } = await updateMember(
-      prisma,
-      MEMBER_ID,
-      { websiteUsername: "custom" },
-      ADMIN_ACTOR,
-    );
-
-    expect(updated.websiteUsername).toBe("custom");
-
-    const member = await prisma.member.findUnique({
-      where: { id: MEMBER_ID },
-    });
-    expect(member?.websiteUsername).toBe("custom");
   });
 
   it("calls orchestrateUpdateAttributes when an Authentik-synced field changes", async () => {

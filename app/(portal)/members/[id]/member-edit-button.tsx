@@ -24,7 +24,6 @@ export function MemberEditButton({
   currentRole,
   authentikGroups,
   canChangeStatus,
-  canChangeUsername,
   canManageRole,
   canArchive,
 }: {
@@ -32,7 +31,6 @@ export function MemberEditButton({
   currentRole: RoleData;
   authentikGroups: AuthentikGroupOption[];
   canChangeStatus: boolean;
-  canChangeUsername: boolean;
   canManageRole: boolean;
   canArchive: boolean;
 }) {
@@ -89,7 +87,6 @@ export function MemberEditButton({
         currentRole={currentRole}
         authentikGroups={authentikGroups}
         canChangeStatus={canChangeStatus}
-        canChangeUsername={canChangeUsername}
         canManageRole={canManageRole}
         open={editOpen}
         onOpenChange={setEditOpen}

@@ -5,7 +5,6 @@ import {
   Mail,
   Phone,
   Shield,
-  User,
 } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -152,7 +151,6 @@ export default async function MemberDetailPage({
             }
             authentikGroups={authentikGroups}
             canChangeStatus={isLeaderOrAdmin}
-            canChangeUsername={isAdmin}
             canManageRole={isLeaderOrAdmin}
             canArchive={isLeaderOrAdmin}
           />
@@ -193,11 +191,6 @@ export default async function MemberDetailPage({
               <ProfileField icon={Home} label="Szobaszám">
                 {member.dormRoom}
               </ProfileField>
-              {member.websiteUsername && (
-                <ProfileField icon={User} label="Weboldal felhasználónév">
-                  {member.websiteUsername}
-                </ProfileField>
-              )}
             </dl>
           </CardContent>
         </Card>

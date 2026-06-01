@@ -37,7 +37,6 @@ export function MemberEditSheet({
   currentRole,
   authentikGroups,
   canChangeStatus,
-  canChangeUsername,
   canManageRole,
   open,
   onOpenChange,
@@ -46,7 +45,6 @@ export function MemberEditSheet({
   currentRole: RoleData;
   authentikGroups: AuthentikGroupOption[];
   canChangeStatus: boolean;
-  canChangeUsername: boolean;
   canManageRole: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -231,14 +229,6 @@ export function MemberEditSheet({
                 </SelectContent>
               </Select>
             </div>
-          )}
-
-          {canChangeUsername && (
-            <FormField
-              name="websiteUsername"
-              label="Weboldal felhasználónév"
-              defaultValue={member.websiteUsername ?? ""}
-            />
           )}
 
           <SheetFooter className="mb-2">

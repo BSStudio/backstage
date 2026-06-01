@@ -11,7 +11,6 @@ export type MemberData = {
   major: string | null;
   dormRoom: string | null;
   status: MembershipStatus;
-  websiteUsername: string | null;
   archived: boolean;
 };
 
