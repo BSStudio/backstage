@@ -1,0 +1,17 @@
+# LF everywhere, regardless of core.autocrlf
+* text=auto eol=lf
+
+# Never convert or text-diff
+*.ico   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.gif   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+
+# Collapse in GitHub diffs, skip in language stats
+pnpm-lock.yaml linguist-generated=true
