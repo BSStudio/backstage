@@ -56,15 +56,19 @@ Environment variables: see `.env.example`. It is the complete list and is kept i
 ## Repository structure
 
 - `app/(portal)/` — authenticated pages (members, admin, dashboard)
-- `app/api/` — REST routes: `members/`, `members/[id]/{roles,avatar}`, `auth/[...all]`
+- `app/api/` — REST routes: `members/`, `members/[id]/{roles,avatar}`, `usernames/suggest`,
+  `auth/[...all]`
 - `app/avatars/[...path]/route.ts` — serves avatar bytes from whichever storage backend is active
-- `lib/services/` — business logic (`members.ts`, `sync-jobs.ts`). All real work happens here.
+- `lib/services/` — business logic (`members.ts`, `sync-jobs.ts`, `usernames.ts`). All real work
+  happens here.
 - `lib/actions/` — Server Actions; thin wrappers around services
 - `lib/authentik/` — Authentik REST client (`client`, `users`, `groups`)
 - `lib/website/` — legacy Drupal client (`client.ts` transport, `users.ts` operations)
 - `lib/sync/` — `executor.ts` + per-target `{authentik,website}/{operations,orchestrators,group-mapping}.ts`
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
 - `lib/errors.ts` — typed error hierarchy + `mapServiceError`
+- `lib/api-client-auth.ts` — bearer verification for machine-to-machine callers
+- `lib/rate-limit.ts` — in-memory fixed-window rate limiter
 - `lib/members.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts` — display helpers + Hungarian labels
 - `components/ui/` — shadcn/ui primitives
 - `tests/` — mirrors the source layout; `setup.ts` spins Testcontainers Postgres
@@ -166,9 +170,11 @@ On login `mapProfileToUser` reads the `groups` claim and derives a role; a
 `databaseHooks.user.create.before` hook forces the user row `id` to the Authentik `sub`, so it
 matches the Member `id`.
 
-`proxy.ts` lets `/login` and `/api/auth` through and redirects everything else to `/login` when no
-session cookie is present, preserving the original path as `callbackUrl`. Its matcher excludes
-static assets and image extensions — which is why avatar URLs are readable without auth.
+`proxy.ts` lets `/login`, `/api/auth` and `/api/usernames` through and redirects everything else to
+`/login` when no session cookie is present, preserving the original path as `callbackUrl`. Its
+matcher excludes static assets and image extensions — which is why avatar URLs are readable without
+auth. `/api/usernames` is public to the proxy because it carries a bearer token instead of a session
+cookie; the route itself does the authenticating.
 
 Session helpers in `lib/session.ts` return `Session | NextResponse`, so routes early-return the
 response: `requireAuth()` (401) and `requireRole(...roles)` (401/403).
@@ -180,6 +186,24 @@ response: `requireAuth()` (401) and `requireRole(...roles)` (401/403).
 | `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + view audit log, retry failed sync jobs |
 
 `resolveUserRole(groups)` in `types/index.ts` implements the mapping.
+
+### Machine-to-machine access
+
+Other studio apps authenticate with Authentik **client credentials** against the same login
+provider — no second provider, application or redirect URI. One service account per consuming app,
+added to the group named by `AUTHENTIK_GROUP_API_CLIENTS`; the account's app password is the
+per-app secret, so revoking access means deleting the account.
+
+`requireApiClient(req)` (`lib/api-client-auth.ts`) does `jwtVerify` + `createRemoteJWKSet` against
+`AUTHENTIK_ISSUER` (JWKS at `<issuer>/jwks/`, memoized per issuer), audience
+`AUTHENTIK_CLIENT_ID`, then requires the API-client group in the `groups` claim. It returns a
+`NextResponse` on failure like the session helpers do, and the caller identity (`sub`,
+`preferred_username`) otherwise.
+
+It lives **outside** `lib/session.ts` on purpose. Login and client-credentials tokens share an
+issuer and an audience, so a member's browser access token is a structurally valid bearer here —
+group membership is the only boundary. In the shared helpers it would become a valid credential on
+every route, admin ones included.
 
 ---
 
@@ -209,6 +233,12 @@ no-op when no role exists.
 
 `POST`/`DELETE /api/members/[id]/avatar` — upload/remove (self, or leader/admin).
 
+`GET /api/usernames/suggest?firstName=…&lastName=…` — machine-to-machine only (bearer token, see
+Machine-to-machine access). Returns `{ username }` and nothing else. Read-only: it neither creates
+nor reserves, so the name can be taken by the time the caller uses it — callers handle the create
+failure. 30 requests per minute per service account, and a 60-second in-memory cache per name,
+because every miss fans out to Authentik's user API once per collision candidate.
+
 `websiteUserId` is never accepted on any write — it is set by sync and import only.
 
 Admin-only resources (sync jobs, audit log) deliberately have **no** REST routes; see
@@ -220,14 +250,16 @@ Architectural Decisions.
 
 ### Authentik
 
-Two independent uses:
+Three independent uses:
 
 1. **Login (OIDC)** — `AUTHENTIK_ISSUER`, `AUTHENTIK_CLIENT_ID`, `AUTHENTIK_CLIENT_SECRET`
 2. **User/group management (REST)** — `lib/authentik/*`, using `AUTHENTIK_URL`,
    `AUTHENTIK_API_TOKEN`
+3. **Machine-to-machine tokens** — client credentials against the *same* provider as login, no
+   extra config beyond `AUTHENTIK_GROUP_API_CLIENTS`
 
-Group **names** (matched against the OIDC groups claim for role resolution):
-`AUTHENTIK_GROUP_LEADERSHIP`, `AUTHENTIK_GROUP_ADMIN`.
+Group **names** (matched against the OIDC groups claim): `AUTHENTIK_GROUP_LEADERSHIP`,
+`AUTHENTIK_GROUP_ADMIN` for role resolution, `AUTHENTIK_GROUP_API_CLIENTS` for API clients.
 
 Group **UUIDs** (used by the sync layer): `AUTHENTIK_GROUP_CANDIDATE_CANDIDATE`,
 `AUTHENTIK_GROUP_CANDIDATE`, `AUTHENTIK_GROUP_MEMBER`, `AUTHENTIK_GROUP_ALUMNI` (covers both alumni
@@ -238,6 +270,10 @@ statuses), and `AUTHENTIK_GROUP_LEADERSHIP_UUID` — note this is a *different* 
 diacritics stripped, hyphens removed: `Kovács János → jkovacs`, `Csaba Nagy → csnagy`.
 `deriveUsername()` in `types/index.ts`, collisions resolved by `findAvailableUsername()`
 (`lib/authentik/users.ts`). Not overridable — there is no stored username field.
+
+Both are paired in `lib/services/usernames.ts`: `resolveAvailableUsername()` (uncached, used by
+`createAuthentikUser`) and `suggestUsername()` (cached, used by the suggestion endpoint). Member
+creation and other studio apps therefore take the same path.
 
 ### Legacy website (Drupal at bsstudio.hu)
 

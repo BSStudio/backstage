@@ -2,8 +2,8 @@ import type {
   MembershipStatus,
   PrismaClient,
 } from "@/app/generated/prisma/client";
-import { createUser, findAvailableUsername } from "@/lib/authentik/users";
-import { deriveUsername } from "@/types";
+import { createUser } from "@/lib/authentik/users";
+import { resolveAvailableUsername } from "@/lib/services/usernames";
 import { executeSyncJob, type SyncResult } from "../executor";
 import { getStatusGroupUuid } from "./group-mapping";
 
@@ -29,8 +29,10 @@ export async function createAuthentikUser(data: {
   mobile: string | null;
   status: MembershipStatus;
 }) {
-  const baseUsername = deriveUsername(data.firstName, data.lastName);
-  const username = await findAvailableUsername(baseUsername);
+  const username = await resolveAvailableUsername(
+    data.firstName,
+    data.lastName,
+  );
 
   return createUser({
     username,
