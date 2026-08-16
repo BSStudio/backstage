@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/card";
 import { authClient } from "@/lib/auth-client";
 
-export default function LoginPage() {
+function LoginButton() {
   const [loading, setLoading] = useState(false);
   const searchParams = useSearchParams();
 
@@ -30,6 +30,15 @@ export default function LoginPage() {
     });
   };
 
+  return (
+    <Button className="w-full" onClick={handleLogin} disabled={loading}>
+      {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
+      Bejelentkezés
+    </Button>
+  );
+}
+
+export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="absolute top-4 right-4">
@@ -52,10 +61,16 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button className="w-full" onClick={handleLogin} disabled={loading}>
-            {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
-            Bejelentkezés
-          </Button>
+          {/* `useSearchParams` bails out of prerendering without a boundary. */}
+          <Suspense
+            fallback={
+              <Button className="w-full" disabled>
+                Bejelentkezés
+              </Button>
+            }
+          >
+            <LoginButton />
+          </Suspense>
         </CardContent>
       </Card>
     </div>
