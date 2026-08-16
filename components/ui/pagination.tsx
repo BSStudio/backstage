@@ -1,3 +1,8 @@
+// LOCAL MODIFICATIONS — do not blindly overwrite via `shadcn add`.
+// PaginationLink renders `next/link` instead of a plain `<a>`, so paging the
+// audit log stays a client-side navigation. Props are typed off `Link`
+// accordingly. Re-apply on update.
+
 import {
   ChevronLeftIcon,
   ChevronRightIcon,

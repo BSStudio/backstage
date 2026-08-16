@@ -505,6 +505,9 @@ contact details, and the wiki already provides editing and audit.
 - Every portal page exports `metadata` (or `generateMetadata`) for a descriptive Hungarian title
 - Non-login form fields carry `autoComplete="off"` + `data-1p-ignore` + `data-lpignore="true"` to
   suppress password-manager autofill
+- `components/ui/` primitives are registry output and are re-addable with `shadcn add --overwrite`.
+  Anything hand-edited carries a `LOCAL MODIFICATIONS` comment at the top of the file saying what
+  changed and why, so an update can re-apply it — currently `table.tsx` and `pagination.tsx`
 - `AvatarContext` (`components/avatar-context.tsx`) shares the current avatar URL between the
   layout-rendered navbar and the member detail page, so an upload does not force a layout re-render
 
