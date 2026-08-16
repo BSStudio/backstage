@@ -4,6 +4,7 @@ import type {
   SyncTarget,
 } from "@/app/generated/prisma/client";
 import { Prisma } from "@/app/generated/prisma/client";
+import { captureSyncJobFailure } from "@/lib/observability/capture";
 import { authentikHandlers } from "./authentik/operations";
 import { websiteHandlers } from "./website/operations";
 
@@ -60,6 +61,13 @@ export async function executeSyncJob(
     await prisma.syncJob.update({
       where: { id: jobId },
       data: { status: "FAILED", result: { error: message } },
+    });
+    captureSyncJobFailure(error, {
+      jobId,
+      memberId: job.memberId,
+      target: job.target,
+      operation: job.operation,
+      attempts: job.attempts + 1,
     });
     return { success: false, error: message };
   }

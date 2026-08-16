@@ -9,6 +9,7 @@ const {
   mockRemoveUserFromGroup,
   mockUpdateWebsiteUser,
   mockDeactivateWebsiteUser,
+  mockCaptureSyncJobFailure,
 } = vi.hoisted(() => ({
   mockCreateUser: vi.fn(),
   mockUpdateUser: vi.fn(),
@@ -17,6 +18,11 @@ const {
   mockRemoveUserFromGroup: vi.fn(),
   mockUpdateWebsiteUser: vi.fn(),
   mockDeactivateWebsiteUser: vi.fn(),
+  mockCaptureSyncJobFailure: vi.fn(),
+}));
+
+vi.mock("@/lib/observability/capture", () => ({
+  captureSyncJobFailure: mockCaptureSyncJobFailure,
 }));
 
 vi.mock("@/lib/website/users", () => ({
@@ -124,6 +130,49 @@ describe("executeSyncJob", () => {
     const updated = await prisma.syncJob.findUnique({ where: { id: job.id } });
     expect(updated?.status).toBe("FAILED");
     expect(updated?.result).toEqual({ error: "username taken" });
+  });
+
+  it("reports a FAILED job to Sentry with the member and the target tagged", async () => {
+    const prisma = getTestPrisma();
+    const failure = new Error("username taken");
+    mockCreateUser.mockRejectedValue(failure);
+
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "CREATE_USER",
+        memberId: MEMBER_ID,
+        payload: { username: "t", name: "T", email: "t@e.com" },
+      },
+    });
+
+    await executeSyncJob(prisma, job.id);
+
+    expect(mockCaptureSyncJobFailure).toHaveBeenCalledWith(failure, {
+      jobId: job.id,
+      memberId: MEMBER_ID,
+      target: "AUTHENTIK",
+      operation: "CREATE_USER",
+      attempts: 1,
+    });
+  });
+
+  it("does not report a job that succeeds", async () => {
+    const prisma = getTestPrisma();
+    mockUpdateUser.mockResolvedValue({ pk: 42 });
+
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "UPDATE_USER",
+        memberId: MEMBER_ID,
+        payload: { name: "New Name" },
+      },
+    });
+
+    await executeSyncJob(prisma, job.id);
+
+    expect(mockCaptureSyncJobFailure).not.toHaveBeenCalled();
   });
 
   it("dispatches UPDATE_USER with resolved pk", async () => {

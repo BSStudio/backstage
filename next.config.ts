@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const commitHash = (() => {
@@ -37,4 +38,22 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Upload is off without the build secret, so a local `pnpm build` still succeeds.
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: sentryAuthToken,
+  silent: !process.env.CI,
+  telemetry: false,
+  widenClientFileUpload: true,
+  sourcemaps: {
+    disable: !sentryAuthToken,
+    deleteSourcemapsAfterUpload: true,
+  },
+  release: {
+    name: appVersion,
+    create: Boolean(sentryAuthToken),
+  },
+});

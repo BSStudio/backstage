@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockRequireApiClient, mockSuggestUsername } = vi.hoisted(() => ({
-  mockRequireApiClient: vi.fn(),
-  mockSuggestUsername: vi.fn(),
-}));
+const { mockRequireApiClient, mockSuggestUsername, mockLogger } = vi.hoisted(
+  () => ({
+    mockRequireApiClient: vi.fn(),
+    mockSuggestUsername: vi.fn(),
+    mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  }),
+);
 
 beforeEach(() => {
   vi.resetModules();
@@ -16,6 +19,7 @@ beforeEach(() => {
   vi.doMock("@/lib/services/usernames", () => ({
     suggestUsername: mockSuggestUsername,
   }));
+  vi.doMock("@/lib/observability/logger", () => ({ logger: mockLogger }));
 
   mockRequireApiClient.mockResolvedValue({
     sub: "svc-1",
@@ -96,5 +100,56 @@ describe("GET /api/usernames/suggest", () => {
 
     const { GET } = await importRoute();
     expect((await GET(req())).status).toBe(500);
+  });
+});
+
+describe("GET /api/usernames/suggest — caller identity logging", () => {
+  it("logs the service account on a successful suggestion", async () => {
+    const { GET } = await importRoute();
+    await GET(req());
+
+    expect(mockLogger.info).toHaveBeenCalledWith("usernames.suggest", {
+      sub: "svc-1",
+      caller: "requests",
+      outcome: "ok",
+      username: "jkovacs",
+    });
+  });
+
+  it("logs an invalid request", async () => {
+    const { GET } = await importRoute();
+    await GET(req("?firstName=János"));
+
+    expect(mockLogger.warn).toHaveBeenCalledWith("usernames.suggest", {
+      sub: "svc-1",
+      caller: "requests",
+      outcome: "invalid_request",
+    });
+  });
+
+  it("logs which service account tripped the rate limit", async () => {
+    const { GET } = await importRoute();
+    for (let i = 0; i < 31; i++) await GET(req());
+
+    expect(mockLogger.warn).toHaveBeenCalledWith("usernames.suggest", {
+      sub: "svc-1",
+      caller: "requests",
+      outcome: "rate_limited",
+    });
+  });
+
+  it("logs the failure message when Authentik is down", async () => {
+    mockSuggestUsername.mockRejectedValue(new Error("Authentik API error"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { GET } = await importRoute();
+    await GET(req());
+
+    expect(mockLogger.error).toHaveBeenCalledWith("usernames.suggest", {
+      sub: "svc-1",
+      caller: "requests",
+      outcome: "error",
+      message: "Authentik API error",
+    });
   });
 });

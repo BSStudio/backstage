@@ -1,5 +1,6 @@
 allowBuilds:
   '@prisma/engines': true
+  '@sentry/cli': true
   cpu-features: false
   esbuild: true
   msw: false

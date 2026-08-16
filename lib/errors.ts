@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureServiceError } from "@/lib/observability/capture";
 
 export class ServiceError extends Error {
   constructor(message: string) {
@@ -36,12 +37,10 @@ export function mapServiceError(error: unknown): NextResponse {
   if (error instanceof ForbiddenError) {
     return NextResponse.json({ error: error.message }, { status: 403 });
   }
-  /* v8 ignore else -- @preserve */
   if (error instanceof ValidationError) {
     return NextResponse.json({ error: error.details }, { status: 400 });
   }
-  /* v8 ignore start -- @preserve */
+  captureServiceError(error);
   console.error("Unhandled service error:", error);
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  /* v8 ignore stop -- @preserve */
 }

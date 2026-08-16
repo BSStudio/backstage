@@ -69,10 +69,14 @@ Environment variables: see `.env.example`. It is the complete list and is kept i
 - `lib/errors.ts` — typed error hierarchy + `mapServiceError`
 - `lib/api-client-auth.ts` — bearer verification for machine-to-machine callers
 - `lib/rate-limit.ts` — in-memory fixed-window rate limiter
+- `lib/observability/` — `sentry.ts` (shared init options), `scrub.ts` (PII redaction),
+  `capture.ts` (capture helpers), `logger.ts` (structured logging)
 - `lib/members.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts` — display helpers + Hungarian labels
 - `components/ui/` — shadcn/ui primitives
 - `tests/` — mirrors the source layout; `setup.ts` spins Testcontainers Postgres
 - `proxy.ts` — route protection (Next.js 16 convention)
+- `instrumentation.ts`, `instrumentation-client.ts`, `sentry.{server,edge}.config.ts` — Sentry
+  bootstrap (Next.js 16 conventions)
 - `prisma/schema.prisma` — single schema, client generated to `app/generated/prisma/`
 
 ---
@@ -301,12 +305,74 @@ late rather than baking IDs into the payload is what makes retry work: a job tha
 member had no `websiteUserId` succeeds on retry once an admin backfills it. A missing link throws,
 so it lands as a visible `FAILED` row instead of being silently skipped.
 
+Every FAILED job is also reported to Sentry from inside `executeSyncJob` — see Observability.
+
 API routes return HTTP **207** with `{ ..., syncErrors: string[] }` when the DB write succeeded but
 a sync step failed. The UI shows a warning toast, not an error.
 
 Website specifics: `CREATE_USER` / `UPDATE_USER` / `DEACTIVATE_USER` are wired into create, update,
 status change, archive and bulk operations. Status changes flow through `UPDATE_USER` via the
 `position` field — there is no dedicated status orchestrator on this target.
+
+---
+
+## Observability
+
+Sentry (`@sentry/nextjs`), errors only — no tracing, no session replay. There is no background
+worker and no alerting elsewhere, so this is the only thing that tells anyone a sync broke.
+
+`tracesSampleRate` is deliberately **absent** rather than `0`. Sentry's `hasSpansEnabled()` treats
+`0` as "tracing on, sample nothing", which still builds spans and attaches `sentry-trace` /
+`baggage` headers to every outgoing Authentik and Drupal call.
+
+**Bootstrap.** `instrumentation.ts` `register()` imports `sentry.server.config.ts` or
+`sentry.edge.config.ts` depending on `NEXT_RUNTIME`; the browser gets `instrumentation-client.ts`.
+All three call `Sentry.init(sentryInitOptions())` from `lib/observability/sentry.ts`, so the three
+runtimes cannot drift. That module stays free of server-only imports — it ends up in the client
+bundle.
+
+**Disabled without a DSN.** `NEXT_PUBLIC_SENTRY_DSN` unset ⇒ `enabled: false`, so dev machines and
+the test suite never phone home. It is a `NEXT_PUBLIC_` value, so `next build` freezes it into the
+bundle: the CI image build has to supply it, setting it on the running container is too late.
+
+**What gets captured.**
+
+| Source | Where |
+| --- | --- |
+| FAILED `SyncJob` | `captureSyncJobFailure` in `executeSyncJob` |
+| Unhandled service errors behind a 500 | `captureServiceError` in `mapServiceError` |
+| Server render errors and rethrowing Server Actions | `onRequestError` in `instrumentation.ts` |
+| Client render errors | `app/global-error.tsx` |
+
+`onRequestError` is server-side only, so a React render error in the browser reaches Sentry solely
+through `global-error.tsx`. That file replaces the root layout when it renders, so it carries its
+own `<html>`, stylesheet import and next-themes-compatible theme resolution.
+
+A sync failure is tagged `sync.target`, `sync.operation`, `sync.job_id` and `member.id` — the alert
+names the member and the system without anyone opening `/admin/sync-jobs`. The job **payload is
+never attached**; it holds an email and a mobile number.
+
+**Typed errors are not incidents.** `NotFoundError`, `ForbiddenError` and `ValidationError` are
+control flow. They are filtered in three places: `isExpectedError` (by `name`, not `instanceof`, so
+`lib/observability/sentry.ts` stays independent of `lib/errors.ts`, which imports `capture.ts`),
+and again in `beforeSend` by exception type as a backstop.
+
+**PII scrubbing** (`lib/observability/scrub.ts`) runs on every outgoing event. Emails and phone
+numbers are redacted out of the message, exception values, `extra`, `contexts`, breadcrumbs and the
+request URL; sensitive keys (`email`, `mobile`, `password`, `token`, `payload`, …) are dropped
+wholesale; `user` is reduced to `id` + `username`; request headers, cookies and bodies are dropped
+entirely. Tags are deliberately **not** scrubbed — every tag value is written by our own code, and
+the phone matcher would otherwise eat identifiers that are long runs of digits.
+
+**Release tagging** reuses `NEXT_PUBLIC_APP_VERSION` from `next.config.ts` (git tag + short hash, or
+whatever the image build passes in), so an event points at a known build. Source map upload is
+wired through `withSentryConfig` but switches itself off unless `SENTRY_AUTH_TOKEN` is present —
+that secret belongs to the Docker build, not to a local `pnpm build`.
+
+**Structured logging** (`lib/observability/logger.ts`) writes one JSON object per line to
+stdout/stderr. `/api/usernames/suggest` logs the calling service account (`sub` + service account
+name) with the outcome on every path — service account names are not PII, so they are logged raw.
+Nothing else logs through it yet.
 
 ---
 
@@ -388,6 +454,12 @@ contact details, and the wiki already provides editing and audit.
 ## Conventions
 
 - Hungarian for anything a user sees; English for identifiers and enum values
+- **Comments are minimal and explain *why*, never *what*.** Code is expected to read on its own —
+  name things instead of narrating them. A comment earns its place only when the reason is not
+  recoverable from the code: a non-obvious constraint, a trade-off, a workaround for someone else's
+  bug. No module-header docblocks restating the filename, no JSDoc that repeats the signature, no
+  step-by-step commentary on straightforward control flow. The same holds for `.env.example` and
+  config files — describe what a value does, never general advice the reader already knows
 - Zod `.trim()` on every string input; empty strings become `null` in the service layer so optional
   fields can be cleared
 - `archived: false` is the default filter on member queries
