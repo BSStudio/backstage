@@ -38,18 +38,43 @@ Breaking these causes real damage, not style nits.
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` | Dev server |
+| `pnpm dev:setup` | One-command onboarding: `.env`, Postgres container, generate, migrate, seed |
 | `pnpm check` | `biome check` + `tsc --noEmit` — run before declaring done |
 | `pnpm typecheck` | Types only |
 | `pnpm lint` | Biome only (no writes) |
 | `pnpm test` | Full suite (needs Docker) |
 | `pnpm test:watch` | Watch mode |
 | `pnpm test:coverage` | With V8 coverage |
+| `pnpm test:service` | Watch mode over `tests/services/` only |
 | `pnpm db:migrate` | `prisma migrate dev` — creates + applies a migration |
 | `pnpm db:generate` | Regenerate the Prisma client into `app/generated/prisma/` |
-| `pnpm db:reset` | Drop, recreate, re-migrate |
+| `pnpm db:reset` | Drop, recreate, re-migrate, reseed (`--skip-seed` to stop after migrating) |
+| `pnpm db:seed` | Wipe and reseed dev data (`--reset-user` re-asks who you are) |
 | `pnpm build` | Production build (standalone output) |
 
 Environment variables: see `.env.example`. It is the complete list and is kept in sync.
+
+### Dev data
+
+`pnpm db:seed` wipes the dev database and writes ~43 invented members (Hungarian names, none
+real), leadership roles, an `AuthentikGroup` registry, per-member timeline and audit history, and
+sync jobs including two FAILED ones so `/admin/sync-jobs` and its retry button have something to
+show. Semesters are relative to `currentSemester()`, and member ids are a hash of the seeded email,
+so member URLs survive a reseed.
+
+The first run asks for your name and your Authentik `sub` and stores the answers in
+`.dev-user.json` (gitignored). That row is created with your `sub` as its `id`, so logging in
+through SSO lands on it instead of creating a second record.
+
+The seeded `AuthentikGroup` UUIDs are invented, so a default seed cannot touch a real instance.
+To test group sync against a dev Authentik, write the real UUIDs to `.dev-authentik-groups.json`
+(gitignored, `[{ "displayName": "Főszerkesztő", "authentikGroupId": "<uuid>" }, …]`): entries
+whose `displayName` matches a seeded group replace its UUID, the rest are added to the registry.
+Real Authentik identifiers stay out of the repo, same as the group UUIDs in `.env`. Only *your*
+member row resolves in Authentik — the invented members have no account there, so assigning them
+a role produces a FAILED job. Assign the role to yourself.
+
+The scripts refuse to run against a database whose host is not local unless passed `--force`.
 
 ---
 
@@ -73,6 +98,8 @@ Environment variables: see `.env.example`. It is the complete list and is kept i
   `capture.ts` (capture helpers), `logger.ts` (structured logging)
 - `lib/members.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts` — display helpers + Hungarian labels
 - `components/ui/` — shadcn/ui primitives
+- `scripts/` — dev tooling run with `tsx`: `dev-setup.ts`, `seed-dev.ts` (+ `seed-data.ts` roster,
+  `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`
 - `tests/` — mirrors the source layout; `setup.ts` spins Testcontainers Postgres
 - `proxy.ts` — route protection (Next.js 16 convention)
 - `instrumentation.ts`, `instrumentation-client.ts`, `sentry.{server,edge}.config.ts` — Sentry
