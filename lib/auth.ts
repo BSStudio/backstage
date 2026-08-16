@@ -1,6 +1,17 @@
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
 import { resolveUserRole } from "@/types";
+
+// Better Auth mounts its whole router, including password, account-linking and
+// profile-mutation routes Authentik owns. Patterns, not resolved URLs.
+const ALLOWED_AUTH_PATHS = new Set([
+  "/sign-in/oauth2",
+  "/oauth2/callback/:providerId",
+  "/get-session",
+  "/sign-out",
+  "/error",
+]);
 
 export const auth = betterAuth({
   user: {
@@ -9,28 +20,40 @@ export const auth = betterAuth({
         type: "string",
         required: true,
         defaultValue: "MEMBER",
-        input: false,
       },
       firstName: {
         type: "string",
         required: false,
-        input: false,
       },
       lastName: {
         type: "string",
         required: false,
-        input: false,
+      },
+      authentikSub: {
+        type: "string",
+        required: false,
+        returned: false,
       },
     },
+  },
+
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (!ALLOWED_AUTH_PATHS.has(ctx.path)) {
+        throw new APIError("NOT_FOUND", {
+          message: "Auth endpoint not enabled",
+        });
+      }
+    }),
   },
 
   databaseHooks: {
     user: {
       create: {
         before: async (user) => {
-          // Use OAuth sub as user ID
-          const { _sub, ...rest } = user as Record<string, unknown>;
-          return { data: { ...rest, id: _sub } as typeof user };
+          const { authentikSub } = user as { authentikSub?: string };
+          if (!authentikSub) return;
+          return { data: { ...user, id: authentikSub } };
         },
       },
     },
@@ -52,7 +75,7 @@ export const auth = betterAuth({
               role: resolveUserRole(groups),
               firstName: profile.given_name,
               lastName: profile.family_name,
-              _sub: profile.sub,
+              authentikSub: profile.sub,
             } as Record<string, unknown>;
           },
         },
