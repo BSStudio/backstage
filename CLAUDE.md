@@ -85,7 +85,8 @@ The scripts refuse to run against a database whose host is not local unless pass
   `auth/[...all]`
 - `app/avatars/[...path]/route.ts` — serves avatar bytes from whichever storage backend is active
 - `lib/services/` — business logic (`members.ts`, `sync-jobs.ts`, `usernames.ts`). All real work
-  happens here.
+  happens here. `member-schemas.ts` holds the Zod schemas, split out so client forms can import
+  them.
 - `lib/actions/` — Server Actions; thin wrappers around services
 - `lib/authentik/` — Authentik REST client (`client`, `users`, `groups`)
 - `lib/website/` — legacy Drupal client (`client.ts` transport, `users.ts` operations)
@@ -97,6 +98,8 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `lib/observability/` — `sentry.ts` (shared init options), `scrub.ts` (PII redaction),
   `capture.ts` (capture helpers), `logger.ts` (structured logging)
 - `lib/members.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts` — display helpers + Hungarian labels
+- `components/form.tsx` — TanStack Form `useAppForm` plus the field/submit components every form
+  is built from
 - `components/ui/` — shadcn/ui primitives
 - `scripts/` — dev tooling run with `tsx`: `dev-setup.ts`, `seed-dev.ts` (+ `seed-data.ts` roster,
   `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`
@@ -112,7 +115,8 @@ The scripts refuse to run against a database whose host is not local unless pass
 
 **Add or change a Member field**
 1. `prisma/schema.prisma` → `pnpm db:migrate`
-2. `CreateMemberSchema` / `UpdateMemberSchema` in `lib/services/members.ts`
+2. `CreateMemberSchema` / `UpdateMemberSchema` in `lib/services/member-schemas.ts` (re-exported
+   from `members.ts`) — the forms validate against the `*FormSchema` variants derived there
 3. Should it reach Authentik? Add to `AUTHENTIK_SYNCED_FIELDS` *and* `buildAuthentikAttributes()`
    (`lib/sync/authentik/orchestrators.ts`) — the attribute set is sent wholesale, see below
 4. Should it reach the website? Add to `WEBSITE_SYNCED_FIELDS` *and* the field mapping inside
@@ -479,6 +483,28 @@ Both store the same logical key `<id>-<variant>.webp` — local under `./storage
 (`/avatars/<filename>`) stay valid. Local storage sits **outside `public/`** deliberately: static
 serving would shadow `app/avatars/[...path]/route.ts` and break the S3 path.
 
+**Forms validate against the service's own schemas.** `lib/services/member-schemas.ts` exists only
+so a client component can import a Zod schema without dragging Prisma and the sync layer into the
+browser bundle — `members.ts` re-exports it, so service and API callers are unaffected. The forms
+use `*FormSchema` variants (`CreateMemberSchema.required()` and friends) because a form always
+submits every field as a present string, while an API caller may send a partial payload. Validation
+messages therefore live in the schema and are Hungarian; they surface both inline in the form and
+in a 400 body.
+
+**Save is disabled until something changes.** Edit forms subscribe to TanStack Form's
+`isDefaultValue`, so reverting an edit re-disables the button. The role checkbox group keeps its
+value sorted for the same reason — the comparison is order-sensitive, and unchecking then
+rechecking a box would otherwise read as a change. Field errors stay hidden until a field is
+blurred or a submit is attempted — forms register the schema on `onChange` **only**, and the field
+components re-run that validator from their blur handler so a field the user tabbed straight past
+still reports. Registering the same schema on `onBlur` as well looks equivalent and is not: every
+validation cause keeps its own slot in `errorMap` and `meta.errors` flattens all of them, so the
+field renders two messages at once and keeps the stale one until that cause fires again.
+
+**The edit sheet's forms live inside `SheetContent`.** Radix unmounts it on close, so both forms
+remount with the current member data on every open — no reset effect, and a discarded edit cannot
+survive a reopen.
+
 **Studio leaders history lives on the wiki.** Not an in-app page — the sidebar links to
 `https://wiki.bsstudio.hu/doc/studiovezetok-AdWWlRMuAI`. Edits are rare, pre-2010 entries lack
 contact details, and the wiki already provides editing and audit.
@@ -500,8 +526,12 @@ contact details, and the wiki already provides editing and audit.
 - Leadership roles are deleted when they end — history survives in `TimelineEntry`
 - 207 responses carry `syncErrors`; the UI shows a warning toast, never an error
 - Toasts (sonner) for every mutation — `toast.success()` / `toast.error()`
-- Per-button loading spinners via a `pendingAction` discriminator, never one global spinner —
-  pages with several actions must show feedback on the button that was clicked
+- Per-button loading spinners, never one global spinner — pages with several actions must show
+  feedback on the button that was clicked. Each form carries its own `isSubmitting`; where several
+  actions share one `useTransition` (`members-table.tsx`) a `pendingAction` discriminator says
+  which button is busy
+- Forms are TanStack Form via `useAppForm` (`components/form.tsx`) — no raw `FormData` reads.
+  Fields are `<form.AppField>` + a field component, submit buttons go inside `<form.AppForm>`
 - Every portal page exports `metadata` (or `generateMetadata`) for a descriptive Hungarian title
 - Non-login form fields carry `autoComplete="off"` + `data-1p-ignore` + `data-lpignore="true"` to
   suppress password-manager autofill

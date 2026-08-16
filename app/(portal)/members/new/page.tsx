@@ -1,20 +1,14 @@
 "use client";
 
-import {
-  Check,
-  CheckCircle2,
-  Copy,
-  ExternalLink,
-  Loader2,
-  Mail,
-} from "lucide-react";
+import { Check, CheckCircle2, Copy, ExternalLink, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { FormField } from "@/components/form-field";
+import { useAppForm } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { createMemberAction } from "@/lib/actions/members";
+import { NewMemberFormSchema } from "@/lib/services/member-schemas";
 
 type CreatedMember = {
   id: string;
@@ -25,21 +19,26 @@ type CreatedMember = {
 
 const GOOGLE_GROUP_URL = process.env.NEXT_PUBLIC_GOOGLE_GROUP_URL;
 
+const EMPTY_MEMBER = {
+  lastName: "",
+  firstName: "",
+  nickname: "",
+  email: "",
+  mobile: "",
+  university: "",
+  major: "",
+  dormRoom: "",
+};
+
 export default function NewMemberPage() {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [created, setCreated] = useState<CreatedMember | null>(null);
 
-  const handleSubmit: React.SubmitEventHandler<HTMLFormElement> = (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const input: Record<string, string> = {};
-    for (const [key, value] of formData.entries()) {
-      input[key] = value.toString().trim();
-    }
-
-    startTransition(async () => {
-      const result = await createMemberAction(input);
+  const form = useAppForm({
+    defaultValues: EMPTY_MEMBER,
+    validators: { onChange: NewMemberFormSchema },
+    onSubmit: async ({ value }) => {
+      const result = await createMemberAction(value);
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -52,12 +51,18 @@ export default function NewMemberPage() {
         toast.success("Tag hozzáadva");
       }
       setCreated(result.data as CreatedMember);
-    });
-  };
+    },
+  });
 
   if (created) {
     return (
-      <SuccessStep created={created} onAddAnother={() => setCreated(null)} />
+      <SuccessStep
+        created={created}
+        onAddAnother={() => {
+          form.reset();
+          setCreated(null);
+        }}
+      />
     );
   }
 
@@ -72,58 +77,82 @@ export default function NewMemberPage() {
 
       <Card className="max-w-2xl">
         <CardContent className="px-4">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              form.handleSubmit();
+            }}
+            className="flex flex-col gap-4"
+          >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormField
-                name="lastName"
-                label="Vezetéknév"
-                placeholder="Kovács"
-                required
-              />
-              <FormField
-                name="firstName"
-                label="Keresztnév"
-                placeholder="János"
-                required
-              />
+              <form.AppField name="lastName">
+                {(field) => (
+                  <field.TextField
+                    label="Vezetéknév"
+                    placeholder="Kovács"
+                    required
+                  />
+                )}
+              </form.AppField>
+              <form.AppField name="firstName">
+                {(field) => (
+                  <field.TextField
+                    label="Keresztnév"
+                    placeholder="János"
+                    required
+                  />
+                )}
+              </form.AppField>
             </div>
-            <FormField name="nickname" label="Becenév" placeholder="Jani" />
-            <FormField
-              name="email"
-              label="Email"
-              type="email"
-              placeholder="kovacs.janos@bsstudio.hu"
-              required
-            />
-            <FormField
-              name="mobile"
-              label="Telefonszám"
-              type="tel"
-              placeholder="+36 30 123 4567"
-            />
+            <form.AppField name="nickname">
+              {(field) => (
+                <field.TextField label="Becenév" placeholder="Jani" />
+              )}
+            </form.AppField>
+            <form.AppField name="email">
+              {(field) => (
+                <field.TextField
+                  label="Email"
+                  type="email"
+                  placeholder="kovacs.janos@bsstudio.hu"
+                  required
+                />
+              )}
+            </form.AppField>
+            <form.AppField name="mobile">
+              {(field) => (
+                <field.TextField
+                  label="Telefonszám"
+                  type="tel"
+                  placeholder="+36 30 123 4567"
+                />
+              )}
+            </form.AppField>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormField
-                name="university"
-                label="Egyetem, kar"
-                placeholder="BME-VIK"
-              />
-              <FormField
-                name="major"
-                label="Szak"
-                placeholder="mérnökinformatikus"
-              />
+              <form.AppField name="university">
+                {(field) => (
+                  <field.TextField label="Egyetem, kar" placeholder="BME-VIK" />
+                )}
+              </form.AppField>
+              <form.AppField name="major">
+                {(field) => (
+                  <field.TextField
+                    label="Szak"
+                    placeholder="mérnökinformatikus"
+                  />
+                )}
+              </form.AppField>
             </div>
-            <FormField
-              name="dormRoom"
-              label="Szobaszám"
-              placeholder="SCH 1308"
-            />
+            <form.AppField name="dormRoom">
+              {(field) => (
+                <field.TextField label="Szobaszám" placeholder="SCH 1308" />
+              )}
+            </form.AppField>
 
             <div className="flex gap-2 pt-2">
-              <Button type="submit" disabled={isPending}>
-                {isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-                Hozzáadás
-              </Button>
+              <form.AppForm>
+                <form.SubmitButton>Hozzáadás</form.SubmitButton>
+              </form.AppForm>
               <Button
                 type="button"
                 variant="outline"

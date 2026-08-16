@@ -1,20 +1,13 @@
 "use client";
 
+import { useSelector } from "@tanstack/react-form";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useTransition } from "react";
 import { toast } from "sonner";
-import { FormField } from "@/components/form-field";
+import type { MembershipStatus } from "@/app/generated/prisma/client";
+import { type FieldOption, useAppForm } from "@/components/form";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
@@ -29,297 +22,260 @@ import {
   removeRoleAction,
   updateMemberAction,
 } from "@/lib/actions/members";
+import {
+  EditMemberFormSchema,
+  RoleFormSchema,
+} from "@/lib/services/member-schemas";
 import { MEMBERSHIP_STATUS_LABELS, MEMBERSHIP_STATUSES } from "@/types";
 import type { AuthentikGroupOption, MemberData, RoleData } from "./types";
 
-export function MemberEditSheet({
-  member,
-  currentRole,
-  authentikGroups,
-  canChangeStatus,
-  canManageRole,
-  open,
-  onOpenChange,
-}: {
+const STATUS_OPTIONS: FieldOption<MembershipStatus>[] = MEMBERSHIP_STATUSES.map(
+  (status) => ({
+    value: status,
+    label: MEMBERSHIP_STATUS_LABELS[status],
+  }),
+);
+
+type EditProps = {
   member: MemberData;
   currentRole: RoleData;
   authentikGroups: AuthentikGroupOption[];
   canChangeStatus: boolean;
   canManageRole: boolean;
+};
+
+export function MemberEditSheet({
+  open,
+  onOpenChange,
+  ...props
+}: EditProps & {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [pendingAction, setPendingAction] = useState<
-    "profile" | "assignRole" | "removeRole" | null
-  >(null);
-  const [roleLabel, setRoleLabel] = useState(currentRole?.label ?? "");
-  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(
-    currentRole?.authentikGroupIds ?? [],
-  );
-
-  useEffect(() => {
-    if (open) setPendingAction(null);
-  }, [open]);
-
-  function toggleGroup(groupId: string) {
-    setSelectedGroupIds((prev) =>
-      prev.includes(groupId)
-        ? prev.filter((id) => id !== groupId)
-        : [...prev, groupId],
-    );
-  }
-
-  function handleAssignRole() {
-    if (!roleLabel.trim()) {
-      toast.error("Pozíció neve kötelező");
-      return;
-    }
-
-    setPendingAction("assignRole");
-    startTransition(async () => {
-      const result = await assignRoleAction(
-        member.id,
-        roleLabel.trim(),
-        selectedGroupIds,
-      );
-      if (!result.success) {
-        toast.error(result.error);
-        setPendingAction(null);
-        return;
-      }
-      if (result.syncErrors && result.syncErrors.length > 0) {
-        toast.warning(
-          `Pozíció mentve, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
-        );
-      } else {
-        toast.success("Pozíció mentve");
-      }
-      onOpenChange(false);
-      router.refresh();
-    });
-  }
-
-  function handleRemoveRole() {
-    setPendingAction("removeRole");
-    startTransition(async () => {
-      const result = await removeRoleAction(member.id);
-      if (!result.success) {
-        toast.error(result.error);
-        setPendingAction(null);
-        return;
-      }
-      if (result.syncErrors && result.syncErrors.length > 0) {
-        toast.warning(
-          `Pozíció elvéve, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
-        );
-      } else {
-        toast.success("Pozíció elvéve");
-      }
-      setRoleLabel("");
-      setSelectedGroupIds([]);
-      onOpenChange(false);
-      router.refresh();
-    });
-  }
-
-  const handleSubmit: React.SubmitEventHandler<HTMLFormElement> = (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const input: Record<string, string> = {};
-
-    for (const [key, value] of formData.entries()) {
-      input[key] = value.toString().trim();
-    }
-
-    setPendingAction("profile");
-    startTransition(async () => {
-      const result = await updateMemberAction(member.id, input);
-      if (!result.success) {
-        toast.error(result.error);
-        setPendingAction(null);
-        return;
-      }
-      if (result.syncErrors && result.syncErrors.length > 0) {
-        toast.warning(
-          `Adatok mentve, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
-        );
-      } else {
-        toast.success("Adatok mentve");
-      }
-      onOpenChange(false);
-      router.refresh();
-    });
-  };
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Tag szerkesztése</SheetTitle>
           <SheetDescription>
-            {member.lastName} {member.firstName} adatainak módosítása.
+            {props.member.lastName} {props.member.firstName} adatainak
+            módosítása.
           </SheetDescription>
         </SheetHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4">
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              name="lastName"
-              label="Vezetéknév"
-              defaultValue={member.lastName}
-              required
-            />
-            <FormField
-              name="firstName"
-              label="Keresztnév"
-              defaultValue={member.firstName}
-              required
-            />
-          </div>
-          <FormField
-            name="nickname"
-            label="Becenév"
-            defaultValue={member.nickname ?? ""}
-          />
-          <FormField
-            name="email"
-            label="Email"
-            type="email"
-            defaultValue={member.email}
-            required
-          />
-          <FormField
-            name="mobile"
-            label="Telefonszám"
-            type="tel"
-            defaultValue={member.mobile ?? ""}
-          />
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              name="university"
-              label="Egyetem, kar"
-              defaultValue={member.university ?? ""}
-            />
-            <FormField
-              name="major"
-              label="Szak"
-              defaultValue={member.major ?? ""}
-            />
-          </div>
-          <FormField
-            name="dormRoom"
-            label="Szobaszám"
-            defaultValue={member.dormRoom ?? ""}
-          />
-
-          {canChangeStatus && (
-            <div className="flex flex-col gap-1.5">
-              <Label>Státusz</Label>
-              <Select name="status" defaultValue={member.status}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MEMBERSHIP_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {MEMBERSHIP_STATUS_LABELS[s]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <SheetFooter className="mb-2">
-            <Button type="submit" disabled={isPending}>
-              {pendingAction === "profile" && (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              )}
-              Mentés
-            </Button>
-          </SheetFooter>
-        </form>
-
-        {canManageRole && (
-          <>
-            <Separator />
-            <div className="flex flex-col gap-4 px-4 pb-4">
-              <div>
-                <h3 className="text-sm font-medium">Vezetőségi pozíció</h3>
-                <p className="text-xs text-muted-foreground">
-                  Pozíció és Authentik csoportok hozzárendelése.
-                </p>
-              </div>
-
-              <FormField
-                name="roleLabel"
-                label="Pozíció neve"
-                defaultValue={roleLabel}
-                onChange={(e) => setRoleLabel(e.target.value)}
-              />
-
-              {authentikGroups.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <Label>Authentik csoportok</Label>
-                  <div className="flex flex-col gap-1.5">
-                    {authentikGroups.map((group) => (
-                      <div
-                        key={group.authentikGroupId}
-                        className="flex items-center gap-2 text-sm"
-                      >
-                        <Checkbox
-                          id={`group-${group.authentikGroupId}`}
-                          checked={selectedGroupIds.includes(
-                            group.authentikGroupId,
-                          )}
-                          onCheckedChange={() =>
-                            toggleGroup(group.authentikGroupId)
-                          }
-                        />
-                        <Label
-                          htmlFor={`group-${group.authentikGroupId}`}
-                          className="font-normal"
-                        >
-                          {group.displayName}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={isPending}
-                  onClick={handleAssignRole}
-                >
-                  {pendingAction === "assignRole" && (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                  )}
-                  {currentRole ? "Pozíció frissítése" : "Pozíció kiosztása"}
-                </Button>
-                {currentRole && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isPending}
-                    onClick={handleRemoveRole}
-                  >
-                    {pendingAction === "removeRole" && (
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                    )}
-                    Pozíció elvétele
-                  </Button>
-                )}
-              </div>
-            </div>
-          </>
-        )}
+        <EditForms {...props} onClose={() => onOpenChange(false)} />
       </SheetContent>
     </Sheet>
   );
+}
+
+function EditForms({
+  member,
+  currentRole,
+  authentikGroups,
+  canChangeStatus,
+  canManageRole,
+  onClose,
+}: EditProps & { onClose: () => void }) {
+  const router = useRouter();
+  const [isRemovingRole, startRemoveRole] = useTransition();
+
+  const profileForm = useAppForm({
+    defaultValues: {
+      lastName: member.lastName,
+      firstName: member.firstName,
+      nickname: member.nickname ?? "",
+      email: member.email,
+      mobile: member.mobile ?? "",
+      university: member.university ?? "",
+      major: member.major ?? "",
+      dormRoom: member.dormRoom ?? "",
+      status: member.status,
+    },
+    validators: { onChange: EditMemberFormSchema },
+    onSubmit: async ({ value }) => {
+      const { status, ...profile } = value;
+      const result = await updateMemberAction(
+        member.id,
+        canChangeStatus ? { ...profile, status } : profile,
+      );
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      notifySync(result.syncErrors, "Adatok mentve");
+      onClose();
+      router.refresh();
+    },
+  });
+
+  const roleForm = useAppForm({
+    defaultValues: {
+      label: currentRole?.label ?? "",
+      // Sorted to match the order the checkbox field produces, so an unchanged
+      // selection stays unchanged for the dirty check.
+      authentikGroupIds: [...(currentRole?.authentikGroupIds ?? [])].sort(),
+    },
+    validators: { onChange: RoleFormSchema },
+    onSubmit: async ({ value }) => {
+      const result = await assignRoleAction(
+        member.id,
+        value.label,
+        value.authentikGroupIds,
+      );
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      notifySync(result.syncErrors, "Pozíció mentve");
+      onClose();
+      router.refresh();
+    },
+  });
+
+  const savingProfile = useSelector(
+    profileForm.store,
+    (state) => state.isSubmitting,
+  );
+  const savingRole = useSelector(roleForm.store, (state) => state.isSubmitting);
+  const busy = savingProfile || savingRole || isRemovingRole;
+
+  function handleRemoveRole() {
+    startRemoveRole(async () => {
+      const result = await removeRoleAction(member.id);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      notifySync(result.syncErrors, "Pozíció elvéve");
+      onClose();
+      router.refresh();
+    });
+  }
+
+  return (
+    <>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          profileForm.handleSubmit();
+        }}
+        className="flex flex-col gap-4 px-4"
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <profileForm.AppField name="lastName">
+            {(field) => <field.TextField label="Vezetéknév" required />}
+          </profileForm.AppField>
+          <profileForm.AppField name="firstName">
+            {(field) => <field.TextField label="Keresztnév" required />}
+          </profileForm.AppField>
+        </div>
+        <profileForm.AppField name="nickname">
+          {(field) => <field.TextField label="Becenév" />}
+        </profileForm.AppField>
+        <profileForm.AppField name="email">
+          {(field) => <field.TextField label="Email" type="email" required />}
+        </profileForm.AppField>
+        <profileForm.AppField name="mobile">
+          {(field) => <field.TextField label="Telefonszám" type="tel" />}
+        </profileForm.AppField>
+        <div className="grid grid-cols-2 gap-4">
+          <profileForm.AppField name="university">
+            {(field) => <field.TextField label="Egyetem, kar" />}
+          </profileForm.AppField>
+          <profileForm.AppField name="major">
+            {(field) => <field.TextField label="Szak" />}
+          </profileForm.AppField>
+        </div>
+        <profileForm.AppField name="dormRoom">
+          {(field) => <field.TextField label="Szobaszám" />}
+        </profileForm.AppField>
+
+        {canChangeStatus && (
+          <profileForm.AppField name="status">
+            {(field) => (
+              <field.SelectField label="Státusz" options={STATUS_OPTIONS} />
+            )}
+          </profileForm.AppField>
+        )}
+
+        <SheetFooter className="mb-2">
+          <profileForm.AppForm>
+            <profileForm.SubmitButton disabled={busy} requireChanges>
+              Mentés
+            </profileForm.SubmitButton>
+          </profileForm.AppForm>
+        </SheetFooter>
+      </form>
+
+      {canManageRole && (
+        <>
+          <Separator />
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              roleForm.handleSubmit();
+            }}
+            className="flex flex-col gap-4 px-4 pb-4"
+          >
+            <div>
+              <h3 className="text-sm font-medium">Vezetőségi pozíció</h3>
+              <p className="text-xs text-muted-foreground">
+                Pozíció és Authentik csoportok hozzárendelése.
+              </p>
+            </div>
+
+            <roleForm.AppField name="label">
+              {(field) => <field.TextField label="Pozíció neve" required />}
+            </roleForm.AppField>
+
+            {authentikGroups.length > 0 && (
+              <roleForm.AppField name="authentikGroupIds">
+                {(field) => (
+                  <field.CheckboxGroupField
+                    label="Authentik csoportok"
+                    options={authentikGroups.map((group) => ({
+                      value: group.authentikGroupId,
+                      label: group.displayName,
+                    }))}
+                  />
+                )}
+              </roleForm.AppField>
+            )}
+
+            <div className="flex gap-2">
+              <roleForm.AppForm>
+                <roleForm.SubmitButton size="sm" disabled={busy} requireChanges>
+                  {currentRole ? "Pozíció frissítése" : "Pozíció kiosztása"}
+                </roleForm.SubmitButton>
+              </roleForm.AppForm>
+              {currentRole && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={handleRemoveRole}
+                >
+                  {isRemovingRole && (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  )}
+                  Pozíció elvétele
+                </Button>
+              )}
+            </div>
+          </form>
+        </>
+      )}
+    </>
+  );
+}
+
+function notifySync(syncErrors: string[] | undefined, success: string) {
+  if (syncErrors && syncErrors.length > 0) {
+    toast.warning(
+      `${success}, de a szinkronizálás során hiba történt: ${syncErrors.join(", ")}`,
+    );
+  } else {
+    toast.success(success);
+  }
 }

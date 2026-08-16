@@ -5,6 +5,10 @@ import type {
   PrismaClient,
 } from "@/app/generated/prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import {
+  CreateMemberSchema,
+  UpdateMemberSchema,
+} from "@/lib/services/member-schemas";
 import { getLeadershipGroupUuid } from "@/lib/sync/authentik/group-mapping";
 import {
   buildAuthentikAttributes,
@@ -22,41 +26,18 @@ import {
   orchestrateUpdateWebsiteUser,
 } from "@/lib/sync/website/orchestrators";
 import type { UpdateWebsiteUserInput } from "@/lib/website/users";
-import { currentSemester, MEMBERSHIP_STATUSES, type UserRole } from "@/types";
+import { currentSemester, type UserRole } from "@/types";
 
-// ─── Validation schemas ──────────────────────────────────────────────────────
-
-export const CreateMemberSchema = z.object({
-  firstName: z.string().trim().min(1),
-  lastName: z.string().trim().min(1),
-  nickname: z.string().trim().optional(),
-  email: z.email(),
-  mobile: z.string().trim().optional(),
-  university: z.string().trim().optional(),
-  major: z.string().trim().optional(),
-  dormRoom: z.string().trim().optional(),
-});
-
-export const UpdateMemberSchema = z.object({
-  firstName: z.string().trim().min(1).optional(),
-  lastName: z.string().trim().min(1).optional(),
-  nickname: z.string().trim().optional(),
-  email: z.email().optional(),
-  mobile: z.string().trim().optional(),
-  university: z.string().trim().optional(),
-  major: z.string().trim().optional(),
-  dormRoom: z.string().trim().optional(),
-  status: z.enum(MEMBERSHIP_STATUSES).optional(),
-});
-
-export const AssignRoleSchema = z.object({
-  label: z.string().trim().min(1),
-  authentikGroupIds: z.array(z.string()).default([]),
-});
-
-export type CreateMemberInput = z.infer<typeof CreateMemberSchema>;
-export type UpdateMemberInput = z.infer<typeof UpdateMemberSchema>;
-export type AssignRoleInput = z.infer<typeof AssignRoleSchema>;
+export type {
+  AssignRoleInput,
+  CreateMemberInput,
+  UpdateMemberInput,
+} from "@/lib/services/member-schemas";
+export {
+  AssignRoleSchema,
+  CreateMemberSchema,
+  UpdateMemberSchema,
+} from "@/lib/services/member-schemas";
 
 // ─── Actor context ───────────────────────────────────────────────────────────
 

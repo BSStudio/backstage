@@ -399,6 +399,45 @@ describe("createMember", () => {
     ).rejects.toThrow(ValidationError);
   });
 
+  it("reports an empty email as missing rather than malformed", async () => {
+    const prisma = getTestPrisma();
+    const error = await createMember(
+      prisma,
+      { firstName: "A", lastName: "B", email: "" },
+      ACTOR,
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).details).toMatchObject({
+      properties: { email: { errors: ["Az email-cím megadása kötelező"] } },
+    });
+  });
+
+  it("trims whitespace around the email instead of rejecting it", async () => {
+    const prisma = getTestPrisma();
+    const { member } = await createMember(
+      prisma,
+      { firstName: "A", lastName: "B", email: "  padded@test.com  " },
+      ACTOR,
+    );
+
+    expect(member.email).toBe("padded@test.com");
+  });
+
+  it("reports a whitespace-only email as missing", async () => {
+    const prisma = getTestPrisma();
+    const error = await createMember(
+      prisma,
+      { firstName: "A", lastName: "B", email: "   " },
+      ACTOR,
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).details).toMatchObject({
+      properties: { email: { errors: ["Az email-cím megadása kötelező"] } },
+    });
+  });
+
   it("throws ValidationError for empty firstName", async () => {
     const prisma = getTestPrisma();
     await expect(
