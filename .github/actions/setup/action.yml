@@ -1,0 +1,16 @@
+name: Set up toolchain
+description: pnpm, Node.js from .nvmrc, and a frozen-lockfile install.
+
+runs:
+  using: composite
+  steps:
+    - name: Set up pnpm
+      uses: pnpm/action-setup@v6.0.10
+    - name: Set up Node.js
+      uses: actions/setup-node@v7.0.0
+      with:
+        node-version-file: '.nvmrc'
+        cache: 'pnpm'
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+      shell: bash
