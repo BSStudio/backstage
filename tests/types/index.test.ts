@@ -134,8 +134,16 @@ describe("resolveUserRole", () => {
     vi.unstubAllEnvs();
   });
 
-  it("returns MEMBER when env vars are not set", () => {
-    expect(resolveUserRole(["admins"])).toBe("MEMBER");
+  it("throws when the group names are not configured", () => {
+    vi.stubEnv("AUTHENTIK_GROUP_ADMIN", "");
+    vi.stubEnv("AUTHENTIK_GROUP_LEADERSHIP", "leaders");
+    expect(() => resolveUserRole(["admins"])).toThrow(/AUTHENTIK_GROUP_ADMIN/);
+
+    vi.stubEnv("AUTHENTIK_GROUP_ADMIN", "admins");
+    vi.stubEnv("AUTHENTIK_GROUP_LEADERSHIP", "");
+    expect(() => resolveUserRole(["admins"])).toThrow(
+      /AUTHENTIK_GROUP_LEADERSHIP/,
+    );
     vi.unstubAllEnvs();
   });
 

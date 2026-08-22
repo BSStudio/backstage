@@ -108,9 +108,14 @@ export function deriveUsername(firstName: string, lastName: string): string {
 export type UserRole = "ADMIN" | "LEADER" | "MEMBER";
 
 export function resolveUserRole(groups: string[]): UserRole {
-  const adminGroup = process.env.AUTHENTIK_GROUP_ADMIN ?? "";
-  const leaderGroup = process.env.AUTHENTIK_GROUP_LEADERSHIP ?? "";
-  if (adminGroup && groups.includes(adminGroup)) return "ADMIN";
-  if (leaderGroup && groups.includes(leaderGroup)) return "LEADER";
+  const adminGroup = process.env.AUTHENTIK_GROUP_ADMIN;
+  const leaderGroup = process.env.AUTHENTIK_GROUP_LEADERSHIP;
+  if (!adminGroup || !leaderGroup) {
+    throw new Error(
+      "Missing AUTHENTIK_GROUP_ADMIN or AUTHENTIK_GROUP_LEADERSHIP environment variables",
+    );
+  }
+  if (groups.includes(adminGroup)) return "ADMIN";
+  if (groups.includes(leaderGroup)) return "LEADER";
   return "MEMBER";
 }
