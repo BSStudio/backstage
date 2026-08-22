@@ -1,0 +1,28 @@
+# Anything the image build does not read.
+
+.agents
+.claude
+.dev-authentik-groups.json
+.dev-user.json
+.dockerignore
+.env*
+.git
+.github
+.gitignore
+.husky
+.idea
+.next
+.vercel
+.vscode
+CODEOWNERS
+Dockerfile
+coverage
+docker-compose*.yml
+node_modules
+storage
+tests
+*.md
+*.tsbuildinfo
+
+# Regenerated in the build stage; the developer's copy must not land on top of it.
+app/generated

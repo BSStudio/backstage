@@ -1,0 +1,50 @@
+services:
+  app:
+    image: ghcr.io/bsstudio/backstage:main
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        NEXT_PUBLIC_APP_VERSION: ${NEXT_PUBLIC_APP_VERSION:-dev}
+        NEXT_PUBLIC_COMMIT_HASH: ${NEXT_PUBLIC_COMMIT_HASH:-}
+        SENTRY_ORG: ${SENTRY_ORG:-}
+        SENTRY_PROJECT: ${SENTRY_PROJECT:-}
+    restart: unless-stopped
+    # Puts docker-init at PID 1 instead of next-server, which never reaps children:
+    # the processes the entrypoint's migration spawns would stay as zombies for good.
+    init: true
+    env_file:
+      - .env
+    environment:
+      # Wins over the .env copy, which points at a local Postgres.
+      DATABASE_URL: postgresql://backstage:${POSTGRES_PASSWORD:-backstage}@db:5432/backstage
+    ports:
+      - '127.0.0.1:3000:3000'
+    volumes:
+      - avatars:/app/storage/avatars
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}']
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    environment:
+      POSTGRES_USER: backstage
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-backstage}
+      POSTGRES_DB: backstage
+      POSTGRES_INITDB_ARGS: '--locale-provider=icu --icu-locale=hu-HU'
+      LC_COLLATE: hu_HU.utf8
+      LC_CTYPE: hu_HU.utf8
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  avatars:
+  pgdata:
