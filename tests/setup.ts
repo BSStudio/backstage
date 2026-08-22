@@ -11,7 +11,13 @@ let container: StartedPostgreSqlContainer;
 let prisma: PrismaClient;
 
 beforeAll(async () => {
-  container = await new PostgreSqlContainer("postgres:18-alpine").start();
+  container = await new PostgreSqlContainer("postgres:18-alpine")
+    .withEnvironment({
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=hu-HU",
+      LC_COLLATE: "hu_HU.utf8",
+      LC_CTYPE: "hu_HU.utf8",
+    })
+    .start();
 
   const connectionString = container.getConnectionUri();
 
