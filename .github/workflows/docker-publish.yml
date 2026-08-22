@@ -1,0 +1,112 @@
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    # Publish semver tags as releases.
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-push:
+    name: Build and push
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      # Mint the OIDC token and write the build provenance attestation.
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Resolve build metadata
+        id: build-meta
+        shell: bash
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          hash="${SHA:0:7}"
+          if [ "$REF_TYPE" = "tag" ]; then
+            echo "version=$REF_NAME-$hash" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev-$hash" >> "$GITHUB_OUTPUT"
+          fi
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+          # ghcr has no uppercase in image names. metadata-action lowercases its own
+          # input, the attest step does not, so both read this one.
+          echo "image=$REGISTRY/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6.2.0
+        with:
+          images: ${{ steps.build-meta.outputs.image }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          build-args: |
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+            NEXT_PUBLIC_APP_VERSION=${{ steps.build-meta.outputs.version }}
+            NEXT_PUBLIC_COMMIT_HASH=${{ steps.build-meta.outputs.hash }}
+            SENTRY_ORG=${{ vars.SENTRY_ORG }}
+            SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
+          # Empty on pull requests, which switches source map upload off rather than
+          # minting a Sentry release for every PR build.
+          secrets: |
+            sentry_auth_token=${{ github.event_name != 'pull_request' && secrets.SENTRY_AUTH_TOKEN || '' }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Provenance handled by the attest step below; buildkit's own
+          # attestations would push untagged "unknown/unknown" manifests to ghcr.
+          provenance: false
+          sbom: false
+
+      - name: Attest build provenance
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/attest@v4.2.2
+        with:
+          subject-name: ${{ steps.build-meta.outputs.image }}
+          subject-digest: ${{ steps.build-and-push.outputs.digest }}
+          # Keep the attestation in GitHub's store only; pushing to ghcr would add
+          # an untagged referrer artifact. Verify with:
+          #   gh attestation verify oci://<image> --owner BSStudio
+          push-to-registry: false
