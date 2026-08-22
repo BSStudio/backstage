@@ -51,6 +51,7 @@ Breaking these causes real damage, not style nits.
 | `pnpm db:reset` | Drop, recreate, re-migrate, reseed (`--skip-seed` to stop after migrating) |
 | `pnpm db:seed` | Wipe and reseed dev data (`--reset-user` re-asks who you are) |
 | `pnpm build` | Production build (standalone output) |
+| `pnpm authentik:contract` | Diff Authentik's OpenAPI spec against the committed snapshot (`--update` to rewrite it) |
 
 Environment variables: see `.env.example`. It is the complete list and is kept in sync.
 
@@ -102,7 +103,8 @@ The scripts refuse to run against a database whose host is not local unless pass
   is built from
 - `components/ui/` — shadcn/ui primitives
 - `scripts/` — dev tooling run with `tsx`: `dev-setup.ts`, `seed-dev.ts` (+ `seed-data.ts` roster,
-  `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`
+  `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`, and
+  `authentik-contract.ts` + its `authentik-contract.json` snapshot
 - `tests/` — mirrors the source layout; `setup.ts` spins Testcontainers Postgres
 - `proxy.ts` — route protection (Next.js 16 convention)
 - `instrumentation.ts`, `instrumentation-client.ts`, `sentry.{server,edge}.config.ts` — Sentry
@@ -125,13 +127,26 @@ The scripts refuse to run against a database whose host is not local unless pass
 6. Tests: `tests/services/members.test.ts`
 
 **Add a sync operation**
-1. Low-level call in `lib/authentik/*` or `lib/website/users.ts`
+1. Low-level call in `lib/authentik/*` (then see below) or `lib/website/users.ts`
 2. Register the handler in `lib/sync/<target>/operations.ts` — it receives
    `(payload, memberId, prisma)` and resolves external IDs itself at execute time
 3. Orchestrator in `lib/sync/<target>/orchestrators.ts`: create the `SyncJob` row, then
    `executeSyncJob`
 4. Call the orchestrator from `lib/services/`, collect failures into `syncErrors`
 5. A new operation name also needs a `SyncOperation` enum value + migration
+
+**Add or change an Authentik API call** — any new endpoint, query parameter or request/response
+field in `lib/authentik/*` has to be mirrored into the contract check, or it goes unwatched.
+1. The call itself in `lib/authentik/{client,users,groups}.ts`
+2. Add or amend its entry in `CONTRACT` (`scripts/authentik-contract.ts`) — one object per
+   `method` + `path`, listing the `query` parameters, `request` fields and `response` fields the
+   client actually touches. Nothing derives this from the source, so a call with no entry passes
+   the check silently forever
+3. `pnpm authentik:contract --update`, and commit the regenerated
+   `scripts/authentik-contract.json` with the change — a stale snapshot fails the next PR that
+   touches `lib/authentik/**`
+4. Removing a call means removing its `CONTRACT` entry too, otherwise the check guards a field
+   nobody reads
 
 **Add an API route** — keep it a thin adapter: `requireAuth()`/`requireRole()` from
 `lib/session.ts`, call the service, wrap failures in `mapServiceError`. No business logic.
@@ -316,6 +331,23 @@ diacritics stripped, hyphens removed: `Kovács János → jkovacs`, `Csaba Nagy 
 Both are paired in `lib/services/usernames.ts`: `resolveAvailableUsername()` (uncached, used by
 `createAuthentikUser`) and `suggestUsername()` (cached, used by the suggestion endpoint). Member
 creation and other studio apps therefore take the same path.
+
+**Contract drift is watched, not tested.** `pnpm authentik:contract`
+(`scripts/authentik-contract.ts`) downloads goauthentik's OpenAPI spec, extracts the shape of
+exactly what the `CONTRACT` list names, and diffs it against `scripts/authentik-contract.json`.
+No running Authentik and no credentials are involved, so it runs anywhere. It reads the spec from
+`main` rather than a release tag on purpose: `main` runs ahead of the deployed version, so a field
+rename surfaces here before the instance is upgraded into it. `AUTHENTIK_SCHEMA_URL` points it at
+a local file or a pinned release instead.
+
+`.github/workflows/authentik-contract.yml` runs it weekly, on `workflow_dispatch`, and on PRs
+touching `lib/authentik/**` or the script. A PR run signals by going red; a scheduled run has
+nobody watching, so it opens an issue instead, deduplicated by title against the open ones.
+
+The check only sees what `CONTRACT` lists — see *Add or change an Authentik API call* above.
+Nothing links it to `lib/authentik/*` automatically. It also covers only the `/api/v3` REST
+surface: the OIDC endpoints behind `lib/auth.ts` and `lib/api-client-auth.ts`
+(`.well-known/openid-configuration`, `/jwks/`) are not in Authentik's spec at all.
 
 ### Legacy website (Drupal at bsstudio.hu)
 

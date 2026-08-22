@@ -1,0 +1,90 @@
+{
+  "GET /core/users/": {
+    "operationId": "core_users_list",
+    "query": {
+      "username": "string, optional",
+      "uuid": "string, uuid, optional"
+    },
+    "response": {
+      "status": "200",
+      "fields": {
+        "pagination.count": "number, required",
+        "pagination.total_pages": "number, required",
+        "results[].pk": "integer, readOnly, required",
+        "results[].uuid": "string, uuid, readOnly, required",
+        "results[].username": "string, required",
+        "results[].name": "string, required",
+        "results[].email": "string, email, optional",
+        "results[].is_active": "boolean, optional",
+        "results[].path": "string, optional",
+        "results[].attributes": "object, optional",
+        "results[].groups": "array<string>, optional"
+      }
+    }
+  },
+  "POST /core/users/": {
+    "operationId": "core_users_create",
+    "request": {
+      "username": "string, required",
+      "name": "string, required",
+      "email": "string, email, optional",
+      "path": "string, optional",
+      "groups": "array<string>, optional",
+      "attributes": "object, optional"
+    },
+    "requestRequired": ["name", "username"],
+    "response": {
+      "status": "201",
+      "fields": {
+        "pk": "integer, readOnly, required",
+        "uuid": "string, uuid, readOnly, required",
+        "username": "string, required",
+        "name": "string, required",
+        "email": "string, email, optional",
+        "is_active": "boolean, optional"
+      }
+    }
+  },
+  "PATCH /core/users/{id}/": {
+    "operationId": "core_users_partial_update",
+    "request": {
+      "name": "string, optional",
+      "email": "string, email, optional",
+      "is_active": "boolean, optional",
+      "path": "string, optional",
+      "attributes": "object, optional"
+    },
+    "requestRequired": [],
+    "response": {
+      "status": "200",
+      "fields": {
+        "pk": "integer, readOnly, required",
+        "uuid": "string, uuid, readOnly, required",
+        "username": "string, required",
+        "name": "string, required",
+        "email": "string, email, optional",
+        "is_active": "boolean, optional"
+      }
+    }
+  },
+  "POST /core/groups/{group_uuid}/add_user/": {
+    "operationId": "core_groups_add_user_create",
+    "request": {
+      "pk": "integer, required"
+    },
+    "requestRequired": ["pk"],
+    "response": {
+      "status": "204"
+    }
+  },
+  "POST /core/groups/{group_uuid}/remove_user/": {
+    "operationId": "core_groups_remove_user_create",
+    "request": {
+      "pk": "integer, required"
+    },
+    "requestRequired": ["pk"],
+    "response": {
+      "status": "204"
+    }
+  }
+}

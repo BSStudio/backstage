@@ -20,7 +20,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "tsx scripts/reset-db.ts",
-    "db:seed": "tsx scripts/seed-dev.ts"
+    "db:seed": "tsx scripts/seed-dev.ts",
+    "authentik:contract": "tsx scripts/authentik-contract.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1101.0",
@@ -66,7 +67,8 @@
     "tailwindcss": "4.3.3",
     "tsx": "4.23.5",
     "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.10",
+    "yaml": "2.9.0"
   },
   "lint-staged": {
     "*": [

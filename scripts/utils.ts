@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
 
-export function fail(message: string): never {
+export function fail(message: string, code = 1): never {
   console.error(`\n✖ ${message}\n`);
-  process.exit(1);
+  process.exit(code);
 }
 
 export function step(message: string): void {

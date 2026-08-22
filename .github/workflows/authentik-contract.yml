@@ -1,0 +1,76 @@
+name: Authentik contract
+
+# Diffs authentik's published OpenAPI spec against the committed snapshot of the
+# endpoints and fields lib/authentik/* depends on.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+  pull_request:
+    paths:
+      - "lib/authentik/**"
+      - "scripts/authentik-contract.*"
+      - ".github/workflows/authentik-contract.yml"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  contract:
+    name: Diff the published schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up toolchain
+        uses: ./.github/actions/setup
+
+      # Exit 1 is drift, exit 2 is "could not read the spec" — only the first is worth an issue.
+      - name: Compare against the snapshot
+        id: contract
+        shell: bash
+        run: |
+          set +e
+          pnpm authentik:contract 2>&1 | tee contract.log
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: Note an unreadable schema
+        if: ${{ failure() && steps.contract.outputs.status == '2' }}
+        shell: bash
+        run: echo "::warning::Could not read the authentik schema — this run proves nothing about drift."
+
+      - name: Open an issue on drift
+        if: ${{ failure() && steps.contract.outputs.status == '1' && github.event_name == 'schedule' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: Authentik API contract drift
+          ASSIGNEE: KOliver94
+        shell: bash
+        run: |
+          existing=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            echo "Issue #$existing is already open, not filing another."
+            exit 0
+          fi
+          {
+            echo "The authentik OpenAPI schema no longer matches \`scripts/authentik-contract.json\`."
+            echo
+            echo "Work out what changed upstream, fix \`lib/authentik/*\` if it needs fixing, then"
+            echo "refresh the snapshot with \`pnpm authentik:contract --update\`."
+            echo
+            echo '```'
+            cat contract.log
+            echo '```'
+            echo
+            echo "[Workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          } > issue.md
+          gh issue create --title "$TITLE" --body-file issue.md --assignee "$ASSIGNEE"
