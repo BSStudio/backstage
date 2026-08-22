@@ -49,6 +49,8 @@ export default withSentryConfig(nextConfig, {
   silent: !process.env.CI,
   telemetry: false,
   widenClientFileUpload: true,
+  // Proxy events through our own origin so ad blockers cannot drop them by hostname.
+  tunnelRoute: "/monitoring",
   sourcemaps: {
     disable: !sentryAuthToken,
     deleteSourcemapsAfterUpload: true,
