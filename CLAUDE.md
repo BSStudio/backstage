@@ -220,7 +220,14 @@ number. Sorts correctly as a string. Helpers in `types/index.ts`: `parseSemester
 ## Auth and permissions
 
 Better Auth with the `genericOAuth` plugin against Authentik's OIDC discovery URL. Handler at
-`app/api/auth/[...all]/route.ts`, client helper in `lib/auth-client.ts`.
+`app/api/auth/[...all]/route.ts`, client helper in `lib/auth-client.ts`. The plugin registers
+Authentik as an ordinary social provider, so login is `signIn.social({ provider: "authentik" })` on
+the core endpoints — there is no client-side plugin, the redirect URI registered in Authentik is
+`<origin>/api/auth/callback/authentik`, and PKCE is on.
+
+`accountIssuer` is pinned to `AUTHENTIK_ISSUER` rather than left to discovery. A discovery fetch
+that returns nothing throws out of plugin init, which fails *every* auth route including
+`/get-session`; pinned, an unreachable Authentik only breaks login.
 
 On login `mapProfileToUser` reads the `groups` claim and derives a role, and carries the Authentik
 `sub` in an `authentikSub` field; a `databaseHooks.user.create.before` hook promotes that to the
@@ -229,9 +236,10 @@ user row `id`, so it matches the Member `id`. None of these `additionalFields` m
 login unnamed, `MEMBER`, and keyed on a generated id.
 
 The handler mounts Better Auth's whole router, so `hooks.before` 404s every path outside
-`ALLOWED_AUTH_PATHS` (`lib/auth.ts`). Only the OIDC round trip, `/get-session`, `/sign-out` and
-`/error` stay reachable; passwords, account linking and `/update-user` — which without
-`input: false` would let a member set their own `role` — belong to Authentik.
+`ALLOWED_AUTH_PATHS` (`lib/auth.ts`). Only the OIDC round trip (`/sign-in/social`,
+`/callback/:id`), `/get-session`, `/sign-out` and `/error` stay reachable; passwords, account
+linking and `/update-user` — which without `input: false` would let a member set their own `role` —
+belong to Authentik.
 
 `proxy.ts` lets `/login`, `/api/auth` and `/api/usernames` through and redirects everything else to
 `/login` when no session cookie is present, preserving the original path as `callbackUrl`. Its

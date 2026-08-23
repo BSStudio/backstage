@@ -6,8 +6,8 @@ import { resolveUserRole } from "@/types";
 // Better Auth mounts its whole router, including password, account-linking and
 // profile-mutation routes Authentik owns. Patterns, not resolved URLs.
 const ALLOWED_AUTH_PATHS = new Set([
-  "/sign-in/oauth2",
-  "/oauth2/callback/:providerId",
+  "/sign-in/social",
+  "/callback/:id",
   "/get-session",
   "/sign-out",
   "/error",
@@ -65,12 +65,18 @@ export const auth = betterAuth({
         {
           providerId: "authentik",
           discoveryUrl: `${process.env.AUTHENTIK_ISSUER}/.well-known/openid-configuration`,
+          // Without an explicit issuer, a failed discovery fetch throws out of
+          // plugin init and takes down every auth route, `/get-session`
+          // included. Pinned here, an unreachable Authentik only breaks login.
+          accountIssuer: process.env.AUTHENTIK_ISSUER ?? "",
           clientId: process.env.AUTHENTIK_CLIENT_ID ?? "",
           clientSecret: process.env.AUTHENTIK_CLIENT_SECRET ?? "",
           scopes: ["openid", "email", "profile"],
 
           mapProfileToUser: async (profile) => {
-            const groups: string[] = profile.groups ?? [];
+            const groups = Array.isArray(profile.groups)
+              ? (profile.groups as string[])
+              : [];
             return {
               role: resolveUserRole(groups),
               firstName: profile.given_name,
