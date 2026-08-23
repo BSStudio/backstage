@@ -1,0 +1,123 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":disableRateLimiting",
+    ":enableVulnerabilityAlertsWithLabel(security)",
+    ":label(dependencies)",
+    ":maintainLockFilesMonthly",
+    ":pinAllExceptPeerDependencies",
+    ":timezone(Europe/Budapest)",
+    "schedule:weekends"
+  ],
+  "configMigration": true,
+  "minimumReleaseAge": "3 days",
+  "osvVulnerabilityAlerts": true,
+  "dependencyDashboardOSVVulnerabilitySummary": "unresolved",
+  "rebaseWhen": "conflicted",
+  "semanticCommits": "enabled",
+  "automergeStrategy": "squash",
+  "platformAutomerge": true,
+  "postUpdateOptions": ["pnpmDedupe"],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/__fixtures__/**"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The Testcontainers image is a string literal, so no built-in manager sees it. Without this it silently drifts from the Postgres in docker-compose.",
+      "managerFilePatterns": ["tests/setup.ts"],
+      "matchStrings": [
+        "new PostgreSqlContainer\\(\\s*\"(?<depName>[^:\"]+):(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Every dependency bump is a chore. Nothing here reads commit types for releases, and the `fix(deps)` that `config:recommended` applies to production dependencies would claim a bug was fixed.",
+      "matchPackageNames": ["*"],
+      "semanticCommitType": "chore"
+    },
+    {
+      "description": "Add `docker` label for container image updates, wherever they are declared — matching the datasource also covers the Testcontainers image above.",
+      "matchDatasources": ["docker"],
+      "addLabels": ["docker"]
+    },
+    {
+      "description": "Add `github_actions` label for GitHub Actions related updates.",
+      "matchManagers": ["github-actions"],
+      "addLabels": ["github_actions"]
+    },
+    {
+      "description": "Add `javascript` label for npm updates.",
+      "matchManagers": ["npm"],
+      "addLabels": ["javascript"]
+    },
+    {
+      "description": "Group all minor and patch updates together for GitHub Actions.",
+      "groupName": "all non-major GitHub Actions dependencies",
+      "groupSlug": "all-minor-patch-github-actions",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Group all minor and patch npm updates together.",
+      "groupName": "all non-major npm dependencies",
+      "groupSlug": "all-minor-patch-npm",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Monthly lockfile refresh carries no version bump of its own.",
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "automerge": true
+    },
+    {
+      "description": "Keep Node.js at major version only across .nvmrc and the Dockerfile.",
+      "matchDepNames": ["node"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "pinDigest"],
+      "enabled": false
+    },
+    {
+      "description": "Group every Node.js runtime version bump (.nvmrc, Dockerfile) into one PR.",
+      "groupName": "Node.js runtime version",
+      "matchDepNames": ["node"],
+      "matchManagers": ["dockerfile", "nvm"]
+    },
+    {
+      "description": "@types/node majors track Node majors, so anything above the .nvmrc line types APIs the runtime does not have. Raise this bound in the same change that raises .nvmrc.",
+      "matchPackageNames": ["@types/node"],
+      "allowedVersions": "<25"
+    },
+    {
+      "description": "Postgres runs in both compose files and in the Testcontainers suite; a split bump means tests pass against a version production is not running.",
+      "groupName": "Postgres",
+      "matchDatasources": ["docker"],
+      "matchDepNames": ["postgres"]
+    },
+    {
+      "description": "The React type definitions live in DefinitelyTyped, so `group:monorepos` does not pull them in with react and react-dom. Split majors type-check against the wrong React.",
+      "groupName": "React",
+      "matchPackageNames": [
+        "react",
+        "react-dom",
+        "@types/react",
+        "@types/react-dom"
+      ],
+      "matchUpdateTypes": ["major"]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "schedule": ["at any time"],
+    "minimumReleaseAge": null
+  }
+}
