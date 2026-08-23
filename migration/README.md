@@ -36,7 +36,9 @@ Checks, in order of how much damage each one does if wrong:
    default subject mode is a *hashed* user id, not the UUID. If those disagree, every
    imported member gets a second row on first login and every sync job fails to resolve a
    pk. Fix under Applications → Providers → the Backstage provider → Advanced protocol
-   settings → Subject mode → "Based on the User's UUID".
+   settings → Subject mode → "Based on the User's UUID". Same invariant as the Auth
+   section of [CLAUDE.md](../CLAUDE.md) — nothing in the app can detect a violation, which
+   is why it is checked here.
 2. Every `AUTHENTIK_GROUP_*` UUID in `.env` resolves to a real group, and every
    `AUTHENTIK_GROUP_*` *name* matches one.
 3. Website credentials are present.
@@ -117,30 +119,49 @@ expected; the overrides file is what makes it idempotent, not the email match.
 
 ## 4. IDs
 
-- Cluster contains an Authentik user → `Member.id` is that user's `uuid`.
-- Otherwise a fresh `randomUUID()`, recorded in `data/id-assignments.json` and reused on
-  every subsequent run.
+- Cluster contains an Authentik user → `Member.id` is that user's `uuid` — the `uuid`
+  field of the `/core/users/` response, not `pk` and not a `sub` read from a token.
+- Otherwise → `localMemberId()` from `@/types`.
 
-No Authentik accounts are created, so members with no account cannot log in. That is
-fine for archived alumni. If one ever comes back and gets an account, their `Member.id`
-has to change to the new `uuid` — cheap, because Prisma's required relations default to
-`onUpdate: Cascade`, so a single `UPDATE "Member" SET id = … WHERE id = …` carries
-`LeadershipRole`, `TimelineEntry`, `AuditLog`, `SyncJob` and `GoogleGroupEntry` with it.
+**Never a bare `randomUUID()`.** An unprefixed id claims an Authentik account the member
+does not have, and `hasAuthentikAccount()` is what decides whether a sync job runs or is
+recorded SKIPPED. Test for the shape with `hasAuthentikAccount()` and build ids with
+`localMemberId()`; do not write `LOCAL_MEMBER_ID_PREFIX`'s value into a comparison or a
+fixture. The token is deliberately opaque because member ids reach the public site inside
+avatar URLs, and it may change.
+
+Either way the assignment is recorded in `data/id-assignments.json` and reused on every
+subsequent run — that file, not the email match, is what makes re-runs stable.
+
+No Authentik accounts are created, so members with no account cannot log in. That is fine
+for archived alumni, and **it is not a one-way door**: if one comes back and gets an
+account, `UPDATE "Member" SET id = … WHERE id = …` swaps the prefixed id for the new
+`uuid` and carries `LeadershipRole`, `TimelineEntry`, `AuditLog`, `SyncJob` and
+`GoogleGroupEntry` with it, because Prisma's required relations default to
+`onUpdate: Cascade`. Stored avatar files are keyed by id and have to be renamed alongside.
 
 ## 5. Import
 
 The importer writes through raw Prisma, never through `lib/services/`. `createMember`
-would call Authentik and Drupal; the whole point here is that it must not. No `SyncJob`
-rows are produced. Each member gets one `MEMBER_CREATED` timeline entry and one audit log
-with `actorId: null` and `diff: { imported: true }`.
+would call Authentik and Drupal; the whole point here is that it must not. Each member
+gets one `MEMBER_CREATED` timeline entry and one audit log with `actorId: null` and
+`diff: { imported: true }`.
+
+**No `SyncJob` rows at all** — not even `SKIPPED` ones for the accountless members.
+`SKIPPED` records a call the app declined to make; the import makes no calls, and seeding
+`/admin/sync-jobs` with hundreds of rows nobody can act on buries the FAILED ones that
+matter.
 
 ## 6. Verify
 
 The verifier fails on any of:
 
 - a non-archived member without `websiteUserId` — their first website sync would land as
-  a FAILED job
-- a member whose id does not resolve back to an Authentik user
+  a FAILED job. Drupal is on its way out but has not gone yet, so this stays a hard rule
+- **both directions** of the id shape: `hasAuthentikAccount(id)` ⇒ the id must resolve to
+  a live Authentik user, and a prefixed id ⇒ it must *not*. The second direction is the
+  quiet one — a member who does have an account but got a prefixed id has every Authentik
+  job recorded SKIPPED, so their sync stops without a single failure to look at
 - duplicate emails, or a `LeadershipRole` referencing an unregistered `authentikGroupId`
 
 Then run the app against the imported database and click through `/members`,
