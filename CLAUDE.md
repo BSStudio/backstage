@@ -691,5 +691,6 @@ Light + dark via `next-themes`. Tokens in `app/globals.css` map BSS brand blue (
 shadcn `--primary`. Geist sans + mono. Status badges use `text-status-*` / `bg-status-*` utilities —
 class map in `lib/members.ts`.
 
-> Spotify has an unrelated open-source project also called Backstage (backstage.io). No conflict —
-> this one is private.
+> Spotify has an unrelated open-source project also called Backstage (backstage.io). No shared code
+> and nothing published under `@backstage/*` — anything about plugins, catalogs or software
+> templates is theirs, not this.
