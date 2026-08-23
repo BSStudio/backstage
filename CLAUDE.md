@@ -110,6 +110,11 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `instrumentation.ts`, `instrumentation-client.ts`, `sentry.{server,edge}.config.ts` — Sentry
   bootstrap (Next.js 16 conventions)
 - `prisma/schema.prisma` — single schema, client generated to `app/generated/prisma/`
+- `Dockerfile`, `docker-entrypoint.sh`, `docker-compose.yml` — production image and stack;
+  `docker-compose.dev.yml` is just the dev Postgres
+- `.github/workflows/` — `ci.yml`, `docker-publish.yml`, `authentik-contract.yml`, all sharing the
+  `.github/actions/setup` composite (pnpm, Node from `.nvmrc`, frozen-lockfile install);
+  `.github/renovate.json` for dependency updates
 
 ---
 
@@ -449,6 +454,82 @@ redirect would drop the POST body.
 stdout/stderr. `/api/usernames/suggest` logs the calling service account (`sub` + service account
 name) with the outcome on every path — service account names are not PII, so they are logged raw.
 Nothing else logs through it yet.
+
+---
+
+## Release engineering
+
+**Image.** Multi-stage `Dockerfile` on `node:24-alpine` producing the Next.js standalone server,
+running as a fixed non-root UID (65532) so k8s `runAsNonRoot` can verify it. `output: "standalone"`
+in `next.config.ts` is what makes the runtime stage possible; the traced bundle plus `.next/static`
+and `public/` is all the runner gets.
+
+**Migrations run from the entrypoint**, not a separate Job — one replica, one deploy.
+`RUN_MIGRATIONS=false` opts a container out. The standalone bundle contains only what the server
+traced, so the image carries its own copy of the Prisma CLI, npm-installed at build time from the
+versions in `package.json` so it cannot drift from the generated client. `prisma.config.ts` is
+copied next to that `node_modules` tree because its `dotenv` and `prisma/config` imports have to
+resolve somewhere, and the config's relative migrations path then points at the copy beside it.
+Do not try to shrink that tree by deleting `@prisma/studio-core` or `@prisma/dev`: `build/cli.js`
+requires both eagerly and the CLI stops loading at all.
+
+**Build args vs secrets.** `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_APP_VERSION` and
+`NEXT_PUBLIC_COMMIT_HASH` are plain build args — a DSN is public, the other two name the build, and
+`next build` freezes all three into the bundle, so setting them on the running container reports
+nothing at all. `SENTRY_ORG` and `SENTRY_PROJECT` are build args too: they only address the upload
+target, and without them `withSentryConfig` has nowhere to send source maps. `SENTRY_AUTH_TOKEN` is
+the only real secret and comes in as a BuildKit secret mount; a build arg would land in the image
+history. The publish workflow derives the version and the hash from the ref it is building, and
+reads `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG` and `SENTRY_PROJECT` from repository *variables*, the
+token from a repository *secret*.
+
+**Workflows** (`.github/workflows/`), actions pinned to a patch version, mirroring
+[BSStudio/request-manager](https://github.com/BSStudio/request-manager):
+
+| Workflow | When | What |
+| --- | --- | --- |
+| `ci.yml` | PR, push to `main` | Biome + tsc, Vitest with coverage → Codecov, commitlint over the PR range |
+| `docker-publish.yml` | PR (build only), push to `main`, `v*.*.*` tags | Buildx → `ghcr.io/bsstudio/backstage`, provenance attestation |
+| `authentik-contract.yml` | Weekly cron, dispatch, PRs touching `lib/authentik/**` | Diffs Authentik's published spec against `scripts/authentik-contract.json` |
+
+`ci.yml` carries no `paths` filter on purpose: it is what `main` is protected on, and a required
+check that never runs on a docs-only PR blocks that PR instead of passing it. Both node jobs run
+`prisma generate` first — `app/generated/prisma/` is gitignored and `tsc` resolves through it.
+
+The contract check reads goauthentik's `main` rather than a release, so a field rename shows up
+before the studio instance is upgraded into it. A scheduled run that drifts opens an issue
+(deduplicated by title); on a PR the red job is the notification. The snapshot is refreshed by hand
+with `pnpm authentik:contract --update` once the change is understood.
+
+**Renovate** (`.github/renovate.json`). Non-major npm and GitHub Actions groups and the monthly
+lockfile refresh automerge; everything else waits for a human. Majors are separate PRs, and a
+Next.js major is disabled outright — it is a migration, not a bump (see `AGENTS.md`). The config
+file does nothing on its own: the Renovate GitHub App has to be installed on the repository.
+Automerge is `platformAutomerge`, i.e. GitHub's own auto-merge, so two repository settings are
+**load-bearing, not niceties**. *Allow auto-merge* must be on in repository settings, or Renovate
+falls back to merging the PR itself the moment it opens. And auto-merge only waits for CI if `main`
+requires status checks, so branch protection is what makes it wait at all.
+
+**GitHub-side settings.** None of this lives in the repository, all of it is assumed by the
+automation, and all of it is set once:
+
+| Kind | Name | Without it |
+| --- | --- | --- |
+| Secret | `CODECOV_TOKEN` | the coverage upload fails the `Test` job (`fail_ci_if_error`) |
+| Secret | `SENTRY_AUTH_TOKEN` | no source map upload, so production stack traces stay minified |
+| Variable | `NEXT_PUBLIC_SENTRY_DSN` | the built image reports nothing to Sentry at all |
+| Variable | `SENTRY_ORG` / `SENTRY_PROJECT` | source map upload has no target |
+
+Branch protection on `main` requires exactly `ci.yml`'s three jobs — `Lint and typecheck`, `Test`,
+`Commit messages`. The Docker and contract jobs must **not** be required: both filter on paths, and
+a required check that never reports blocks the PR forever instead of passing it. "Require branches
+to be up to date" stays off, or every Renovate PR stalls — `rebaseWhen: "conflicted"` will not
+rebase a merely stale branch.
+
+Also repository-level: *Allow auto-merge* and squash-only merging (see Renovate above), the
+Renovate and Codecov apps installed, Issues enabled with the assignee named in
+`authentik-contract.yml` holding repository access, and the `ghcr.io/bsstudio/backstage` package's
+access linked back to this repository so deployment hosts can pull it.
 
 ---
 
