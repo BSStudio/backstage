@@ -75,4 +75,4 @@ jobs:
             echo
             echo "[Workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
           } > issue.md
-          gh issue create --title "$TITLE" --body-file issue.md --assignee "$ASSIGNEE"
+          gh issue create --title "$TITLE" --body-file issue.md --assignee "$ASSIGNEE" --label contract-drift
