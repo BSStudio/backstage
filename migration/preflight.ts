@@ -80,11 +80,13 @@ async function checkSubjectMode(): Promise<boolean> {
 
   if (!sub || (!email && !username)) {
     fail(
-      "Need the claims of a real login. Either:\n" +
-        "    pnpm tsx migration/preflight.ts --token <id_token>\n" +
-        "    pnpm tsx migration/preflight.ts --sub <sub> --email <address>\n" +
-        "  Get an id_token by logging into the portal and reading the session, or\n" +
-        "  from Authentik under the provider's test/preview.",
+      "Need the claims of a real login — reading the UUID out of the Authentik\n" +
+        "  admin UI would only compare it with itself.\n\n" +
+        "  Run the dev server against the real Authentik, log in, then open\n" +
+        "  /api/auth/get-session in the same browser. `user.id` is the sub: the\n" +
+        "  user row is keyed on it by databaseHooks.user.create.before.\n\n" +
+        "    pnpm tsx migration/preflight.ts --sub <user.id> --email <user.email>\n" +
+        "    pnpm tsx migration/preflight.ts --token <id_token>",
     );
   }
 

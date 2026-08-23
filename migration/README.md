@@ -43,8 +43,24 @@ Checks, in order of how much damage each one does if wrong:
    `AUTHENTIK_GROUP_*` *name* matches one.
 3. Website credentials are present.
 
-Get an `id_token` by logging into the portal on the dev instance, or pass
-`--sub <sub> --email <address>` if you have the claims another way.
+### Getting the claims
+
+There is no `id_token` lying around to copy — `lib/auth.ts` declares no `database`, so
+better-auth keeps the account in its in-memory adapter and never persists one. The
+`sub` is still reachable, because `databaseHooks.user.create.before` rewrites the user
+row's `id` to it: run the dev server against the **real** Authentik, log in, then open
+`/api/auth/get-session` in the same browser and read `user.id` and `user.email`.
+
+```
+pnpm tsx migration/preflight.ts --sub <user.id> --email <user.email>
+```
+
+That value came out of the OIDC round trip, not out of the Authentik admin UI, so it is
+a real test rather than a comparison of the UUID with itself. A hash where a UUID belongs
+is the failure this is looking for.
+
+`--token <id_token>` works too if you have one from somewhere else; it reads `sub`,
+`email` and `preferred_username` out of the payload.
 
 ## 1. Extract
 
