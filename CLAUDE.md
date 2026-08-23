@@ -550,7 +550,8 @@ container; routes and actions get smoke tests for auth and error mapping only.
 
 Coverage includes `app/**/*.ts`, `lib/**/*.ts`, `types/**/*.ts`, excluding `app/generated/**`,
 `app/api/auth/**`, and the config/wiring files `lib/auth.ts`, `lib/auth-client.ts`,
-`lib/prisma.ts`, `lib/utils.ts`.
+`lib/prisma.ts`, `lib/utils.ts`. The 100% figure is enforced, not just documented:
+`coverage.thresholds` in `vitest.config.ts` fails `pnpm test:coverage` — and so CI — on a drop.
 
 ---
 
@@ -570,6 +571,11 @@ Authentik admin UI get wiped on the next update. Acceptable for a managed fleet.
 **Status change adds before removing.** `orchestrateStatusChange` issues `ADD_TO_GROUP` before
 `REMOVE_FROM_GROUP`. If ADD fails nothing changed; if REMOVE fails the user is briefly in both
 groups, which a retry fixes. The reverse order risks leaving a user in **no** group.
+
+**No background retry queue.** A failed sync reports to Sentry, somebody looks, and it is retried by
+hand from `/admin/sync-jobs`. At ~30 members the failure rate does not justify a worker, a queue
+table or the operational surface of pg-boss or a CronJob. Revisit only if manual retries become
+routine.
 
 **The Drupal password never leaves `createWebsiteUser`.** Drupal demands a password at account
 creation but nobody uses it — members log in through Authentik. It is minted inside the function,
@@ -656,7 +662,11 @@ contact details, and the wiki already provides editing and audit.
   suppress password-manager autofill
 - `components/ui/` primitives are registry output and are re-addable with `shadcn add --overwrite`.
   Anything hand-edited carries a `LOCAL MODIFICATIONS` comment at the top of the file saying what
-  changed and why, so an update can re-apply it — currently `table.tsx` and `pagination.tsx`
+  changed and why, so an update can re-apply it — currently `table.tsx` and `pagination.tsx`.
+  Auditing that claim means re-adding every primitive with the pinned `shadcn` dev dependency into
+  a clean project carrying only `components.json`, `tsconfig.json` and `app/globals.css`, then
+  diffing Biome-formatted output against the repo — files drift from the registry without local
+  intent, and only a diff separates those from real modifications
 - `AvatarContext` (`components/avatar-context.tsx`) shares the current avatar URL between the
   layout-rendered navbar and the member detail page, so an upload does not force a layout re-render
 
