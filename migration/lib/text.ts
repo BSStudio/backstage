@@ -1,0 +1,98 @@
+export function stripDiacritics(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/** Lowercased, trimmed, diacritics kept. Returns null for anything unusable as a key. */
+export function normalizeEmail(
+  value: string | null | undefined,
+): string | null {
+  const trimmed = (value ?? "").trim().toLowerCase();
+  if (!trimmed.includes("@")) return null;
+  return trimmed;
+}
+
+/** Match key for names: diacritics stripped, punctuation dropped, whitespace collapsed. */
+export function normalizeName(value: string | null | undefined): string {
+  return stripDiacritics(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/**
+ * Both readings of a full name, as sorted-token keys.
+ *
+ * The sources disagree on order — Drupal's `profile_fullname` is Hungarian
+ * ("Kovács János"), a spreadsheet column may be either — and compound family
+ * names make a positional split unreliable. Sorting the tokens sidesteps the
+ * question entirely for matching purposes; the authoritative first/last split
+ * comes from Authentik attributes, not from here.
+ */
+export function nameKey(value: string | null | undefined): string {
+  const tokens = normalizeName(value).split(" ").filter(Boolean);
+  return tokens.sort().join(" ");
+}
+
+export function nameKeyFromParts(
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+): string {
+  return nameKey(`${lastName ?? ""} ${firstName ?? ""}`);
+}
+
+/**
+ * Positional split of a Hungarian-order full name: first token is the family
+ * name, the rest are given names. Wrong for compound family names written
+ * without a hyphen — only ever a fallback for records with no Authentik side.
+ */
+export function splitHungarianFullName(fullname: string): {
+  firstName: string;
+  lastName: string;
+} {
+  const tokens = fullname.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return { firstName: "", lastName: "" };
+  if (tokens.length === 1) return { firstName: "", lastName: tokens[0] };
+  return { firstName: tokens.slice(1).join(" "), lastName: tokens[0] };
+}
+
+export type SemesterGuess = {
+  semester: string | null;
+  confidence: "exact" | "guessed" | "unknown";
+  raw: string;
+};
+
+const AUTUMN = /(osz|autumn|fall)/;
+const SPRING = /(tavasz|spring)/;
+
+/**
+ * Inverse of `buildJoinYearFromSemester`, tolerant of two decades of hand entry.
+ * "2005 ősz" → 2005/2006/1, "2006 tavasz" → 2005/2006/2.
+ */
+export function semesterFromJoinYear(
+  raw: string | null | undefined,
+): SemesterGuess {
+  const value = (raw ?? "").trim();
+  const result = (
+    semester: string | null,
+    confidence: SemesterGuess["confidence"],
+  ): SemesterGuess => ({ semester, confidence, raw: value });
+
+  if (!value) return result(null, "unknown");
+
+  // Already canonical.
+  if (/^\d{4}\/\d{4}\/[12]$/.test(value)) return result(value, "exact");
+
+  const normalized = stripDiacritics(value).toLowerCase();
+  const years = normalized.match(/\d{4}/g)?.map(Number) ?? [];
+  if (years.length === 0) return result(null, "unknown");
+
+  const year = years[0];
+  if (year < 1990 || year > 2100) return result(null, "unknown");
+
+  if (AUTUMN.test(normalized)) return result(`${year}/${year + 1}/1`, "exact");
+  if (SPRING.test(normalized)) return result(`${year - 1}/${year}/2`, "exact");
+
+  // A bare year. Recruitment runs in autumn, so that is the better guess — but
+  // it is a guess, and the review sheet has to show it as one.
+  return result(`${year}/${year + 1}/1`, "guessed");
+}

@@ -1,0 +1,3 @@
+# Every export, review sheet and intermediate artifact under data/ holds member
+# PII. The scripts are the deliverable; the data never leaves the machine.
+/data/
