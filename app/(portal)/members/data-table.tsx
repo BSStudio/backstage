@@ -1,15 +1,10 @@
 "use client";
 
 import {
-  type ColumnDef,
   type ColumnFiltersState,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
+  type ColumnVisibilityState,
   type SortingState,
-  useReactTable,
-  type VisibilityState,
+  useTable,
 } from "@tanstack/react-table";
 import { Settings2 } from "lucide-react";
 import { useState } from "react";
@@ -31,13 +26,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { COLUMN_LABELS, type MemberRow } from "./columns";
+import {
+  COLUMN_LABELS,
+  type MemberColumnDef,
+  type MemberRow,
+  memberTableFeatures,
+} from "./columns";
 
 export type DataTableProps = {
-  columns: ColumnDef<MemberRow>[];
+  columns: MemberColumnDef[];
   data: MemberRow[];
   initialSorting?: SortingState;
-  initialColumnVisibility?: VisibilityState;
+  initialColumnVisibility?: ColumnVisibilityState;
   /** Renders inside the toolbar between search and column toggle (for filters) */
   toolbarExtra?: React.ReactNode;
   /** Renders as a second bar below the toolbar when rows are selected */
@@ -58,21 +58,18 @@ export function DataTable({
 }: DataTableProps) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
-    initialColumnVisibility,
-  );
+  const [columnVisibility, setColumnVisibility] =
+    useState<ColumnVisibilityState>(initialColumnVisibility);
   const [rowSelection, setRowSelection] = useState({});
 
-  const table = useReactTable({
+  const table = useTable({
+    features: memberTableFeatures,
     data,
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     state: {
       sorting,
       columnFilters,
@@ -148,12 +145,9 @@ export function DataTable({
                         header.getSize() !== 150 ? header.getSize() : undefined,
                     }}
                   >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
+                    {header.isPlaceholder ? null : (
+                      <table.FlexRender header={header} />
+                    )}
                   </TableHead>
                 ))}
               </TableRow>
@@ -168,10 +162,7 @@ export function DataTable({
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
+                      <table.FlexRender cell={cell} />
                     </TableCell>
                   ))}
                 </TableRow>
