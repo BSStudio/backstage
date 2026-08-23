@@ -2,9 +2,11 @@
 import { createHash } from "node:crypto";
 import type { MembershipStatus, Prisma } from "../app/generated/prisma/client";
 import prisma from "../lib/prisma";
+import { NO_AUTHENTIK_ACCOUNT_REASON } from "../lib/sync-jobs";
 import {
   currentSemester,
   deriveUsername,
+  LOCAL_MEMBER_ID_PREFIX,
   MEMBERSHIP_STATUSES,
   parseSemester,
 } from "../types";
@@ -85,7 +87,7 @@ function buildMember(
       authentikGroupIds: seed.role.groups.map(groups.idFor),
     },
     row: {
-      id: stableId(email),
+      id: stableLocalId(email),
       firstName: seed.firstName,
       lastName: seed.lastName,
       nickname: seed.nickname,
@@ -257,8 +259,12 @@ function buildSyncJobs(
 ): Prisma.SyncJobCreateManyInput[] {
   const jobs = members.flatMap(({ row, joinedAt }) => {
     const username = deriveUsername(row.firstName, row.lastName);
-    const created: Prisma.SyncJobCreateManyInput[] = [
-      {
+    const created: Prisma.SyncJobCreateManyInput[] = [];
+
+    // Only the dev user has an Authentik account; the rest stand in for imported
+    // members, and the importer writes no sync jobs.
+    if (row.id === devUser.id) {
+      created.push({
         target: "AUTHENTIK",
         operation: "CREATE_USER",
         memberId: row.id,
@@ -269,11 +275,11 @@ function buildSyncJobs(
         },
         status: "SUCCESS",
         attempts: 1,
-        result: { pk: 100 + jobIndex(row.id), uuid: row.id, username },
+        result: { pk: 100, uuid: row.id, username },
         createdAt: joinedAt,
         updatedAt: joinedAt,
-      },
-    ];
+      });
+    }
 
     if (row.websiteUserId) {
       created.push({
@@ -297,7 +303,35 @@ function buildSyncJobs(
     return created;
   });
 
-  return [...jobs, ...buildFailedSyncJobs(members, devUser)];
+  return [
+    ...jobs,
+    ...buildFailedSyncJobs(members, devUser),
+    ...buildSkippedSyncJobs(members, devUser),
+  ];
+}
+
+// Two skips so the SKIPPED badge and the reason it carries have something to show.
+function buildSkippedSyncJobs(
+  members: BuiltMember[],
+  devUser: DevUser,
+): Prisma.SyncJobCreateManyInput[] {
+  const skippedAt = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
+
+  return members
+    .filter((m) => m.row.id !== devUser.id && !m.archivedAt)
+    .slice(0, 2)
+    .map(({ row }) => ({
+      target: "AUTHENTIK" as const,
+      operation: "UPDATE_USER" as const,
+      memberId: row.id,
+      payload: {
+        attributes: { first_name: row.firstName, last_name: row.lastName },
+      },
+      status: "SKIPPED" as const,
+      result: { reason: NO_AUTHENTIK_ACCOUNT_REASON },
+      createdAt: skippedAt,
+      updatedAt: skippedAt,
+    }));
 }
 
 // Two failures so /admin/sync-jobs and its retry button have something to show.
@@ -312,20 +346,19 @@ function buildFailedSyncJobs(
       m.row.id !== devUser.id && !m.archivedAt && m.row.status === "MEMBER",
   );
   const unlinked = active.find((m) => !m.row.websiteUserId);
-  const linked = active.find((m) => m.row.websiteUserId);
   const failedAt = new Date(NOW.getTime() - 2 * 24 * 60 * 60 * 1000);
 
-  const jobs: Prisma.SyncJobCreateManyInput[] = [];
-  if (linked) {
-    jobs.push({
+  // The Authentik failure is the dev user's: everyone else is skipped before a call is
+  // made, so they are the only member whose retry reaches a real instance.
+  const jobs: Prisma.SyncJobCreateManyInput[] = [
+    {
       target: "AUTHENTIK",
       operation: "UPDATE_USER",
-      memberId: linked.row.id,
+      memberId: devUser.id,
       payload: {
         attributes: {
-          first_name: linked.row.firstName,
-          last_name: linked.row.lastName,
-          mobile: linked.row.mobile,
+          first_name: devUser.firstName,
+          last_name: devUser.lastName,
         },
       },
       status: "FAILED",
@@ -333,8 +366,8 @@ function buildFailedSyncJobs(
       result: { error: "Authentik API 404: user not found" },
       createdAt: failedAt,
       updatedAt: failedAt,
-    });
-  }
+    },
+  ];
   if (unlinked) {
     jobs.push({
       target: "WEBSITE",
@@ -403,20 +436,18 @@ function emailFor(firstName: string, lastName: string): string {
   return `${normalizeName(lastName)}.${normalizeName(firstName)}@example.com`;
 }
 
-/** Stable ids keep member URLs valid across reseeds. */
-function stableId(seed: string): string {
+// Stable ids keep member URLs valid across reseeds. Prefixed, because none of the
+// invented members exist in Authentik — a bare UUID would claim they do.
+function stableLocalId(seed: string): string {
   const hex = createHash("sha256").update(seed).digest("hex");
-  return [
+  const uuid = [
     hex.slice(0, 8),
     hex.slice(8, 12),
     `4${hex.slice(13, 16)}`,
     `a${hex.slice(17, 20)}`,
     hex.slice(20, 32),
   ].join("-");
-}
-
-function jobIndex(id: string): number {
-  return Number.parseInt(id.slice(0, 4), 16) % 900;
+  return `${LOCAL_MEMBER_ID_PREFIX}${uuid}`;
 }
 
 seedDev()

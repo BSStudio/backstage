@@ -103,6 +103,20 @@ export function deriveUsername(firstName: string, lastName: string): string {
   return firstHungarianLetter(first) + last;
 }
 
+// ─── Member identity ─────────────────────────────────────────────────────────
+
+// Marks a member with no Authentik account, whose id is therefore not a user UUID.
+// A prefix rather than another random UUID: nothing else distinguishes the two shapes.
+export const LOCAL_MEMBER_ID_PREFIX = "x_";
+
+export function localMemberId(): string {
+  return `${LOCAL_MEMBER_ID_PREFIX}${crypto.randomUUID()}`;
+}
+
+export function hasAuthentikAccount(memberId: string): boolean {
+  return !memberId.startsWith(LOCAL_MEMBER_ID_PREFIX);
+}
+
 // ─── Role & permission helpers ────────────────────────────────────────────────
 
 export type UserRole = "ADMIN" | "LEADER" | "MEMBER";

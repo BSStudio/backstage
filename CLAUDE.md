@@ -59,9 +59,9 @@ Environment variables: see `.env.example`. It is the complete list and is kept i
 
 `pnpm db:seed` wipes the dev database and writes ~43 invented members (Hungarian names, none
 real), leadership roles, an `AuthentikGroup` registry, per-member timeline and audit history, and
-sync jobs including two FAILED ones so `/admin/sync-jobs` and its retry button have something to
-show. Semesters are relative to `currentSemester()`, and member ids are a hash of the seeded email,
-so member URLs survive a reseed.
+sync jobs including two FAILED and two SKIPPED ones so `/admin/sync-jobs`, its retry button and
+every status badge have something to show. Semesters are relative to `currentSemester()`, and
+member ids are the local prefix plus a hash of the seeded email, so member URLs survive a reseed.
 
 The first run asks for your name and your Authentik `sub` and stores the answers in
 `.dev-user.json` (gitignored). That row is created with your `sub` as its `id`, so logging in
@@ -72,8 +72,10 @@ To test group sync against a dev Authentik, write the real UUIDs to `.dev-authen
 (gitignored, `[{ "displayName": "Főszerkesztő", "authentikGroupId": "<uuid>" }, …]`): entries
 whose `displayName` matches a seeded group replace its UUID, the rest are added to the registry.
 Real Authentik identifiers stay out of the repo, same as the group UUIDs in `.env`. Only *your*
-member row resolves in Authentik — the invented members have no account there, so assigning them
-a role produces a FAILED job. Assign the role to yourself.
+member row resolves in Authentik: it is seeded with your `sub`, while every invented member carries
+a local-prefixed id, so assigning *them* a role produces `SKIPPED` jobs and never calls anything. Assign
+the role to yourself. For the same reason the seeded Authentik `CREATE_USER` and the FAILED
+Authentik job both belong to your row — it is the only one a real retry can reach.
 
 The scripts refuse to run against a database whose host is not local unless passed `--force`.
 
@@ -169,8 +171,19 @@ field in `lib/authentik/*` has to be mirrored into the contract check, or it goe
 Prisma client generated to `app/generated/prisma/`, using the `@prisma/adapter-pg` driver adapter
 over a raw `pg` connection.
 
-**Member** — central record. `id` is the Authentik `sub` claim for SSO users, or a random UUID for
-legacy/manually-created records. There is no separate `authentikId` — `id` serves both.
+**Member** — central record. `id` is the member's **Authentik user UUID**: the OIDC `sub` claim at
+login and the `uuid` the sync layer filters `/core/users/` on to resolve a pk. There is no separate
+`authentikId` — `id` serves both, which is why Authentik's provider **subject mode must be "Based
+on the User's UUID"** (see Auth).
+
+Members with no Authentik account — imported alumni, nobody the app created — carry an id prefixed
+with `LOCAL_MEMBER_ID_PREFIX` instead (`localMemberId()` / `hasAuthentikAccount()` in
+`types/index.ts`). The prefix is the *only* record that the account is missing, and unlike the
+random UUID it replaces it cannot be mistaken for a real one. Its value is a meaningless token
+rather than a descriptive word because member ids reach the public site inside avatar URLs — refer
+to the constant, not the literal. Giving such a member an account later means rewriting the id to
+the new UUID; Prisma's required relations default to `onUpdate: Cascade`, so a single
+`UPDATE "Member" SET id = …` carries every child row with it.
 
 `websiteUserId` is the Drupal numeric uid on bsstudio.hu. Nullable, internal, never user-editable
 and not shown in the UI. Populated from the website `CREATE_USER` response, or by the import script
@@ -190,8 +203,9 @@ Populated manually by admins. The Authentik UUID is the primary key — no separ
 A status change and a field update in the same request produce **separate** entries
 (`STATUS_CHANGED` + `MEMBER_UPDATED`).
 
-**SyncJob** — one row per external call. PENDING → IN_PROGRESS → SUCCESS | FAILED. `memberId` is a
-required FK. Failed jobs surface at `/admin/sync-jobs` and are individually retryable.
+**SyncJob** — one row per external call. PENDING → IN_PROGRESS → SUCCESS | FAILED, plus `SKIPPED`
+for a call that was never attempted (see Sync architecture). `memberId` is a required FK. Failed
+jobs surface at `/admin/sync-jobs` and are individually retryable; `SKIPPED` is not retryable.
 
 **GoogleGroupEntry** — reconciliation state for the mailing list. Annotations survive re-uploads.
 
@@ -235,6 +249,12 @@ On login `mapProfileToUser` reads the `groups` claim and derives a role, and car
 user row `id`, so it matches the Member `id`. None of these `additionalFields` may carry
 `input: false` — better-auth strips such fields from the OAuth profile as well, which leaves every
 login unnamed, `MEMBER`, and keyed on a generated id.
+
+**The provider's subject mode must be "Based on the User's UUID"** (Applications → Providers → the
+Backstage provider → Advanced protocol settings). Authentik's default is a *hashed* user id, which
+is not the UUID the REST API filters on — so with the default, `sub` matches no Member row and
+every login creates a duplicate keyed on the hash, while `getUserPk` fails to resolve anything.
+Nothing in the app can detect this; it is instance configuration.
 
 The handler mounts Better Auth's whole router, so `hooks.before` 404s every path outside
 `ALLOWED_AUTH_PATHS` (`lib/auth.ts`). Only the OIDC round trip (`/sign-in/social`,
@@ -389,6 +409,13 @@ Authentik via `getUserPk(memberId)`, the website via `websiteUserId` on the memb
 late rather than baking IDs into the payload is what makes retry work: a job that failed because a
 member had no `websiteUserId` succeeds on retry once an admin backfills it. A missing link throws,
 so it lands as a visible `FAILED` row instead of being silently skipped.
+
+**Members with no Authentik account are skipped, not failed.** Every Authentik orchestrator goes
+through one choke point (`runAuthentikJob`, `lib/sync/authentik/orchestrators.ts`) that checks
+`hasAuthentikAccount(memberId)` first. A prefixed id has no user to resolve a pk from, so unlike a
+missing `websiteUserId` no admin action could ever make the job succeed. The row is still written,
+as `SKIPPED` with `result: { reason }` — an id wrongly carrying the prefix would otherwise stop
+syncing silently forever. No handler runs, `attempts` stays 0, nothing reaches Sentry.
 
 Every FAILED job is also reported to Sentry from inside `executeSyncJob` — see Observability.
 
@@ -585,6 +612,18 @@ Authentik admin UI get wiped on the next update. Acceptable for a managed fleet.
 **Status change adds before removing.** `orchestrateStatusChange` issues `ADD_TO_GROUP` before
 `REMOVE_FROM_GROUP`. If ADD fails nothing changed; if REMOVE fails the user is briefly in both
 groups, which a retry fixes. The reverse order risks leaving a user in **no** group.
+
+**"Has an Authentik account" is encoded in the id, not in a column.** The alternative was an
+`authentikUserId` or a `hasAuthentikAccount` field. Neither pays for itself: `Member.id` must
+*already* equal the Authentik UUID for login and for pk resolution, so a member who gains an account
+needs their id rewritten either way — a column would not save that, only duplicate a fact the id
+already carries, where the two can drift. The prefix also keeps the check pure, which matters
+because orchestrators receive a bare `memberId` and would otherwise have to read the member row on
+every sync. Cost: ids are not uniformly UUIDs, and the prefix shows up in member URLs — and, once
+avatars are embedded on the public website, in `/avatars/<id>-square.webp` too. That is why the
+token is meaningless rather than descriptive. It does not hide the id itself: an avatar URL
+publishes the member's Authentik user UUID either way. Fixing *that* means minting avatar
+filenames independently of the member id, which is not done.
 
 **No background retry queue.** A failed sync reports to Sentry, somebody looks, and it is retried by
 hand from `/admin/sync-jobs`. At ~30 members the failure rate does not justify a worker, a queue

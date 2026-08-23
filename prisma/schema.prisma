@@ -38,6 +38,7 @@ enum SyncJobStatus {
   IN_PROGRESS
   SUCCESS
   FAILED
+  SKIPPED
 }
 
 enum AuditAction {
@@ -67,7 +68,7 @@ enum GoogleGroupMatchStatus {
 // Sorts correctly as a string: "2024/2025/2" < "2025/2026/1" < "2025/2026/2"
 
 model Member {
-  id                  String                @id // Authentik hashed ID for SSO users, random UUID for legacy
+  id                  String                @id // Authentik user UUID, or LOCAL_MEMBER_ID_PREFIX-prefixed when there is no account
 
   // Identity
   firstName           String

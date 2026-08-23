@@ -1,11 +1,43 @@
 import type {
   MembershipStatus,
   PrismaClient,
+  SyncOperation,
 } from "@/app/generated/prisma/client";
 import { createUser } from "@/lib/authentik/users";
 import { resolveAvailableUsername } from "@/lib/services/usernames";
+import { NO_AUTHENTIK_ACCOUNT_REASON } from "@/lib/sync-jobs";
+import { hasAuthentikAccount } from "@/types";
 import { executeSyncJob, type SyncResult } from "../executor";
 import { getStatusGroupUuid } from "./group-mapping";
+
+// Skipped rather than failed: with no Authentik user there is no pk to resolve and no
+// admin action that would change that. Still recorded, so an id wrongly carrying the
+// prefix does not stop syncing silently.
+async function runAuthentikJob(
+  prisma: PrismaClient,
+  memberId: string,
+  operation: SyncOperation,
+  payload: object,
+): Promise<SyncResult> {
+  if (!hasAuthentikAccount(memberId)) {
+    await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation,
+        memberId,
+        payload,
+        status: "SKIPPED",
+        result: { reason: NO_AUTHENTIK_ACCOUNT_REASON },
+      },
+    });
+    return { success: true, result: null };
+  }
+
+  const job = await prisma.syncJob.create({
+    data: { target: "AUTHENTIK", operation, memberId, payload },
+  });
+  return executeSyncJob(prisma, job.id);
+}
 
 export function buildAuthentikAttributes(member: {
   firstName: string;
@@ -57,30 +89,14 @@ export async function orchestrateUpdateAttributes(
     attributes?: Record<string, unknown>;
   },
 ): Promise<SyncResult> {
-  const job = await prisma.syncJob.create({
-    data: {
-      target: "AUTHENTIK",
-      operation: "UPDATE_USER",
-      memberId,
-      payload: data as object,
-    },
-  });
-  return executeSyncJob(prisma, job.id);
+  return runAuthentikJob(prisma, memberId, "UPDATE_USER", data);
 }
 
 export async function orchestrateDeactivate(
   prisma: PrismaClient,
   memberId: string,
 ): Promise<SyncResult> {
-  const job = await prisma.syncJob.create({
-    data: {
-      target: "AUTHENTIK",
-      operation: "DEACTIVATE_USER",
-      memberId,
-      payload: {},
-    },
-  });
-  return executeSyncJob(prisma, job.id);
+  return runAuthentikJob(prisma, memberId, "DEACTIVATE_USER", {});
 }
 
 export async function orchestrateStatusChange(
@@ -105,15 +121,7 @@ export async function orchestrateAddToGroup(
   memberId: string,
   groupUuid: string,
 ): Promise<SyncResult> {
-  const job = await prisma.syncJob.create({
-    data: {
-      target: "AUTHENTIK",
-      operation: "ADD_TO_GROUP",
-      memberId,
-      payload: { groupUuid },
-    },
-  });
-  return executeSyncJob(prisma, job.id);
+  return runAuthentikJob(prisma, memberId, "ADD_TO_GROUP", { groupUuid });
 }
 
 export async function orchestrateRemoveFromGroup(
@@ -121,13 +129,5 @@ export async function orchestrateRemoveFromGroup(
   memberId: string,
   groupUuid: string,
 ): Promise<SyncResult> {
-  const job = await prisma.syncJob.create({
-    data: {
-      target: "AUTHENTIK",
-      operation: "REMOVE_FROM_GROUP",
-      memberId,
-      payload: { groupUuid },
-    },
-  });
-  return executeSyncJob(prisma, job.id);
+  return runAuthentikJob(prisma, memberId, "REMOVE_FROM_GROUP", { groupUuid });
 }

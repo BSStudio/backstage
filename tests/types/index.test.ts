@@ -3,6 +3,9 @@ import {
   currentSemester,
   deriveUsername,
   formatSemester,
+  hasAuthentikAccount,
+  LOCAL_MEMBER_ID_PREFIX,
+  localMemberId,
   parseSemester,
   resolveUserRole,
 } from "@/types";
@@ -152,5 +155,30 @@ describe("resolveUserRole", () => {
     vi.stubEnv("AUTHENTIK_GROUP_LEADERSHIP", "leaders");
     expect(resolveUserRole(["leaders", "admins"])).toBe("ADMIN");
     vi.unstubAllEnvs();
+  });
+});
+
+// ─── Member identity ─────────────────────────────────────────────────────────
+
+describe("member ids", () => {
+  it("treats a bare Authentik UUID as having an account", () => {
+    expect(hasAuthentikAccount("7c9e6679-7425-40de-944b-e07fc1f90ae7")).toBe(
+      true,
+    );
+  });
+
+  it("treats a prefixed id as having no account", () => {
+    expect(
+      hasAuthentikAccount(
+        `${LOCAL_MEMBER_ID_PREFIX}7c9e6679-7425-40de-944b-e07fc1f90ae7`,
+      ),
+    ).toBe(false);
+  });
+
+  it("mints prefixed, unique ids", () => {
+    const id = localMemberId();
+    expect(id.startsWith(LOCAL_MEMBER_ID_PREFIX)).toBe(true);
+    expect(hasAuthentikAccount(id)).toBe(false);
+    expect(localMemberId()).not.toBe(id);
   });
 });

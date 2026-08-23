@@ -50,10 +50,9 @@ function pageRange(current: number, total: number): (number | string)[] {
 }
 
 function formatResult(result: unknown): string {
-  if (!result) return "—";
-  if (typeof result === "object" && "error" in (result as object)) {
-    return String((result as { error: unknown }).error);
-  }
+  if (!result || typeof result !== "object") return "—";
+  if ("error" in result) return String((result as { error: unknown }).error);
+  if ("reason" in result) return String((result as { reason: unknown }).reason);
   return "—";
 }
 
@@ -98,7 +97,7 @@ export default async function SyncJobsPage({
               <TableHead>Művelet</TableHead>
               <TableHead>Státusz</TableHead>
               <TableHead>Próbálkozás</TableHead>
-              <TableHead>Hibaüzenet</TableHead>
+              <TableHead>Üzenet</TableHead>
               <TableHead>Időpont</TableHead>
               <TableHead className="w-32"></TableHead>
             </TableRow>

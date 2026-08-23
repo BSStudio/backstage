@@ -4,11 +4,14 @@ import type {
   SyncTarget,
 } from "@/app/generated/prisma/client";
 
+export const NO_AUTHENTIK_ACCOUNT_REASON = "Nincs Authentik-fiók";
+
 export const SYNC_STATUS_LABELS: Record<SyncJobStatus, string> = {
   PENDING: "Függőben",
   IN_PROGRESS: "Folyamatban",
   SUCCESS: "Sikeres",
   FAILED: "Sikertelen",
+  SKIPPED: "Kihagyva",
 };
 
 export const SYNC_STATUS_VARIANT: Record<SyncJobStatus, string> = {
@@ -16,6 +19,7 @@ export const SYNC_STATUS_VARIANT: Record<SyncJobStatus, string> = {
   IN_PROGRESS: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
   SUCCESS: "bg-green-500/15 text-green-600 dark:text-green-400",
   FAILED: "bg-red-500/15 text-red-600 dark:text-red-400",
+  SKIPPED: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
 };
 
 export const SYNC_TARGET_LABELS: Record<SyncTarget, string> = {

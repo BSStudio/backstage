@@ -40,6 +40,7 @@ import {
 } from "@/lib/sync/authentik/orchestrators";
 
 const MEMBER_ID = "uuid-member-1";
+const LOCAL_MEMBER_ID = "x_uuid-member-2";
 
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -66,6 +67,17 @@ beforeEach(async () => {
       lastName: "Member",
       email: "test@example.com",
       joinedSemester: "2025/2026/1",
+    },
+  });
+  await prisma.member.upsert({
+    where: { id: LOCAL_MEMBER_ID },
+    update: {},
+    create: {
+      id: LOCAL_MEMBER_ID,
+      firstName: "Legacy",
+      lastName: "Member",
+      email: "legacy@example.com",
+      joinedSemester: "2012/2013/1",
     },
   });
 });
@@ -226,6 +238,67 @@ describe("orchestrateAddToGroup / orchestrateRemoveFromGroup", () => {
       where: { memberId: MEMBER_ID },
     });
     expect(jobs[0].operation).toBe("REMOVE_FROM_GROUP");
+  });
+});
+
+describe("members without an Authentik account", () => {
+  it("records UPDATE_USER as SKIPPED without calling Authentik", async () => {
+    const prisma = getTestPrisma();
+
+    const result = await orchestrateUpdateAttributes(prisma, LOCAL_MEMBER_ID, {
+      name: "Legacy Member",
+    });
+
+    expect(result).toEqual({ success: true, result: null });
+    expect(mockGetUserPk).not.toHaveBeenCalled();
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+
+    const jobs = await prisma.syncJob.findMany({
+      where: { memberId: LOCAL_MEMBER_ID },
+    });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].status).toBe("SKIPPED");
+    expect(jobs[0].attempts).toBe(0);
+    expect(jobs[0].payload).toEqual({ name: "Legacy Member" });
+    expect(jobs[0].result).toEqual({ reason: "Nincs Authentik-fiók" });
+  });
+
+  it("records DEACTIVATE_USER as SKIPPED", async () => {
+    const prisma = getTestPrisma();
+
+    await orchestrateDeactivate(prisma, LOCAL_MEMBER_ID);
+
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+    const jobs = await prisma.syncJob.findMany({
+      where: { memberId: LOCAL_MEMBER_ID },
+    });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].operation).toBe("DEACTIVATE_USER");
+    expect(jobs[0].status).toBe("SKIPPED");
+  });
+
+  it("records both status-change group jobs as SKIPPED", async () => {
+    const prisma = getTestPrisma();
+
+    const results = await orchestrateStatusChange(
+      prisma,
+      LOCAL_MEMBER_ID,
+      "MEMBER",
+      "ALUMNI",
+    );
+
+    expect(results.every((r) => r.success)).toBe(true);
+    expect(mockAddUserToGroup).not.toHaveBeenCalled();
+    expect(mockRemoveUserFromGroup).not.toHaveBeenCalled();
+
+    const jobs = await prisma.syncJob.findMany({
+      where: { memberId: LOCAL_MEMBER_ID },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(jobs.map((j) => [j.operation, j.status])).toEqual([
+      ["ADD_TO_GROUP", "SKIPPED"],
+      ["REMOVE_FROM_GROUP", "SKIPPED"],
+    ]);
   });
 });
 
