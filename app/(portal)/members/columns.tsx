@@ -1,6 +1,17 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
+import {
+  type Column,
+  type ColumnDef,
+  columnFilteringFeature,
+  columnSizingFeature,
+  columnVisibilityFeature,
+  createFilteredRowModel,
+  createSortedRowModel,
+  rowSelectionFeature,
+  rowSortingFeature,
+  tableFeatures,
+} from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import type { Member, MembershipStatus } from "@/app/generated/prisma/client";
@@ -14,6 +25,18 @@ import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
 export type MemberRow = Member & {
   leadershipRole: { label: string } | null;
 };
+
+export const memberTableFeatures = tableFeatures({
+  columnFilteringFeature,
+  columnSizingFeature,
+  columnVisibilityFeature,
+  rowSelectionFeature,
+  rowSortingFeature,
+  filteredRowModel: createFilteredRowModel(),
+  sortedRowModel: createSortedRowModel(),
+});
+
+export type MemberColumnDef = ColumnDef<typeof memberTableFeatures, MemberRow>;
 
 export const COLUMN_LABELS: Record<string, string> = {
   avatar: "Kép",
@@ -38,7 +61,7 @@ function SortableHeader({
   column,
   children,
 }: {
-  column: import("@tanstack/react-table").Column<MemberRow>;
+  column: Column<typeof memberTableFeatures, MemberRow>;
   children: React.ReactNode;
 }) {
   return (
@@ -56,7 +79,7 @@ function SortableHeader({
 
 // ─── Individual column definitions ───────────────────────────────────────────
 
-export const selectColumn: ColumnDef<MemberRow> = {
+export const selectColumn: MemberColumnDef = {
   id: "select",
   size: 16,
   header: ({ table }) => (
@@ -80,7 +103,7 @@ export const selectColumn: ColumnDef<MemberRow> = {
   enableHiding: false,
 };
 
-export const avatarColumn: ColumnDef<MemberRow> = {
+export const avatarColumn: MemberColumnDef = {
   id: "avatar",
   header: "",
   size: 40,
@@ -101,7 +124,7 @@ export const avatarColumn: ColumnDef<MemberRow> = {
   enableHiding: false,
 };
 
-export const nameColumn: ColumnDef<MemberRow> = {
+export const nameColumn: MemberColumnDef = {
   id: "name",
   accessorFn: (m) => `${m.lastName} ${m.firstName}`,
   header: ({ column }) => <SortableHeader column={column}>Név</SortableHeader>,
@@ -140,13 +163,13 @@ function statusBadge(status: MembershipStatus) {
   );
 }
 
-export const statusColumn: ColumnDef<MemberRow> = {
+export const statusColumn: MemberColumnDef = {
   accessorKey: "status",
   header: ({ column }) => (
     <SortableHeader column={column}>Státusz</SortableHeader>
   ),
   cell: ({ row }) => statusBadge(row.getValue("status") as MembershipStatus),
-  sortingFn: (a, b) => {
+  sortFn: (a, b) => {
     const aOrder = STATUS_ORDER[a.getValue("status") as MembershipStatus];
     const bOrder = STATUS_ORDER[b.getValue("status") as MembershipStatus];
     return aOrder - bOrder;
@@ -159,7 +182,7 @@ export const statusColumn: ColumnDef<MemberRow> = {
 };
 
 /** Status column with an additional "Archivált" badge next to it. */
-export const statusWithArchivedColumn: ColumnDef<MemberRow> = {
+export const statusWithArchivedColumn: MemberColumnDef = {
   ...statusColumn,
   cell: ({ row }) => {
     const status = row.getValue("status") as MembershipStatus;
@@ -177,7 +200,7 @@ export const statusWithArchivedColumn: ColumnDef<MemberRow> = {
   },
 };
 
-export const leadershipRoleColumn: ColumnDef<MemberRow> = {
+export const leadershipRoleColumn: MemberColumnDef = {
   id: "leadershipRole",
   header: "Pozíció",
   cell: ({ row }) => {
@@ -191,7 +214,7 @@ export const leadershipRoleColumn: ColumnDef<MemberRow> = {
   enableSorting: false,
 };
 
-export const emailColumn: ColumnDef<MemberRow> = {
+export const emailColumn: MemberColumnDef = {
   accessorKey: "email",
   header: "Email",
   cell: ({ row }) => (
@@ -204,7 +227,7 @@ export const emailColumn: ColumnDef<MemberRow> = {
   ),
 };
 
-export const mobileColumn: ColumnDef<MemberRow> = {
+export const mobileColumn: MemberColumnDef = {
   accessorKey: "mobile",
   header: "Telefon",
   cell: ({ row }) => {
@@ -222,7 +245,7 @@ export const mobileColumn: ColumnDef<MemberRow> = {
   },
 };
 
-export const universityColumn: ColumnDef<MemberRow> = {
+export const universityColumn: MemberColumnDef = {
   accessorKey: "university",
   header: "Egyetem",
   cell: ({ row }) => {
@@ -235,7 +258,7 @@ export const universityColumn: ColumnDef<MemberRow> = {
   },
 };
 
-export const majorColumn: ColumnDef<MemberRow> = {
+export const majorColumn: MemberColumnDef = {
   accessorKey: "major",
   header: "Szak",
   cell: ({ row }) => {
@@ -248,7 +271,7 @@ export const majorColumn: ColumnDef<MemberRow> = {
   },
 };
 
-export const joinedSemesterColumn: ColumnDef<MemberRow> = {
+export const joinedSemesterColumn: MemberColumnDef = {
   accessorKey: "joinedSemester",
   header: ({ column }) => (
     <SortableHeader column={column}>Belépés</SortableHeader>
@@ -260,7 +283,7 @@ export const joinedSemesterColumn: ColumnDef<MemberRow> = {
   ),
 };
 
-export const archivedAtColumn: ColumnDef<MemberRow> = {
+export const archivedAtColumn: MemberColumnDef = {
   accessorKey: "archivedAt",
   header: ({ column }) => (
     <SortableHeader column={column}>Archiválva</SortableHeader>
