@@ -220,7 +220,14 @@ number. Sorts correctly as a string. Helpers in `types/index.ts`: `parseSemester
 ## Auth and permissions
 
 Better Auth with the `genericOAuth` plugin against Authentik's OIDC discovery URL. Handler at
-`app/api/auth/[...all]/route.ts`, client helper in `lib/auth-client.ts`.
+`app/api/auth/[...all]/route.ts`, client helper in `lib/auth-client.ts`. The plugin registers
+Authentik as an ordinary social provider, so login is `signIn.social({ provider: "authentik" })` on
+the core endpoints — there is no client-side plugin, the redirect URI registered in Authentik is
+`<origin>/api/auth/callback/authentik`, and PKCE is on.
+
+`accountIssuer` is pinned to `AUTHENTIK_ISSUER` rather than left to discovery. A discovery fetch
+that returns nothing throws out of plugin init, which fails *every* auth route including
+`/get-session`; pinned, an unreachable Authentik only breaks login.
 
 On login `mapProfileToUser` reads the `groups` claim and derives a role, and carries the Authentik
 `sub` in an `authentikSub` field; a `databaseHooks.user.create.before` hook promotes that to the
@@ -229,9 +236,10 @@ user row `id`, so it matches the Member `id`. None of these `additionalFields` m
 login unnamed, `MEMBER`, and keyed on a generated id.
 
 The handler mounts Better Auth's whole router, so `hooks.before` 404s every path outside
-`ALLOWED_AUTH_PATHS` (`lib/auth.ts`). Only the OIDC round trip, `/get-session`, `/sign-out` and
-`/error` stay reachable; passwords, account linking and `/update-user` — which without
-`input: false` would let a member set their own `role` — belong to Authentik.
+`ALLOWED_AUTH_PATHS` (`lib/auth.ts`). Only the OIDC round trip (`/sign-in/social`,
+`/callback/:id`), `/get-session`, `/sign-out` and `/error` stay reachable; passwords, account
+linking and `/update-user` — which without `input: false` would let a member set their own `role` —
+belong to Authentik.
 
 `proxy.ts` lets `/login`, `/api/auth` and `/api/usernames` through and redirects everything else to
 `/login` when no session cookie is present, preserving the original path as `callbackUrl`. Its
@@ -506,10 +514,14 @@ with `pnpm authentik:contract --update` once the change is understood.
 lockfile refresh automerge; everything else waits for a human. Majors are separate PRs, and a
 Next.js major is disabled outright — it is a migration, not a bump (see `AGENTS.md`). The config
 file does nothing on its own: the Renovate GitHub App has to be installed on the repository.
-Automerge is `platformAutomerge`, i.e. GitHub's own auto-merge, so two repository settings are
-**load-bearing, not niceties**. *Allow auto-merge* must be on in repository settings, or Renovate
-falls back to merging the PR itself the moment it opens. And auto-merge only waits for CI if `main`
-requires status checks, so branch protection is what makes it wait at all.
+`schedule:weekends` opens PRs across both days, `automergeSchedule` merges them Monday 04:00–08:00.
+The gap is the review pass: by Monday `schedule:weekends` has stopped opening new PRs, so the set
+that merges is the set that was reviewed. An out-of-schedule run still processes branches that
+already have a PR — only branch *creation* is skipped — which is what leaves the Monday window
+reachable at all. That pairing is also why `platformAutomerge` is **off**: GitHub's own auto-merge
+is enqueued when the PR is created and fires the moment checks go green, which ignores
+`automergeSchedule` entirely. Renovate merges these itself instead, and it waits for CI on its own
+rather than relying on branch protection. Vulnerability alerts opt back out of both schedules.
 
 **GitHub-side settings.** None of this lives in the repository, all of it is assumed by the
 automation, and all of it is set once:
@@ -527,7 +539,7 @@ a required check that never reports blocks the PR forever instead of passing it.
 to be up to date" stays off, or every Renovate PR stalls — `rebaseWhen: "conflicted"` will not
 rebase a merely stale branch.
 
-Also repository-level: *Allow auto-merge* and squash-only merging (see Renovate above), the
+Also repository-level: squash-only merging (see Renovate above), the
 Renovate and Codecov apps installed, Issues enabled with the assignee named in
 `authentik-contract.yml` holding repository access, and the `ghcr.io/bsstudio/backstage` package's
 access linked back to this repository so deployment hosts can pull it.

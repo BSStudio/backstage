@@ -24,8 +24,8 @@ function LoginButton() {
     const callback = searchParams.get("callbackUrl");
     const safeCallback =
       callback?.startsWith("/") && !callback.startsWith("//") ? callback : "/";
-    await authClient.signIn.oauth2({
-      providerId: "authentik",
+    await authClient.signIn.social({
+      provider: "authentik",
       callbackURL: safeCallback,
     });
   };

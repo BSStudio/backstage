@@ -10,6 +10,8 @@ import {
   createSortedRowModel,
   rowSelectionFeature,
   rowSortingFeature,
+  sortFn_datetime,
+  sortFn_text,
   tableFeatures,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
@@ -128,6 +130,7 @@ export const nameColumn: MemberColumnDef = {
   id: "name",
   accessorFn: (m) => `${m.lastName} ${m.firstName}`,
   header: ({ column }) => <SortableHeader column={column}>Név</SortableHeader>,
+  sortFn: sortFn_text,
   cell: ({ row }) => {
     const m = row.original;
     return (
@@ -276,6 +279,8 @@ export const joinedSemesterColumn: MemberColumnDef = {
   header: ({ column }) => (
     <SortableHeader column={column}>Belépés</SortableHeader>
   ),
+  // "2025/2026/1" sorts correctly as plain text; alphanumeric would chunk it.
+  sortFn: sortFn_text,
   cell: ({ row }) => (
     <span className="text-sm text-muted-foreground">
       {formatSemester(row.getValue("joinedSemester"))}
@@ -288,6 +293,7 @@ export const archivedAtColumn: MemberColumnDef = {
   header: ({ column }) => (
     <SortableHeader column={column}>Archiválva</SortableHeader>
   ),
+  sortFn: sortFn_datetime,
   cell: ({ row }) => {
     const archivedAt = row.getValue("archivedAt") as Date | null;
     if (!archivedAt) return <span className="text-muted-foreground">—</span>;

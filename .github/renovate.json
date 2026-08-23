@@ -2,6 +2,7 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
+    "customManagers:biomeVersions",
     ":disableRateLimiting",
     ":enableVulnerabilityAlertsWithLabel(security)",
     ":label(dependencies)",
@@ -17,7 +18,13 @@
   "rebaseWhen": "conflicted",
   "semanticCommits": "enabled",
   "automergeStrategy": "squash",
-  "platformAutomerge": true,
+  "description": [
+    "PRs open across the weekend and merge Monday morning, after the weekend's review pass and after `schedule:weekends` has stopped opening new ones — so the set being merged is the set that was reviewed.",
+    "Out-of-schedule runs still process branches that already have a PR; only branch creation is skipped. That is what leaves a Monday automerge window reachable.",
+    "`platformAutomerge` has to be off for this: it hands the merge to GitHub at PR creation, which then merges as soon as the checks go green and ignores `automergeSchedule` entirely. Renovate merges these itself, during a run inside the window."
+  ],
+  "automergeSchedule": ["* 4-7 * * 1"],
+  "platformAutomerge": false,
   "postUpdateOptions": ["pnpmDedupe"],
   "ignorePaths": [
     "**/node_modules/**",
@@ -56,8 +63,8 @@
       "addLabels": ["github_actions"]
     },
     {
-      "description": "Add `javascript` label for npm updates.",
-      "matchManagers": ["npm"],
+      "description": "Add `javascript` label for npm updates. Matched by datasource rather than by manager so the custom managers that track an npm package from outside package.json — the Biome `$schema`, via `customManagers:biomeVersions` — are covered too, without catching the Testcontainers image.",
+      "matchDatasources": ["npm"],
       "addLabels": ["javascript"]
     },
     {
@@ -69,10 +76,10 @@
       "automerge": true
     },
     {
-      "description": "Group all minor and patch npm updates together.",
+      "description": "Group all minor and patch npm updates together. Matched by datasource so the Biome `$schema` lands in the same PR as @biomejs/biome.",
       "groupName": "all non-major npm dependencies",
       "groupSlug": "all-minor-patch-npm",
-      "matchManagers": ["npm"],
+      "matchDatasources": ["npm"],
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true
     },
@@ -118,6 +125,7 @@
   ],
   "vulnerabilityAlerts": {
     "schedule": ["at any time"],
+    "automergeSchedule": ["at any time"],
     "minimumReleaseAge": null
   }
 }
