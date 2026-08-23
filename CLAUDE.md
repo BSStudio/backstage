@@ -95,7 +95,8 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
 - `lib/errors.ts` — typed error hierarchy + `mapServiceError`
 - `lib/api-client-auth.ts` — bearer verification for machine-to-machine callers
-- `lib/rate-limit.ts` — in-memory fixed-window rate limiter
+- `lib/rate-limit.ts` — in-memory fixed-window rate limiter. State is per process, so every limit
+  it enforces is per replica; the single-replica deployment is what makes that correct
 - `lib/observability/` — `sentry.ts` (shared init options), `scrub.ts` (PII redaction),
   `capture.ts` (capture helpers), `logger.ts` (structured logging)
 - `lib/members.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts` — display helpers + Hungarian labels
