@@ -20,11 +20,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   contract:
     name: Diff the published schema
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -35,7 +40,6 @@ jobs:
       # Exit 1 is drift, exit 2 is "could not read the spec" — only the first is worth an issue.
       - name: Compare against the snapshot
         id: contract
-        shell: bash
         run: |
           set +e
           pnpm authentik:contract 2>&1 | tee contract.log
@@ -45,7 +49,6 @@ jobs:
 
       - name: Note an unreadable schema
         if: ${{ failure() && steps.contract.outputs.status == '2' }}
-        shell: bash
         run: echo "::warning::Could not read the authentik schema — this run proves nothing about drift."
 
       - name: Open an issue on drift
@@ -54,7 +57,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TITLE: Authentik API contract drift
           ASSIGNEE: KOliver94
-        shell: bash
         run: |
           existing=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')
           if [ -n "$existing" ]; then
