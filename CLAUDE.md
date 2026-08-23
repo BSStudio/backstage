@@ -506,10 +506,14 @@ with `pnpm authentik:contract --update` once the change is understood.
 lockfile refresh automerge; everything else waits for a human. Majors are separate PRs, and a
 Next.js major is disabled outright — it is a migration, not a bump (see `AGENTS.md`). The config
 file does nothing on its own: the Renovate GitHub App has to be installed on the repository.
-Automerge is `platformAutomerge`, i.e. GitHub's own auto-merge, so two repository settings are
-**load-bearing, not niceties**. *Allow auto-merge* must be on in repository settings, or Renovate
-falls back to merging the PR itself the moment it opens. And auto-merge only waits for CI if `main`
-requires status checks, so branch protection is what makes it wait at all.
+`schedule:weekends` opens PRs across both days, `automergeSchedule` merges them Monday 04:00–08:00.
+The gap is the review pass: by Monday `schedule:weekends` has stopped opening new PRs, so the set
+that merges is the set that was reviewed. An out-of-schedule run still processes branches that
+already have a PR — only branch *creation* is skipped — which is what leaves the Monday window
+reachable at all. That pairing is also why `platformAutomerge` is **off**: GitHub's own auto-merge
+is enqueued when the PR is created and fires the moment checks go green, which ignores
+`automergeSchedule` entirely. Renovate merges these itself instead, and it waits for CI on its own
+rather than relying on branch protection. Vulnerability alerts opt back out of both schedules.
 
 **GitHub-side settings.** None of this lives in the repository, all of it is assumed by the
 automation, and all of it is set once:
@@ -527,7 +531,7 @@ a required check that never reports blocks the PR forever instead of passing it.
 to be up to date" stays off, or every Renovate PR stalls — `rebaseWhen: "conflicted"` will not
 rebase a merely stale branch.
 
-Also repository-level: *Allow auto-merge* and squash-only merging (see Renovate above), the
+Also repository-level: squash-only merging (see Renovate above), the
 Renovate and Codecov apps installed, Issues enabled with the assignee named in
 `authentik-contract.yml` holding repository access, and the `ghcr.io/bsstudio/backstage` package's
 access linked back to this repository so deployment hosts can pull it.

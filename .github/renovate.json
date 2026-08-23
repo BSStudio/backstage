@@ -18,7 +18,13 @@
   "rebaseWhen": "conflicted",
   "semanticCommits": "enabled",
   "automergeStrategy": "squash",
-  "platformAutomerge": true,
+  "description": [
+    "PRs open across the weekend and merge Monday morning, after the weekend's review pass and after `schedule:weekends` has stopped opening new ones — so the set being merged is the set that was reviewed.",
+    "Out-of-schedule runs still process branches that already have a PR; only branch creation is skipped. That is what leaves a Monday automerge window reachable.",
+    "`platformAutomerge` has to be off for this: it hands the merge to GitHub at PR creation, which then merges as soon as the checks go green and ignores `automergeSchedule` entirely. Renovate merges these itself, during a run inside the window."
+  ],
+  "automergeSchedule": ["* 4-7 * * 1"],
+  "platformAutomerge": false,
   "postUpdateOptions": ["pnpmDedupe"],
   "ignorePaths": [
     "**/node_modules/**",
@@ -119,6 +125,7 @@
   ],
   "vulnerabilityAlerts": {
     "schedule": ["at any time"],
+    "automergeSchedule": ["at any time"],
     "minimumReleaseAge": null
   }
 }
