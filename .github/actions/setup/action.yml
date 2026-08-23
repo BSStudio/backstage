@@ -4,13 +4,18 @@ description: pnpm, Node.js from .nvmrc, and a frozen-lockfile install.
 runs:
   using: composite
   steps:
-    - name: Set up pnpm
-      uses: pnpm/action-setup@v6.0.10
-    - name: Set up Node.js
-      uses: actions/setup-node@v7.0.0
+    - name: Read the Node.js version
+      id: node
+      run: echo "version=$(cat .nvmrc)" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    - name: Set up pnpm and Node.js
+      uses: pnpm/setup@v2.0.2
       with:
-        node-version-file: '.nvmrc'
-        cache: 'pnpm'
+        runtime: node@${{ steps.node.outputs.version }}
+        cache: true
+        install: false
+
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
       shell: bash

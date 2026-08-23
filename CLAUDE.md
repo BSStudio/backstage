@@ -113,8 +113,9 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `Dockerfile`, `docker-entrypoint.sh`, `docker-compose.yml` — production image and stack;
   `docker-compose.dev.yml` is just the dev Postgres
 - `.github/workflows/` — `ci.yml`, `docker-publish.yml`, `authentik-contract.yml`, all sharing the
-  `.github/actions/setup` composite (pnpm, Node from `.nvmrc`, frozen-lockfile install);
-  `.github/renovate.json` for dependency updates
+  `.github/actions/setup` composite: `pnpm/setup`, which reads the pnpm version from
+  `packageManager` and takes the runtime as an input, so `.nvmrc` is read into one first rather
+  than pointed at. It needs pnpm 11 or newer. `.github/renovate.json` for dependency updates
 
 ---
 
