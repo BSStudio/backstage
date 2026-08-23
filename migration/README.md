@@ -75,23 +75,31 @@ kept in the file and filtered out later by `type`.
 
 ### Drupal
 
-Load a dump of the site database locally — do not query production — then run the four
-queries in `migration/sql/` and save each as TSV under `data/drupal/`:
+Load a dump of the site database into a local container — do not query production — then:
 
 ```
-mysql --batch --raw -h 127.0.0.1 -u root -p bsstudio \
-  < migration/sql/01-profile-fields.sql > migration/data/drupal/01-profile-fields.tsv
-```
-
-…and the same for `02-users`, `03-profile-values`, `04-user-roles`. Then:
-
-```
+pnpm tsx migration/extract-drupal.ts --list --password <root password>
+pnpm tsx migration/extract-drupal.ts --database <name> --password <root password>
 pnpm tsx migration/load-drupal.ts
 ```
 
-Run `01` first and read its output. Everything downstream keys off `profile_fields.name`,
-and a wrong guess about a field name silently blanks that column for every member rather
-than failing — `load-drupal.ts` exits non-zero if any expected field is absent.
+`extract-drupal.ts` runs the four queries in `sql/` through the mysql client *inside* the
+container (`docker exec`), so no local mysql install is needed, and captures the output
+itself instead of shell-redirecting it — a PowerShell `>` writes UTF-16 or prepends a BOM
+and neither survives a TSV parser. Defaults to container `website-mysql-1`, user `root`;
+override with `--container` / `--user`, or `DRUPAL_MYSQL_*` in the shell environment. Do
+not add those to `.env`, which is kept in step with `.env.example`.
+
+The password goes to the container as `MYSQL_PWD` rather than `-p`, which would put it in
+the container's process list and draw a warning on stderr.
+
+`--raw` is deliberately not passed to mysql. It disables the escaping that keeps a tab or
+a newline inside a value from splitting the row.
+
+Everything downstream keys off `profile_fields.name`. A wrong guess about a field name
+blanks that column for every member rather than failing, so `load-drupal.ts` exits
+non-zero when an expected field is absent — reconcile `FIELD` against
+`data/drupal/01-profile-fields.tsv` if that fires.
 
 The normalizer prints a tally of every `profile_BSS_state` value and which
 `MembershipStatus` it maps to. Labels the current site no longer writes come out as

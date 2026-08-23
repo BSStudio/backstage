@@ -32,7 +32,8 @@ function unescapeField(field: string): string {
 export type TsvRow = Record<string, string | null>;
 
 export function parseTsv(contents: string): TsvRow[] {
-  const lines = contents.split("\n");
+  // A BOM would end up inside the first column's name and silently orphan it.
+  const lines = contents.replace(/^\ufeff/, "").split("\n");
   while (lines.length > 0 && lines[lines.length - 1].trim() === "") lines.pop();
   if (lines.length === 0) return [];
 
