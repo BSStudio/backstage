@@ -361,12 +361,18 @@ should never happen quietly. `--allow-unresolved` continues without them.
 | --- | --- |
 | `setStatus` | a `MembershipStatus` for a person no source gives one |
 | `setJoined` | a semester, e.g. `2011/2012/1` |
-| `decision` | `SKIP` drops the person for good and stops counting them as a problem |
+| `decision` | `SKIP` drops the person for good; `KEEP` re-admits one the build dropped |
 
 The file is read back before it is rewritten, so answers survive a re-run, and they are
 keyed by every record on the row rather than by the cluster — a cluster re-keys the moment
 it gains a source, and an answer that stopped applying because someone acquired a website
 account would be worse than no answer.
+
+One group is dropped without being asked about: a **candidate-candidate the Sheet records
+and no other system has ever seen**. No Authentik account, no website account, nothing
+downstream that could ever act on them — they came to a couple of sessions and left. They
+are listed under *Never started* rather than counted as a problem, and `KEEP` imports one
+anyway.
 
 `suggestedJoined` and `basis` are offered, never applied. A Drupal account made the week
 someone joined dates their joining well; one backfilled during this migration dates

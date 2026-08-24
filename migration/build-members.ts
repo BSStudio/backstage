@@ -6,6 +6,7 @@ import type { RawAuthentikUser } from "./extract-authentik";
 import {
   type Decision,
   findDecision,
+  isKeep,
   isSkip,
   readDecisions,
 } from "./lib/decisions";
@@ -79,6 +80,23 @@ export interface RejectedCluster {
 }
 
 const REJECTED_FILE = "rejected.tsv";
+
+/**
+ * Someone the Sheet lists as a candidate-candidate and no other system has ever
+ * heard of never got past their first few weeks: no Authentik account, no
+ * website account, nothing downstream that could act on them. Importing them
+ * adds rows nobody will ever open.
+ *
+ * `KEEP` in the decision column brings one back.
+ */
+function isUnstartedCandidate(
+  parts: Parts,
+  status: MembershipStatus | null,
+): boolean {
+  return (
+    !parts.authentik && !parts.drupal && status === "MEMBER_CANDIDATE_CANDIDATE"
+  );
+}
 
 /** The semester an ISO date falls in, on the same Sept-or-January rule as `currentSemester()`. */
 function semesterOfDate(iso: string): string {
@@ -249,6 +267,7 @@ async function main(): Promise<void> {
   const members: BuiltMember[] = [];
   const rejected: RejectedCluster[] = [];
   const skipped: RejectedCluster[] = [];
+  const unstartedCandidates: RejectedCluster[] = [];
   const rewritten: string[] = [];
 
   for (const cluster of clusters) {
@@ -309,13 +328,21 @@ async function main(): Promise<void> {
       provenance.joinedSemester = REJECTED_FILE;
     }
 
-    const reasons: string[] = [];
-    if (!status.value) reasons.push("no status in any source");
-    if (!email) reasons.push("no email address");
-    if (!firstName || !lastName) reasons.push("no usable name");
-    if (!joined) reasons.push("no join semester");
+    const unstarted =
+      isUnstartedCandidate(parts, status.value) && !isKeep(decision);
 
-    if (reasons.length > 0 || isSkip(decision)) {
+    const reasons: string[] = [];
+    // An unstarted candidate is dropped whatever else is missing — asking for a
+    // join semester nobody recorded, for someone nobody will ever look up, is
+    // work for its own sake.
+    if (!unstarted) {
+      if (!status.value) reasons.push("no status in any source");
+      if (!email) reasons.push("no email address");
+      if (!firstName || !lastName) reasons.push("no usable name");
+      if (!joined) reasons.push("no join semester");
+    }
+
+    if (reasons.length > 0 || unstarted || isSkip(decision)) {
       const name =
         parts.sheet?.fullname ??
         parts.drupal?.fullname ??
@@ -343,8 +370,13 @@ async function main(): Promise<void> {
           .filter(Boolean)
           .join("  "),
       };
-      if (isSkip(decision)) skipped.push(entry);
-      else rejected.push(entry);
+      if (unstarted) {
+        unstartedCandidates.push(entry);
+      } else if (isSkip(decision)) {
+        skipped.push(entry);
+      } else {
+        rejected.push(entry);
+      }
       continue;
     }
 
@@ -456,6 +488,17 @@ async function main(): Promise<void> {
     info(`${field.padEnd(16)} ${summary}`);
   }
 
+  if (unstartedCandidates.length > 0) {
+    step(`Never started — ${unstartedCandidates.length}`);
+    info(
+      "candidate-candidates the Sheet records and no other system ever saw; " +
+        "write KEEP in the decision column to import one anyway",
+    );
+    for (const entry of unstartedCandidates) {
+      info(`  ${entry.name.padEnd(26)} ${entry.records.join(" ")}`);
+    }
+  }
+
   if (skipped.length > 0) {
     step(`Skipped on purpose — ${skipped.length}`);
     info(`marked in ${REJECTED_FILE}; not counted as a problem`);
@@ -503,7 +546,11 @@ async function main(): Promise<void> {
     const previous = findDecision(decisions, entry.records);
     return {
       name: entry.name,
-      reasons: entry.reasons.join("; ") || "skipped",
+      reasons:
+        entry.reasons.join("; ") ||
+        (unstartedCandidates.includes(entry)
+          ? "sheet-only candidate-candidate, never started"
+          : "skipped"),
       detail: entry.detail,
       suggestedJoined: entry.suggestedJoined,
       basis: entry.basis,
@@ -514,7 +561,11 @@ async function main(): Promise<void> {
     };
   };
   // Skipped rows stay in the file, or the next run forgets they were decided.
-  const rejectedRows: TsvRow[] = [...rejected, ...skipped].map(toRow);
+  const rejectedRows: TsvRow[] = [
+    ...rejected,
+    ...skipped,
+    ...unstartedCandidates,
+  ].map(toRow);
 
   info(await writeJson("members.json", members));
   info(

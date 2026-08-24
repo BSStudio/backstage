@@ -19,6 +19,9 @@ export interface Decision {
 
 const SKIP = new Set(["skip", "reject", "ignore", "kihagy"]);
 
+// Overrides a skip the build applies on its own.
+const KEEP = new Set(["keep", "import", "megtart"]);
+
 export type Decisions = Map<string, Decision>;
 
 function value(raw: string | null | undefined): string | null {
@@ -65,4 +68,8 @@ export function findDecision(
 
 export function isSkip(decision: Decision | null): boolean {
   return SKIP.has((decision?.decision ?? "").toLowerCase());
+}
+
+export function isKeep(decision: Decision | null): boolean {
+  return KEEP.has((decision?.decision ?? "").toLowerCase());
 }
