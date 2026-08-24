@@ -4,6 +4,12 @@ import { done, fail, info, step } from "../scripts/utils";
 import { MEMBERSHIP_STATUSES } from "../types";
 import type { RawAuthentikUser } from "./extract-authentik";
 import {
+  type Decision,
+  findDecision,
+  isSkip,
+  readDecisions,
+} from "./lib/decisions";
+import {
   loadIdAssignments,
   resolveMemberId,
   saveIdAssignments,
@@ -68,6 +74,50 @@ export interface RejectedCluster {
   name: string;
   reasons: string[];
   detail: string;
+  suggestedJoined: string;
+  basis: string;
+}
+
+const REJECTED_FILE = "rejected.tsv";
+
+/** The semester an ISO date falls in, on the same Sept-or-January rule as `currentSemester()`. */
+function semesterOfDate(iso: string): string {
+  const date = new Date(iso);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + 1;
+  if (month >= 9 || month === 1) {
+    const start = month === 1 ? year - 1 : year;
+    return `${start}/${start + 1}/1`;
+  }
+  return `${year - 1}/${year}/2`;
+}
+
+/**
+ * A join semester worth *offering*, never one worth applying unasked.
+ *
+ * A Drupal account made the week someone joined dates their joining well. One
+ * backfilled during this migration dates nothing at all — the alumna whose
+ * account was created yesterday would come out as having joined this semester.
+ * So the basis is printed alongside and a person decides.
+ */
+function suggestJoined(parts: Parts): { semester: string; basis: string } {
+  if (parts.drupal?.createdAt) {
+    return {
+      semester: semesterOfDate(parts.drupal.createdAt),
+      basis: `drupal account created ${parts.drupal.createdAt.slice(0, 10)}`,
+    };
+  }
+  const year = parts.sheetRows
+    .map((row) => row.archivedYear)
+    .filter((value): value is number => value !== null)
+    .sort((a, b) => a - b)[0];
+  if (year) {
+    return {
+      semester: `${year - 1}/${year}/1`,
+      basis: `archived in ${year}, so joined no later than that`,
+    };
+  }
+  return { semester: "", basis: "" };
 }
 
 interface Parts {
@@ -195,8 +245,10 @@ async function main(): Promise<void> {
     sources.sheet.map((member) => [member.key, member]),
   );
 
+  const decisions = readDecisions(REJECTED_FILE);
   const members: BuiltMember[] = [];
   const rejected: RejectedCluster[] = [];
+  const skipped: RejectedCluster[] = [];
   const rewritten: string[] = [];
 
   for (const cluster of clusters) {
@@ -239,12 +291,23 @@ async function main(): Promise<void> {
       ["drupal", parts.drupal?.mail ?? parts.drupal?.profileEmail],
     ]);
 
+    const decision: Decision | null = findDecision(decisions, cluster.records);
+
     const status = resolveStatus(parts, groups);
+    if (decision?.setStatus) {
+      status.value = decision.setStatus as MembershipStatus;
+      status.from = REJECTED_FILE;
+    }
     if (status.from) provenance.status = status.from;
-    const joined = take<string>("joinedSemester", [
+
+    let joined = take<string>("joinedSemester", [
       ["sheet", parts.sheet?.joined.semester],
       ["drupal", parts.drupal?.joined.semester],
     ]);
+    if (decision?.setJoined) {
+      joined = decision.setJoined;
+      provenance.joinedSemester = REJECTED_FILE;
+    }
 
     const reasons: string[] = [];
     if (!status.value) reasons.push("no status in any source");
@@ -252,17 +315,22 @@ async function main(): Promise<void> {
     if (!firstName || !lastName) reasons.push("no usable name");
     if (!joined) reasons.push("no join semester");
 
-    if (reasons.length > 0) {
+    if (reasons.length > 0 || isSkip(decision)) {
       const name =
         parts.sheet?.fullname ??
         parts.drupal?.fullname ??
         parts.authentik?.name ??
         cluster.key;
-      rejected.push({
+      const suggestion = suggestJoined(parts);
+      const entry: RejectedCluster = {
         cluster: cluster.key,
         records: cluster.records,
         name,
         reasons,
+        suggestedJoined: reasons.includes("no join semester")
+          ? suggestion.semester
+          : "",
+        basis: reasons.includes("no join semester") ? suggestion.basis : "",
         detail: [
           parts.drupal ? `drupal state "${parts.drupal.stateRaw ?? ""}"` : null,
           parts.sheet
@@ -274,7 +342,9 @@ async function main(): Promise<void> {
         ]
           .filter(Boolean)
           .join("  "),
-      });
+      };
+      if (isSkip(decision)) skipped.push(entry);
+      else rejected.push(entry);
       continue;
     }
 
@@ -386,6 +456,12 @@ async function main(): Promise<void> {
     info(`${field.padEnd(16)} ${summary}`);
   }
 
+  if (skipped.length > 0) {
+    step(`Skipped on purpose — ${skipped.length}`);
+    info(`marked in ${REJECTED_FILE}; not counted as a problem`);
+    for (const entry of skipped) info(`  ${entry.name}`);
+  }
+
   step(`Rejected — ${rejected.length}`);
   const reasonCounts = new Map<string, number>();
   for (const entry of rejected) {
@@ -398,8 +474,19 @@ async function main(): Promise<void> {
   }
   for (const entry of rejected) {
     info(`  ${entry.name.padEnd(26)} ${entry.reasons.join(", ")}`);
-    if (entry.detail)
+    if (entry.detail) {
       info(`      ${entry.detail}  [${entry.records.join(" ")}]`);
+    }
+    if (entry.suggestedJoined) {
+      info(`      suggests ${entry.suggestedJoined} — ${entry.basis}`);
+    }
+  }
+  if (rejected.length > 0) {
+    info(
+      `Fill setStatus / setJoined in ${REJECTED_FILE} to resolve a row, or write ` +
+        "SKIP in decision to drop the person for good. The file is read back " +
+        "before it is rewritten, so answers survive a re-run.",
+    );
   }
 
   if (rewritten.length > 0) {
@@ -412,24 +499,37 @@ async function main(): Promise<void> {
 
   // ── Files ─────────────────────────────────────────────────────────────────
 
-  const rejectedRows: TsvRow[] = rejected.map((entry) => ({
-    name: entry.name,
-    reasons: entry.reasons.join("; "),
-    detail: entry.detail,
-    records: entry.records.join(" | "),
-    decision: "",
-  }));
+  const toRow = (entry: RejectedCluster): TsvRow => {
+    const previous = findDecision(decisions, entry.records);
+    return {
+      name: entry.name,
+      reasons: entry.reasons.join("; ") || "skipped",
+      detail: entry.detail,
+      suggestedJoined: entry.suggestedJoined,
+      basis: entry.basis,
+      setStatus: previous?.setStatus ?? "",
+      setJoined: previous?.setJoined ?? "",
+      decision: previous?.decision ?? "",
+      records: entry.records.join(" | "),
+    };
+  };
+  // Skipped rows stay in the file, or the next run forgets they were decided.
+  const rejectedRows: TsvRow[] = [...rejected, ...skipped].map(toRow);
 
   info(await writeJson("members.json", members));
   info(
     await writeText(
-      "rejected.tsv",
+      REJECTED_FILE,
       formatTsv(rejectedRows, [
         "name",
         "reasons",
         "detail",
-        "records",
+        "suggestedJoined",
+        "basis",
+        "setStatus",
+        "setJoined",
         "decision",
+        "records",
       ]),
     ),
   );
@@ -438,8 +538,8 @@ async function main(): Promise<void> {
   if (rejected.length > 0 && !allowUnresolved) {
     fail(
       `${rejected.length} clusters could not be built into a member.\n` +
-        "  Fix them at the source and re-run, or pass --allow-unresolved to\n" +
-        "  continue without them — they are listed in data/rejected.tsv either way.",
+        `  Answer them in data/${REJECTED_FILE}, fix them at the source, or pass\n` +
+        "  --allow-unresolved to continue without them. Listed either way.",
     );
   }
 

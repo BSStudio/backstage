@@ -337,8 +337,26 @@ Two details the table does not capture:
 A cluster that cannot produce a complete member is **rejected, listed, and the run fails**
 — no status in any source, no email, no usable name, or no join semester. Rejecting is
 usually right (a website signup who never joined has none of those for a reason), but it
-should never happen quietly. `--allow-unresolved` continues without them;
-`data/rejected.tsv` lists them either way.
+should never happen quietly. `--allow-unresolved` continues without them.
+
+`data/rejected.tsv` is where they get answered, in its own columns:
+
+| Column | Effect |
+| --- | --- |
+| `setStatus` | a `MembershipStatus` for a person no source gives one |
+| `setJoined` | a semester, e.g. `2011/2012/1` |
+| `decision` | `SKIP` drops the person for good and stops counting them as a problem |
+
+The file is read back before it is rewritten, so answers survive a re-run, and they are
+keyed by every record on the row rather than by the cluster — a cluster re-keys the moment
+it gains a source, and an answer that stopped applying because someone acquired a website
+account would be worse than no answer.
+
+`suggestedJoined` and `basis` are offered, never applied. A Drupal account made the week
+someone joined dates their joining well; one backfilled during this migration dates
+nothing — the alumna whose account was created yesterday would otherwise come out as
+having joined this semester. The basis is printed next to the suggestion so that is
+obvious.
 
 ## 6. Import
 
