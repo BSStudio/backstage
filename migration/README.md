@@ -358,7 +358,7 @@ keeping a doubtful one somebody can check.
 `archivedAt` comes from the sheet tab where there is one. For the 57 archived only because
 Drupal has them passive, nothing ever recorded *when* — the website does not store it — so
 the date is estimated from how long each rung usually lasts: a candidate-candidate one year
-after joining, a candidate two, anyone further three. "Archived, date unknown" on a member
+after joining, a candidate two, a full member four. "Archived, date unknown" on a member
 page is worse than a date that admits what it is, and this one does:
 `provenance.archivedAt` says `estimated`, the audit diff carries `archivedAtEstimated`, and
 the verifier rejects any archival that predates a joining or lands in the future.

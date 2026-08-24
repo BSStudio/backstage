@@ -125,9 +125,12 @@ function ignoreReason(
 const YEARS_BEFORE_LEAVING: Record<MembershipStatus, number> = {
   MEMBER_CANDIDATE_CANDIDATE: 1,
   MEMBER_CANDIDATE: 2,
-  MEMBER: 3,
-  ACTIVE_ALUMNI: 3,
-  ALUMNI: 3,
+  MEMBER: 4,
+  // Never reached by the current data — no alumnus is archived without a date —
+  // but kept at the member's figure rather than below it, since someone who got
+  // as far as alumnus did not leave sooner than someone who did not.
+  ACTIVE_ALUMNI: 4,
+  ALUMNI: 4,
 };
 
 function estimateArchivedAt(
