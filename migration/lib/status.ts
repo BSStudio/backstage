@@ -25,7 +25,14 @@ const FROM_LABEL = new Map<string, MembershipStatus>([
 
 // Values the current site no longer writes but old rows still carry. Extend this
 // from the unmapped list the loaders print — do not guess ahead of the data.
-const LEGACY_ALIASES: Record<string, MembershipStatus> = {};
+// Keys are `normalizeName` output: lowercased, diacritics stripped.
+const LEGACY_ALIASES: Record<string, MembershipStatus> = {
+  // The radio side wrote its own job title where the studio writes a status.
+  // Everyone who carried it was at the first rung; it is not a leadership role,
+  // so it resolves to a status and the label is dropped rather than becoming a
+  // LeadershipRole, which would put them in the Leadership group.
+  "radio musorvezeto": "MEMBER_CANDIDATE_CANDIDATE",
+};
 
 export function statusFromWebsiteLabel(
   label: string | null | undefined,
