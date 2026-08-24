@@ -86,6 +86,12 @@ const PIPELINE: Stage[] = [
     precious: true,
   },
   {
+    script: "seed-groups.ts",
+    inputs: ["authentik-groups.json"],
+    outputs: ["group-registry.json"],
+    precious: true,
+  },
+  {
     script: "export-website-tasks.ts",
     inputs: ["clusters.json", "drupal-users.json", "sheet-members.json"],
     outputs: ["website-fix-status.tsv", "website-create-users.tsv"],

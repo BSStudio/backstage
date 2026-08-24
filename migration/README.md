@@ -399,19 +399,43 @@ obvious.
 
 ## 6. Import
 
+```
+pnpm tsx migration/seed-groups.ts        # twice: it writes a selection file first
+pnpm tsx migration/import.ts --dry-run
+pnpm tsx migration/import.ts
+```
+
 The importer writes through raw Prisma, never through `lib/services/`. `createMember`
-would call Authentik and Drupal; the whole point here is that it must not. Each member
-gets one `MEMBER_CREATED` timeline entry and one audit log with `actorId: null` and
-`diff: { imported: true }`.
+would call Authentik and Drupal for all 369; the whole point here is that it must not —
+the accounts already exist and the import is only teaching Backstage about them. It
+refuses a non-local `DATABASE_URL`: production is reached by restoring a dump, never by
+running this against it.
+
+Each member gets a `MEMBER_CREATED` timeline entry dated to the **start of their joining
+semester**, so a member page shows real history rather than 369 identical import
+timestamps, plus a `MEMBER_ARCHIVED` entry where the archival date is actually known. The
+audit log entry carries `actorId: null` — nobody did this — and records the source records
+and per-field provenance in its diff.
 
 **No `SyncJob` rows at all** — not even `SKIPPED` ones for the accountless members.
 `SKIPPED` records a call the app declined to make; the import makes no calls, and seeding
 `/admin/sync-jobs` with hundreds of rows nobody can act on buries the FAILED ones that
 matter.
 
+`seed-groups.ts` fills the `AuthentikGroup` registry that powers the role-assignment
+checklist. Authentik holds far more groups than a role should offer, so the first run
+writes `data/group-registry.json` listing all of them, pre-ticking the ones an imported
+leadership role already grants — those are role groups by demonstration. Tick any others
+and run it again.
+
 ## 7. Verify
 
-The verifier fails on any of:
+```
+pnpm tsx migration/verify.ts        # --offline skips the Authentik lookups
+```
+
+Everything it checks is a property of the data as written rather than of the pipeline that
+wrote it, so it would catch a bad import produced some other way. It fails on any of:
 
 - a **non-archived** member without `websiteUserId` — their first website sync would land
   as a FAILED job, and alumni are shown on the website's own alumni page, so they need the
@@ -422,6 +446,11 @@ The verifier fails on any of:
   quiet one — a member who does have an account but got a prefixed id has every Authentik
   job recorded SKIPPED, so their sync stops without a single failure to look at
 - duplicate emails, or a `LeadershipRole` referencing an unregistered `authentikGroupId`
+- a `LeadershipRole` granting a **permission** group. `Admin`, the API-client group and
+  `Vezetőség` are configured by name, so they land in a member's Authentik groups looking
+  exactly like a role group — and a role that grants one revokes it when the role ends.
+  Ending someone's "Műszaki vezető" would have stripped their admin access
+- an archived member holding a leadership role, or any `SyncJob` row at all
 
 Then run the app against the imported database and click through `/members`,
 `/admin/sync-jobs` and a few member pages.

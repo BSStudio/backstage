@@ -2,7 +2,7 @@ import "dotenv/config";
 import type { MembershipStatus } from "../app/generated/prisma/client";
 import { done, fail, info, step } from "../scripts/utils";
 import { MEMBERSHIP_STATUSES } from "../types";
-import type { RawAuthentikUser } from "./extract-authentik";
+import type { RawAuthentikGroup, RawAuthentikUser } from "./extract-authentik";
 import {
   type Decision,
   findDecision,
@@ -246,12 +246,41 @@ function resolveArchived(parts: Parts): { value: boolean; from: string } {
   return { value: false, from: "default" };
 }
 
-/** Groups the member is in beyond the ones the status and leadership drive. */
-function roleGroups(parts: Parts, statusUuids: Set<string>): string[] {
-  const leadership = process.env.AUTHENTIK_GROUP_LEADERSHIP_UUID;
-  return (parts.authentik?.groups ?? []).filter(
-    (uuid) => !statusUuids.has(uuid) && uuid !== leadership,
-  );
+/**
+ * Groups a leadership role is responsible for granting.
+ *
+ * Everything a role does not own has to come out, and that is more than the
+ * status groups: `Admin` and the API-client group carry permissions of their
+ * own, and `Vezetőség` is added by the sync layer for every role. Leaving any of
+ * them in means removing someone's role calls REMOVE_FROM_GROUP on it — so
+ * ending a role would quietly strip that member's admin access.
+ *
+ * The permission groups are configured by *name*, so they are resolved through
+ * the Authentik snapshot rather than read as UUIDs.
+ */
+function reservedGroupUuids(
+  groups: RawAuthentikGroup[],
+  statusUuids: Set<string>,
+): Set<string> {
+  const byName = new Map(groups.map((group) => [group.name, group.pk]));
+  const reserved = new Set(statusUuids);
+
+  for (const uuid of [process.env.AUTHENTIK_GROUP_LEADERSHIP_UUID]) {
+    if (uuid) reserved.add(uuid);
+  }
+  for (const variable of [
+    "AUTHENTIK_GROUP_ADMIN",
+    "AUTHENTIK_GROUP_LEADERSHIP",
+    "AUTHENTIK_GROUP_API_CLIENTS",
+  ]) {
+    const uuid = byName.get(process.env[variable] ?? "");
+    if (uuid) reserved.add(uuid);
+  }
+  return reserved;
+}
+
+function roleGroups(parts: Parts, reserved: Set<string>): string[] {
+  return (parts.authentik?.groups ?? []).filter((uuid) => !reserved.has(uuid));
 }
 
 async function main(): Promise<void> {
@@ -260,7 +289,10 @@ async function main(): Promise<void> {
   const sources = await loadSources();
   const assignments = await loadIdAssignments();
   const groups = statusGroups();
-  const statusUuids = new Set(groups.keys());
+  const authentikGroups =
+    (await readJsonIfExists<RawAuthentikGroup[]>("authentik-groups.json")) ??
+    [];
+  const reserved = reservedGroupUuids(authentikGroups, new Set(groups.keys()));
   const allowUnresolved = process.argv.includes("--allow-unresolved");
 
   const authentikByKey = new Map(
@@ -453,7 +485,7 @@ async function main(): Promise<void> {
           : null,
 
       role: label
-        ? { label, authentikGroupIds: roleGroups(parts, statusUuids) }
+        ? { label, authentikGroupIds: roleGroups(parts, reserved) }
         : null,
       provenance,
     });
