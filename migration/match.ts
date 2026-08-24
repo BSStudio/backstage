@@ -15,15 +15,15 @@ import { UnionFind } from "./lib/union-find";
  * Groups the three exports into one cluster per person.
  *
  * Strong edges (a shared email address, a shared username) are taken at face
- * value. Weak edges — a shared name, or a username *derived* from a name — are
- * where two different Kovács Jánoses become one member, so they are refused
- * whenever they would put two records of the same kind in one cluster, and any
- * cluster that needed one is flagged for review.
+ * value. Weak edges — a shared name, or one name contained in another — are where
+ * two different Kovács Jánoses become one member, so they are refused whenever
+ * they would put two records of the same kind in one cluster, and any cluster
+ * that needed one is flagged for review.
  */
 
-type Strength = "email" | "username" | "name" | "derived-username" | "override";
+type Strength = "email" | "username" | "name" | "name-subset" | "override";
 
-const WEAK: Strength[] = ["name", "derived-username"];
+const WEAK: Strength[] = ["name", "name-subset"];
 
 const REVIEW_FILE = "match-review.tsv";
 
@@ -76,6 +76,56 @@ function edgesFrom(
     if (keys.length < 2) continue;
     for (const [a, b] of pairsOf(keys)) {
       edges.push({ a, b, strength, via: value });
+    }
+  }
+  return edges;
+}
+
+/**
+ * Records whose names differ only by how much of the name was written down.
+ *
+ * "Ormos Rita" and "Ormos Rita Zsófia" are one person recorded twice; "Kelemen
+ * Anna" and "Kelemen Ábel" are two people who happen to share an initial and a
+ * surname. Both pairs derive the same username, so that alone merged them —
+ * which cost Kelemen Ábel and Zilahi Márton their existence. Requiring one name to
+ * be contained in the other keeps the first kind and refuses the second.
+ *
+ * Candidates come from the derived username because it buckets cheaply; the
+ * subset test is what actually decides.
+ */
+function nameSubsetEdges(records: SourceRecord[]): Edge[] {
+  const buckets = new Map<string, SourceRecord[]>();
+  for (const record of records) {
+    for (const username of record.usernames) {
+      buckets.set(username, [...(buckets.get(username) ?? []), record]);
+    }
+  }
+
+  const tokens = (record: SourceRecord): Set<string> =>
+    new Set(record.nameKey.split(" ").filter(Boolean));
+  const contains = (big: Set<string>, small: Set<string>): boolean =>
+    [...small].every((token) => big.has(token));
+
+  const edges: Edge[] = [];
+  for (const [via, group] of buckets) {
+    if (group.length < 2) continue;
+    // Every pair, not a star from the first record: the odd one out in a bucket
+    // must not stop the others from finding each other.
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const a = tokens(group[i]);
+        const b = tokens(group[j]);
+        // Two tokens minimum, so a lone surname does not swallow everyone who
+        // shares it.
+        if (Math.min(a.size, b.size) < 2) continue;
+        if (!contains(a, b) && !contains(b, a)) continue;
+        edges.push({
+          a: group[i].key,
+          b: group[j].key,
+          strength: "name-subset",
+          via,
+        });
+      }
     }
   }
   return edges;
@@ -160,14 +210,7 @@ async function main(): Promise<void> {
   ];
   const weak: Edge[] = [
     ...edgesFrom(sources.records, (r) => [r.nameKey].filter(Boolean), "name"),
-    // Only across sources. Within one source a derived username adds nothing an
-    // email or a full name would not already have caught, and it happily merges
-    // two people: Almási Eszter and Almási Emma both derive "ealmasi".
-    ...edgesFrom(
-      sources.records,
-      (r) => r.usernames,
-      "derived-username",
-    ).filter((edge) => kindOf(edge.a) !== kindOf(edge.b)),
+    ...nameSubsetEdges(sources.records),
   ];
 
   const union = new UnionFind();

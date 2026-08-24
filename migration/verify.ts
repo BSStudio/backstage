@@ -257,8 +257,17 @@ async function main(): Promise<number> {
 main()
   .then(async (failed) => {
     await prisma.$disconnect();
-    if (failed > 0) fail(`${failed} checks failed.`);
-    done("Verified.");
+    if (failed === 0) {
+      done("Verified.");
+      return;
+    }
+    // Not `fail`: it calls process.exit, and exiting while the Authentik fetch
+    // still holds a socket trips a libuv teardown assertion on Windows. Setting
+    // the code lets the process wind down on its own.
+    console.error(`
+✖ ${failed} checks failed.
+`);
+    process.exitCode = 1;
   })
   .catch(async (error: unknown) => {
     console.error(error);

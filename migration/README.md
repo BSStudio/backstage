@@ -245,9 +245,12 @@ Groups the three exports into one cluster per person, keyed
 
 3. the sorted-token name key, which sidesteps the Hungarian/Western order disagreement
    between the sources
-4. `deriveUsername(firstName, lastName)`, and only *across* sources — within one source it
-   adds nothing an email or a full name would not already have caught, and it happily
-   merges two people, since Almási Eszter and Almási Emma both derive `ealmasi`
+4. one name **contained in** another — "Ormos Rita" against "Ormos Rita Zsófia", the
+   same person recorded with more or less of their name. Candidates are bucketed by
+   `deriveUsername`, but the containment test is what decides: the derived username alone
+   merges "Kelemen Anna" with "Kelemen Ábel" and "Zilahi Mihály" with "Zilahi Márton", who
+   share an initial and a surname and nothing else. Both sides need at least two name
+   tokens, so a bare surname cannot swallow everyone who shares it
 
 A weak key is refused outright when it would put two Authentik users or two Drupal users
 in one cluster, or two rows from the *same* sheet tab: a tab is one roster, so nobody is
