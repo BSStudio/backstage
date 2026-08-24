@@ -102,10 +102,31 @@ non-zero when an expected field is absent — reconcile `FIELD` against
 `data/drupal/01-profile-fields.tsv` if that fires.
 
 The normalizer prints a tally of every `profile_BSS_state` value and which
-`MembershipStatus` it maps to. Labels the current site no longer writes come out as
-UNMAPPED; add them to `LEGACY_ALIASES` in `lib/status.ts` once you have decided what they
-mean. It also reports duplicate email addresses, which matter because `Member.email` is
-unique.
+`MembershipStatus` it maps to, the join-year parse rate, and duplicate email addresses —
+which matter because `Member.email` is unique.
+
+### Reviewing what Drupal could not decide
+
+```
+pnpm tsx migration/inspect-drupal.ts
+```
+
+Lists the rows behind those counts — unresolved status, guessed join year, unparseable
+join year — each with its `profile_passive` / `blocked` / last-access evidence and a link
+to the profile. `WEBSITE_URL` decides where the links point, so aim it at the live site to
+check against production rather than the local dump.
+
+It writes `data/drupal-review.tsv` with an empty `decision` column. **Do not fill it in
+before the Sheet is normalized.** The Sheet outranks Drupal on `joinedSemester` and
+status, so most of these rows answer themselves once the matcher runs; the review file is
+the fallback for what the Sheet does not cover.
+
+Two things worth resolving up front, because they are not per-user judgements:
+
+- a status label that always means the same thing belongs in `LEGACY_ALIASES`
+  (`lib/status.ts`), decided once rather than per row
+- role accounts — a shared mailbox, the site admin, anything carrying Drupal's
+  administrator roles — are not members and get `SKIP`
 
 ### Google Sheet
 

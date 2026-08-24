@@ -1,5 +1,5 @@
 /**
- * Reader for `mysql --batch` output.
+ * Reader and writer for `mysql --batch` output.
  *
  * Batch mode emits a header row and tab-separated values, escaping the
  * characters that would otherwise break the format (`\t`, `\n`, `\r`, `\0`,
@@ -49,4 +49,32 @@ export function parseTsv(contents: string): TsvRow[] {
     });
     return row;
   });
+}
+
+const NEEDS_ESCAPE = /[\0\n\r\t\\]/g;
+
+// Inverse of ESCAPES. Written out rather than derived, because deriving it puts
+// a linear search inside a per-character replace for no gain in clarity.
+const ESCAPED: Record<string, string> = {
+  "\0": "\\0",
+  "\n": "\\n",
+  "\r": "\\r",
+  "\t": "\\t",
+  "\\": "\\\\",
+};
+
+/** Same escaping as the reader expects, so a review file round-trips. */
+export function formatTsv(rows: TsvRow[], columns: string[]): string {
+  const escapeField = (value: string | null): string =>
+    value === null
+      ? "NULL"
+      : value.replace(NEEDS_ESCAPE, (character) => ESCAPED[character]);
+
+  const lines = [
+    columns.join("\t"),
+    ...rows.map((row) =>
+      columns.map((column) => escapeField(row[column] ?? null)).join("\t"),
+    ),
+  ];
+  return `${lines.join("\n")}\n`;
 }
