@@ -355,6 +355,14 @@ stray Excel apostrophe all become `+3630…`), and where a field held two number
 is kept. Anything merely odd is **kept and flagged**: losing a real number is worse than
 keeping a doubtful one somebody can check.
 
+`archivedAt` comes from the sheet tab where there is one. For the 57 archived only because
+Drupal has them passive, nothing ever recorded *when* — the website does not store it — so
+the date is estimated from how long each rung usually lasts: a candidate-candidate one year
+after joining, a candidate two, anyone further three. "Archived, date unknown" on a member
+page is worse than a date that admits what it is, and this one does:
+`provenance.archivedAt` says `estimated`, the audit diff carries `archivedAtEstimated`, and
+the verifier rejects any archival that predates a joining or lands in the future.
+
 Two details the precedence table does not capture:
 
 - `ALUMNI` and `ACTIVE_ALUMNI` share one Authentik group, so group membership proves
@@ -450,6 +458,8 @@ wrote it, so it would catch a bad import produced some other way. It fails on an
   as a FAILED job, and alumni are shown on the website's own alumni page, so they need the
   account. Archived members without one are reported but do not fail the run: nobody edits
   an archived member, and a FAILED job for one nobody touches costs nothing
+- an archived member with no `archivedAt`, an archival before the joining, or one dated in
+  the future
 - **both directions** of the id shape: `hasAuthentikAccount(id)` ⇒ the id must resolve to
   a live Authentik user, and a prefixed id ⇒ it must *not*. The second direction is the
   quiet one — a member who does have an account but got a prefixed id has every Authentik
