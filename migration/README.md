@@ -130,8 +130,49 @@ Two things worth resolving up front, because they are not per-user judgements:
 
 ### Google Sheet
 
-Export each tab as CSV into `data/sheet/`. Tab shapes differ, so each gets its own
-normalizer.
+Export each tab as CSV into `data/sheets/`, then:
+
+```
+pnpm tsx migration/normalize-sheets.ts
+```
+
+The exports are **semicolon-separated and windows-1250 encoded**, not UTF-8. Decoding them
+as latin-1 turns `ő` and `ű` into `õ` and `û` without erroring, which is why `lib/csv.ts`
+names the codepage explicitly.
+
+Every tab carries the same ten columns in the same order, so they are read **by position**:
+the first header cell is a stray `f` / `i` on two tabs, and the address and phone columns
+are titled differently per tab.
+
+| Column | Goes to |
+| --- | --- |
+| `Név` | `firstName` + `lastName`, split on Hungarian order |
+| `Pozíció` | `status`, `leadershipRole.label`, and an inactive marker — see below |
+| `Becenév` | `nickname` |
+| `Mikor jött BSS-be` | `joinedSemester` |
+| `Egyetem, kar, szak` | `university` + `major` |
+| `Cím` | `dormRoom` — `külsős` here means *no dorm room*, not "external member" |
+| `Tel`, `E-mail` | `mobile`, `email` |
+| `SVIE tagság`, `Megjegyzés` | nothing; no field for them |
+| `Öregtag lett` (alumni tab) | the year they became an alumnus |
+
+What the tab name means:
+
+| Tab | Result |
+| --- | --- |
+| `current` | not archived, status from `Pozíció`; the tab that tracks Authentik |
+| `alumni` | not archived, `ALUMNI` — a status, not a soft delete |
+| `archived_<year>` | archived, `archivedAt` the start of that year |
+| `archived` | archived, date unknown |
+
+Someone on both `current` and `alumni` is on `current` for a reason: those rows are
+exactly the `Aktív öregtag`, so `current` wins.
+
+`Pozíció` packs up to three things into one cell and nothing but the value tells them
+apart: a status (`Stúdiós jelölt`), a status plus a leadership role
+(`Stúdiós - Stúdióvezető`), and an `(inaktív)` marker that only ever appears on the
+year-unknown archived tab, where the tab already says as much. A cell that resolves to no
+status is kept as a bare role label and left for review rather than guessed at.
 
 ## 2. Match
 

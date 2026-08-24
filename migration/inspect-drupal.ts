@@ -82,9 +82,13 @@ async function main(): Promise<void> {
     fail("No data/drupal-users.json. Run migration/load-drupal.ts first.");
   }
 
-  const unresolvedStatus = users.filter((u) => !u.status);
-  const guessed = users.filter((u) => u.joined.confidence === "guessed");
-  const unparseable = users.filter((u) => u.joined.confidence === "unknown");
+  // Role accounts are already decided; listing them again every run is noise.
+  const reviewable = users.filter((u) => !u.skip);
+  const unresolvedStatus = reviewable.filter((u) => !u.status);
+  const guessed = reviewable.filter((u) => u.joined.confidence === "guessed");
+  const unparseable = reviewable.filter(
+    (u) => u.joined.confidence === "unknown",
+  );
 
   step(`Status not resolved — ${unresolvedStatus.length} users`);
   info(`decision column takes one of: ${STATUS_VALUES}`);

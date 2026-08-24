@@ -61,8 +61,12 @@ export type SemesterGuess = {
   raw: string;
 };
 
-const AUTUMN = /(osz|autumn|fall)/;
-const SPRING = /(tavasz|spring)/;
+// Matched against a diacritic-stripped, lowercased value, so "ősz" arrives as
+// "osz" and "március" as "marcius". Month names appear because the Sheet writes
+// "2009 szept." where the website writes "2009 ősz". January counts as autumn,
+// the same way `currentSemester()` treats it.
+const AUTUMN = /(osz|szept|okt|nov|dec|jan|autumn|fall)/;
+const SPRING = /(tavasz|febr|marc|apr|maj|jun|spring)/;
 
 /**
  * Inverse of `buildJoinYearFromSemester`, tolerant of two decades of hand entry.

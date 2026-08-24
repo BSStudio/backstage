@@ -25,6 +25,13 @@ const FIELD = {
   joinYear: "profile_BSS_join_year",
 } as const;
 
+// Role accounts, not people: the site's own administrator and the shared studio
+// mailbox. Both would otherwise reach the review list on every run.
+const SKIP_UIDS = new Map<string, string>([
+  ["1", "site administrator account"],
+  ["119", "shared studio mailbox"],
+]);
+
 export interface DrupalUser {
   uid: string;
   username: string;
@@ -49,6 +56,8 @@ export interface DrupalUser {
   hasRole: boolean;
   roleLabel: string | null;
   archived: boolean;
+  /** Set for accounts that must not become members; the reason is the value. */
+  skip: string | null;
 }
 
 function checkbox(value: string | undefined): boolean {
@@ -134,6 +143,7 @@ function build(
     hasRole: checkbox(profile[FIELD.hasRole]),
     roleLabel: text(profile[FIELD.roleLabel]),
     archived: passive || blocked,
+    skip: SKIP_UIDS.get(userRow.uid ?? "") ?? null,
   };
 }
 
@@ -209,6 +219,11 @@ async function main(): Promise<void> {
     info(`  ${email} → uid ${uids.join(", ")}`);
   }
   if (duplicates.length > 20) info(`  … and ${duplicates.length - 20} more`);
+
+  step("Skipped accounts");
+  for (const user of users.filter((u) => u.skip)) {
+    info(`uid ${user.uid}  ${user.fullname ?? user.username} — ${user.skip}`);
+  }
 
   step("Archival");
   info(`${users.filter((u) => u.blocked).length} blocked (users.status = 0)`);
