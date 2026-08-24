@@ -99,7 +99,12 @@ const PIPELINE: Stage[] = [
 ];
 
 // Hand-maintained inputs, and the raw exports the pipeline starts from.
-const NOT_GENERATED = new Set(["sheets", "drupal", "overrides.json"]);
+const NOT_GENERATED = new Set([
+  "sheets",
+  "drupal",
+  "overrides.json",
+  "member-overrides.json",
+]);
 
 /** Newest mtime in a file or anywhere under a directory. */
 function newest(path: string): number | null {

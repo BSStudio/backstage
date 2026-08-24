@@ -84,6 +84,25 @@ export interface RejectedCluster {
 }
 
 const REJECTED_FILE = "rejected.tsv";
+const OVERRIDES_FILE = "member-overrides.json";
+
+/**
+ * Corrections to a member the sources agree on and a human says are wrong.
+ *
+ * Distinct from `rejected.tsv`, which answers members the build could not
+ * finish: these are complete and merely incorrect. Keyed by any record on the
+ * cluster, so it survives the cluster re-keying when a source is added.
+ *
+ * Worth saying out loud when one is used: the sources still disagree. An
+ * override moves Backstage and leaves Authentik and the website saying what they
+ * said, so the durable fix is usually to change them instead.
+ */
+interface MemberOverride {
+  status?: MembershipStatus;
+  archived?: boolean;
+  archivedAt?: string;
+  note?: string;
+}
 
 /**
  * People who are recorded somewhere but were never really members.
@@ -132,6 +151,23 @@ const YEARS_BEFORE_LEAVING: Record<MembershipStatus, number> = {
   ACTIVE_ALUMNI: 4,
   ALUMNI: 4,
 };
+
+/**
+ * A date inside the year a sheet tab names.
+ *
+ * The tab says someone was archived in 2017, not on the first day of it, and
+ * archival happens in roughly two batches a year — so the middle of the year is
+ * the least-wrong single point. Someone who joined that same autumn cannot have
+ * been archived in July, so they take the end of the year instead.
+ */
+function dateWithinYear(year: number, joinedSemester: string): Date {
+  const midYear = new Date(Date.UTC(year, 6, 1));
+  const joined = semesterStart(joinedSemester);
+  if (midYear >= joined) return midYear;
+
+  const yearEnd = new Date(Date.UTC(year, 11, 31));
+  return yearEnd >= joined ? yearEnd : joined;
+}
 
 function estimateArchivedAt(
   joinedSemester: string,
@@ -353,6 +389,10 @@ async function main(): Promise<void> {
   );
 
   const decisions = readDecisions(REJECTED_FILE);
+  const overrides =
+    (await readJsonIfExists<Record<string, MemberOverride>>(OVERRIDES_FILE)) ??
+    {};
+  const overrideNotes: string[] = [];
   const members: BuiltMember[] = [];
   const rejected: RejectedCluster[] = [];
   const skipped: RejectedCluster[] = [];
@@ -479,7 +519,19 @@ async function main(): Promise<void> {
       );
     }
 
+    const override = cluster.records.map((key) => overrides[key]).find(Boolean);
+
+    if (override?.status) {
+      status.value = override.status;
+      status.from = OVERRIDES_FILE;
+      provenance.status = OVERRIDES_FILE;
+    }
+
     const archived = resolveArchived(parts);
+    if (override?.archived !== undefined) {
+      archived.value = override.archived;
+      archived.from = OVERRIDES_FILE;
+    }
     provenance.archived = archived.from;
     const archivedYear = parts.sheetRows
       .map((row) => row.archivedYear)
@@ -489,15 +541,20 @@ async function main(): Promise<void> {
     const archivedDate = !archived.value
       ? null
       : archivedYear !== undefined
-        ? new Date(Date.UTC(archivedYear, 0, 1))
+        ? dateWithinYear(archivedYear, joined as string)
         : estimateArchivedAt(
             joined as string,
             status.value as MembershipStatus,
           );
+    if (override) {
+      overrideNotes.push(
+        `${lastName} ${firstName}: ${JSON.stringify(override)}`,
+      );
+    }
     if (archived.value) {
       provenance.archivedAt =
         archivedYear !== undefined
-          ? `sheet tab ${archivedYear}`
+          ? `sheet tab ${archivedYear}, dated within the year`
           : `estimated: joined + ${YEARS_BEFORE_LEAVING[status.value as MembershipStatus]} years`;
       if (archivedYear === undefined) estimatedArchivals++;
     }
@@ -674,6 +731,15 @@ async function main(): Promise<void> {
       `"${number}" dropped from ${who.length} members who cannot all have it: ` +
         who.map((m) => `${m.lastName} ${m.firstName}`).join(", "),
     );
+  }
+
+  if (overrideNotes.length > 0) {
+    step(`Overridden by hand — ${overrideNotes.length}`);
+    info(
+      `from data/${OVERRIDES_FILE}. The sources still say what they said — an ` +
+        "override moves Backstage only.",
+    );
+    for (const note of overrideNotes) info(`  ${note}`);
   }
 
   if (estimatedArchivals > 0) {

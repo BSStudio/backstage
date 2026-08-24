@@ -355,13 +355,32 @@ stray Excel apostrophe all become `+3630…`), and where a field held two number
 is kept. Anything merely odd is **kept and flagged**: losing a real number is worse than
 keeping a doubtful one somebody can check.
 
-`archivedAt` comes from the sheet tab where there is one. For the 57 archived only because
-Drupal has them passive, nothing ever recorded *when* — the website does not store it — so
+`archivedAt` comes from the sheet tab where there is one, dated to the **middle** of
+that year rather than its first day — the tab says someone left during 2017, and
+archival happens in roughly two batches a year, so 1 July is the least-wrong single
+point. Anyone who joined that same autumn takes 31 December instead, since they cannot
+have been archived before they arrived.
+
+For the 57 archived only because Drupal has them passive, nothing ever recorded *when* — the website does not store it — so
 the date is estimated from how long each rung usually lasts: a candidate-candidate one year
 after joining, a candidate two, a full member four. "Archived, date unknown" on a member
 page is worse than a date that admits what it is, and this one does:
 `provenance.archivedAt` says `estimated`, the audit diff carries `archivedAtEstimated`, and
 the verifier rejects any archival that predates a joining or lands in the future.
+
+### Correcting a member the sources agree on
+
+`data/member-overrides.json` overrides `status`, `archived` or `archivedAt` on a member the
+build finished but got wrong, keyed by any record on the cluster so it survives a re-key:
+
+```json
+{ "drupal:9003": { "status": "MEMBER", "archived": true, "note": "why" } }
+```
+
+Distinct from `rejected.tsv`, which answers members the build could not finish — these are
+complete and merely incorrect. Every override is printed on each run, because it is not a
+fix: the sources still say what they said, so Backstage now disagrees with Authentik and
+the website. Changing them and dropping the override is the durable version.
 
 Two details the precedence table does not capture:
 
