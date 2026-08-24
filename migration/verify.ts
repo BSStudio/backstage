@@ -78,10 +78,27 @@ async function main(): Promise<number> {
     true,
   );
 
+  // No longer a warning: every archival is dated, from a sheet tab or from how
+  // long that rung usually lasts.
   add(
     "archived members carry an archivedAt",
     members.filter((m) => m.archived && !m.archivedAt).map((m) => label(m)),
-    true,
+  );
+  add(
+    "no archival predates the joining",
+    members
+      .filter(
+        (m) =>
+          m.archivedAt &&
+          m.archivedAt < new Date(`${m.joinedSemester.slice(0, 4)}-01-01`),
+      )
+      .map((m) => `${label(m)} joined ${m.joinedSemester}`),
+  );
+  add(
+    "no archival is in the future",
+    members
+      .filter((m) => m.archivedAt && m.archivedAt > new Date())
+      .map((m) => `${label(m)} ${m.archivedAt?.toISOString().slice(0, 10)}`),
   );
   add(
     "unarchived members carry no archivedAt",

@@ -77,9 +77,10 @@ function timelineRows(
     },
   ];
 
-  // Only when the date is actually known. The Sheet dates an archival to the
-  // year of its tab and nothing dates the rest, and an invented timestamp reads
-  // exactly like a recorded one.
+  // The date is often estimated rather than recorded — nothing stored when a
+  // member went passive on the website. The entry is still written, because a
+  // member page with no archival at all is worse than one carrying a date; that
+  // it is an estimate is recorded in the audit diff and in `provenance`.
   if (member.archived && member.archivedAt) {
     rows.push({
       memberId: member.id,
@@ -101,6 +102,7 @@ function auditRow(member: BuiltMember): Prisma.AuditLogCreateManyInput {
       imported: true,
       sources: member.records,
       provenance: member.provenance,
+      ...(member.archivedAtEstimated ? { archivedAtEstimated: true } : {}),
     } as Prisma.InputJsonValue,
   };
 }
@@ -129,6 +131,10 @@ async function main(): Promise<void> {
 
   step("To write");
   info(`${memberRows.length} members`);
+  info(
+    `${members.filter((m) => m.archivedAtEstimated).length} of them carry an ` +
+      "estimated archival date",
+  );
   info(`${roleRows.length} leadership roles`);
   info(`${timeline.length} timeline entries`);
   info(`${audit.length} audit log entries`);

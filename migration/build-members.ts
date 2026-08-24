@@ -1,7 +1,7 @@
 import "dotenv/config";
 import type { MembershipStatus } from "../app/generated/prisma/client";
 import { done, fail, info, step } from "../scripts/utils";
-import { MEMBERSHIP_STATUSES } from "../types";
+import { MEMBERSHIP_STATUSES, parseSemester } from "../types";
 import type { RawAuthentikGroup, RawAuthentikUser } from "./extract-authentik";
 import {
   type Decision,
@@ -43,7 +43,8 @@ type Field =
   | "status"
   | "joinedSemester"
   | "websiteUserId"
-  | "archived";
+  | "archived"
+  | "archivedAt";
 
 export interface BuiltMember {
   id: string;
@@ -65,6 +66,8 @@ export interface BuiltMember {
   websiteUserId: string | null;
   archived: boolean;
   archivedAt: string | null;
+  /** True when `archivedAt` was inferred rather than recorded anywhere. */
+  archivedAtEstimated: boolean;
 
   role: { label: string; authentikGroupIds: string[] } | null;
   provenance: Partial<Record<Field, string>>;
@@ -107,6 +110,46 @@ function ignoreReason(
     return "candidate-candidate no other system ever saw";
   }
   return null;
+}
+
+/**
+ * How long someone at each rung typically lasted before drifting away.
+ *
+ * Used only when nothing recorded an archival date — 57 members are archived
+ * purely because Drupal has them passive, and the website never stored when that
+ * happened. A member page reading "archived, date unknown" is worse than one
+ * carrying an estimate that is marked as an estimate, so the estimate is made
+ * here and flagged in `provenance` and in the audit diff rather than passed off
+ * as a recorded fact.
+ */
+const YEARS_BEFORE_LEAVING: Record<MembershipStatus, number> = {
+  MEMBER_CANDIDATE_CANDIDATE: 1,
+  MEMBER_CANDIDATE: 2,
+  MEMBER: 3,
+  ACTIVE_ALUMNI: 3,
+  ALUMNI: 3,
+};
+
+function estimateArchivedAt(
+  joinedSemester: string,
+  status: MembershipStatus,
+): Date {
+  const start = semesterStart(joinedSemester);
+  const estimate = new Date(start);
+  estimate.setUTCFullYear(
+    start.getUTCFullYear() + YEARS_BEFORE_LEAVING[status],
+  );
+  // Nobody left in the future.
+  const now = new Date();
+  return estimate > now ? now : estimate;
+}
+
+/** The first day of a semester. */
+function semesterStart(semester: string): Date {
+  const { startYear, endYear, number } = parseSemester(semester);
+  return number === 1
+    ? new Date(Date.UTC(startYear, 8, 1))
+    : new Date(Date.UTC(endYear, 1, 1));
 }
 
 /** The semester an ISO date falls in, on the same Sept-or-January rule as `currentSemester()`. */
@@ -314,6 +357,7 @@ async function main(): Promise<void> {
   const rewritten: string[] = [];
   const droppedRoles: string[] = [];
   const mobileNotes: string[] = [];
+  let estimatedArchivals = 0;
 
   for (const cluster of clusters) {
     const sheetRows = cluster.sheet
@@ -439,6 +483,22 @@ async function main(): Promise<void> {
       .filter((year): year is number => year !== null)
       .sort((a, b) => b - a)[0];
 
+    const archivedDate = !archived.value
+      ? null
+      : archivedYear !== undefined
+        ? new Date(Date.UTC(archivedYear, 0, 1))
+        : estimateArchivedAt(
+            joined as string,
+            status.value as MembershipStatus,
+          );
+    if (archived.value) {
+      provenance.archivedAt =
+        archivedYear !== undefined
+          ? `sheet tab ${archivedYear}`
+          : `estimated: joined + ${YEARS_BEFORE_LEAVING[status.value as MembershipStatus]} years`;
+      if (archivedYear === undefined) estimatedArchivals++;
+    }
+
     // LeadershipRole rows are only ever *current* ones — a role that ended is a
     // TimelineEntry instead. An archived member holding one would show as
     // leadership in the UI and be synced into the Leadership group.
@@ -489,12 +549,10 @@ async function main(): Promise<void> {
         ["drupal", parts.drupal?.uid],
       ]),
       archived: archived.value,
-      // Only the tab name dates an archival, and only to the year. The exact day
-      // is not recorded anywhere and nothing depends on it.
-      archivedAt:
-        archived.value && archivedYear
-          ? new Date(Date.UTC(archivedYear, 0, 1)).toISOString()
-          : null,
+      // A sheet tab dates an archival to the year and nothing dates the rest, so
+      // the remainder is estimated from how long that rung usually lasts.
+      archivedAt: archived.value ? (archivedDate?.toISOString() ?? null) : null,
+      archivedAtEstimated: archived.value && archivedYear === undefined,
 
       role: label
         ? { label, authentikGroupIds: roleGroups(parts, reserved) }
@@ -613,6 +671,24 @@ async function main(): Promise<void> {
       `"${number}" dropped from ${who.length} members who cannot all have it: ` +
         who.map((m) => `${m.lastName} ${m.firstName}`).join(", "),
     );
+  }
+
+  if (estimatedArchivals > 0) {
+    step(`Archival dates estimated — ${estimatedArchivals}`);
+    info(
+      "nothing recorded when these members left, so the date comes from how long " +
+        "their rung usually lasts; provenance and the audit diff both say so",
+    );
+    for (const status of MEMBERSHIP_STATUSES) {
+      const count = members.filter(
+        (m) => m.archivedAtEstimated && m.status === status,
+      ).length;
+      if (count > 0) {
+        info(
+          `${String(count).padStart(4)}  ${status} — joined + ${YEARS_BEFORE_LEAVING[status]} year(s)`,
+        );
+      }
+    }
   }
 
   if (mobileNotes.length > 0) {
