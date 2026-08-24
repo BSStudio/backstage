@@ -73,3 +73,32 @@ export function isSkip(decision: Decision | null): boolean {
 export function isKeep(decision: Decision | null): boolean {
   return KEEP.has((decision?.decision ?? "").toLowerCase());
 }
+
+// "I looked, it is right." Distinct from SKIP, which discards the row.
+const ACCEPTED = new Set(["ok", "correct", "keep", "rendben", "confirmed"]);
+
+/**
+ * Record keys whose row has been signed off in a review file. Indexed by every
+ * record on the row for the same reason decisions are: a cluster re-keys as soon
+ * as it gains a source.
+ */
+export function readAcknowledgements(file: string): Set<string> {
+  const acknowledged = new Set<string>();
+  if (!existsSync(dataPath(file))) return acknowledged;
+
+  for (const row of parseTsv(readFileSync(dataPath(file), "utf8"))) {
+    if (!ACCEPTED.has((row.decision ?? "").trim().toLowerCase())) continue;
+    for (const key of (row.records ?? "").split("|")) {
+      const trimmed = key.trim();
+      if (trimmed) acknowledged.add(trimmed);
+    }
+  }
+  return acknowledged;
+}
+
+export function isAccepted(
+  acknowledged: Set<string>,
+  records: string[],
+): boolean {
+  return records.some((key) => acknowledged.has(key));
+}

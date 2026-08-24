@@ -82,20 +82,30 @@ export interface RejectedCluster {
 const REJECTED_FILE = "rejected.tsv";
 
 /**
- * Someone the Sheet lists as a candidate-candidate and no other system has ever
- * heard of never got past their first few weeks: no Authentik account, no
- * website account, nothing downstream that could act on them. Importing them
- * adds rows nobody will ever open.
+ * People who are recorded somewhere but were never really members.
  *
- * `KEEP` in the decision column brings one back.
+ * Both cases are decided rather than incomplete, so they are dropped without
+ * being counted as problems and without chasing the fields they are missing —
+ * asking for a join semester nobody wrote down, for someone nobody will look
+ * up, is work for its own sake. `KEEP` in the decision column brings one back.
  */
-function isUnstartedCandidate(
+function ignoreReason(
   parts: Parts,
   status: MembershipStatus | null,
-): boolean {
-  return (
-    !parts.authentik && !parts.drupal && status === "MEMBER_CANDIDATE_CANDIDATE"
-  );
+): string | null {
+  if (!status) {
+    // Every system that knows them declined to say what they were. The website
+    // is where that gets fixed, and it has been.
+    return "no status in any source";
+  }
+  if (
+    !parts.authentik &&
+    !parts.drupal &&
+    status === "MEMBER_CANDIDATE_CANDIDATE"
+  ) {
+    return "candidate-candidate no other system ever saw";
+  }
+  return null;
 }
 
 /** The semester an ISO date falls in, on the same Sept-or-January rule as `currentSemester()`. */
@@ -267,7 +277,7 @@ async function main(): Promise<void> {
   const members: BuiltMember[] = [];
   const rejected: RejectedCluster[] = [];
   const skipped: RejectedCluster[] = [];
-  const unstartedCandidates: RejectedCluster[] = [];
+  const ignoredEntries: { entry: RejectedCluster; why: string }[] = [];
   const rewritten: string[] = [];
 
   for (const cluster of clusters) {
@@ -328,21 +338,17 @@ async function main(): Promise<void> {
       provenance.joinedSemester = REJECTED_FILE;
     }
 
-    const unstarted =
-      isUnstartedCandidate(parts, status.value) && !isKeep(decision);
+    const ignored = isKeep(decision) ? null : ignoreReason(parts, status.value);
 
     const reasons: string[] = [];
-    // An unstarted candidate is dropped whatever else is missing — asking for a
-    // join semester nobody recorded, for someone nobody will ever look up, is
-    // work for its own sake.
-    if (!unstarted) {
+    if (!ignored) {
       if (!status.value) reasons.push("no status in any source");
       if (!email) reasons.push("no email address");
       if (!firstName || !lastName) reasons.push("no usable name");
       if (!joined) reasons.push("no join semester");
     }
 
-    if (reasons.length > 0 || unstarted || isSkip(decision)) {
+    if (reasons.length > 0 || ignored || isSkip(decision)) {
       const name =
         parts.sheet?.fullname ??
         parts.drupal?.fullname ??
@@ -370,8 +376,8 @@ async function main(): Promise<void> {
           .filter(Boolean)
           .join("  "),
       };
-      if (unstarted) {
-        unstartedCandidates.push(entry);
+      if (ignored) {
+        ignoredEntries.push({ entry, why: ignored });
       } else if (isSkip(decision)) {
         skipped.push(entry);
       } else {
@@ -488,14 +494,16 @@ async function main(): Promise<void> {
     info(`${field.padEnd(16)} ${summary}`);
   }
 
-  if (unstartedCandidates.length > 0) {
-    step(`Never started — ${unstartedCandidates.length}`);
-    info(
-      "candidate-candidates the Sheet records and no other system ever saw; " +
-        "write KEEP in the decision column to import one anyway",
-    );
-    for (const entry of unstartedCandidates) {
-      info(`  ${entry.name.padEnd(26)} ${entry.records.join(" ")}`);
+  if (ignoredEntries.length > 0) {
+    step(`Not really members — ${ignoredEntries.length}`);
+    info("write KEEP in the decision column to import one anyway");
+    const byReason = new Map<string, string[]>();
+    for (const { entry, why } of ignoredEntries) {
+      byReason.set(why, [...(byReason.get(why) ?? []), entry.name]);
+    }
+    for (const [why, names] of byReason) {
+      info(`${String(names.length).padStart(4)}  ${why}`);
+      for (const name of names) info(`        ${name}`);
     }
   }
 
@@ -542,15 +550,16 @@ async function main(): Promise<void> {
 
   // ── Files ─────────────────────────────────────────────────────────────────
 
+  const ignoredWhy = new Map(
+    ignoredEntries.map(({ entry, why }) => [entry, why]),
+  );
   const toRow = (entry: RejectedCluster): TsvRow => {
     const previous = findDecision(decisions, entry.records);
     return {
       name: entry.name,
-      reasons:
-        entry.reasons.join("; ") ||
-        (unstartedCandidates.includes(entry)
-          ? "sheet-only candidate-candidate, never started"
-          : "skipped"),
+      // `join` gives "" for an ignored or skipped row, never null, so `??` here
+      // would never reach the fallback.
+      reasons: entry.reasons.join("; ") || ignoredWhy.get(entry) || "skipped",
       detail: entry.detail,
       suggestedJoined: entry.suggestedJoined,
       basis: entry.basis,
@@ -564,7 +573,7 @@ async function main(): Promise<void> {
   const rejectedRows: TsvRow[] = [
     ...rejected,
     ...skipped,
-    ...unstartedCandidates,
+    ...ignoredEntries.map(({ entry }) => entry),
   ].map(toRow);
 
   info(await writeJson("members.json", members));

@@ -257,7 +257,13 @@ that needed a weak key to form is flagged for review even when it survives.
 Accounts that are not people — Authentik's built-in `akadmin`, the site administrator, the
 shared studio mailbox — are listed in `lib/skip.ts` and never reach a cluster.
 
-The review file is `data/match-review.tsv`; corrections go into `data/overrides.json`:
+A weak-only cluster that has been looked at and signed off with `ok` in the `decision`
+column of `data/match-review.tsv` stops being raised. The check still runs — the
+acknowledgement is keyed to the records rather than the cluster, so a cluster that changes
+shape is asked about again — and acknowledged rows stay in the file, because dropping them
+would lose the sign-off and re-raise them on the next run.
+
+Corrections that change the clustering itself go into `data/overrides.json`:
 
 ```json
 {
@@ -368,11 +374,17 @@ keyed by every record on the row rather than by the cluster — a cluster re-key
 it gains a source, and an answer that stopped applying because someone acquired a website
 account would be worse than no answer.
 
-One group is dropped without being asked about: a **candidate-candidate the Sheet records
-and no other system has ever seen**. No Authentik account, no website account, nothing
-downstream that could ever act on them — they came to a couple of sessions and left. They
-are listed under *Never started* rather than counted as a problem, and `KEEP` imports one
-anyway.
+Two groups are dropped without being asked about, under *Not really members*:
+
+- **no status in any source** — every system that knows them declined to say what they
+  were, which is itself the answer
+- **a candidate-candidate the Sheet records and no other system has ever seen** — no
+  account anywhere, nothing downstream that could act on them; they came to a couple of
+  sessions and left
+
+Neither is counted as a problem and neither has its missing fields chased, since asking
+for a join semester nobody wrote down, for someone nobody will look up, is work for its own
+sake. `KEEP` in the decision column imports one anyway.
 
 `suggestedJoined` and `basis` are offered, never applied. A Drupal account made the week
 someone joined dates their joining well; one backfilled during this migration dates

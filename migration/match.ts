@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { done, info, step } from "../scripts/utils";
+import { isAccepted, readAcknowledgements } from "./lib/decisions";
 import { readJsonIfExists, writeJson, writeText } from "./lib/paths";
 import {
   loadSources,
@@ -23,6 +24,10 @@ import { UnionFind } from "./lib/union-find";
 type Strength = "email" | "username" | "name" | "derived-username" | "override";
 
 const WEAK: Strength[] = ["name", "derived-username"];
+
+const REVIEW_FILE = "match-review.tsv";
+
+const WEAK_PROBLEM = "joined only by a weak key";
 
 interface Edge {
   a: string;
@@ -126,6 +131,7 @@ function labelFor(sources: Sources, key: string): string {
 async function main(): Promise<void> {
   const sources = await loadSources();
   const overrides = (await readJsonIfExists<Overrides>("overrides.json")) ?? {};
+  const acknowledged = readAcknowledgements(REVIEW_FILE);
   const blocked = new Set(
     (overrides.split ?? []).flatMap(([a, b]) => [`${a}|${b}`, `${b}|${a}`]),
   );
@@ -211,8 +217,15 @@ async function main(): Promise<void> {
     if (authentik.length > 1)
       problems.push(`${authentik.length} authentik users`);
     if (drupal.length > 1) problems.push(`${drupal.length} drupal users`);
-    if (strengths.length > 0 && strengths.every((s) => WEAK.includes(s))) {
-      problems.push("joined only by a weak key");
+    // A weak-only cluster someone has already looked at and signed off in the
+    // review file stops being raised. The check still runs — the acknowledgement
+    // is per person, so a cluster that changes shape is asked about again.
+    if (
+      strengths.length > 0 &&
+      strengths.every((s) => WEAK.includes(s)) &&
+      !isAccepted(acknowledged, records)
+    ) {
+      problems.push(WEAK_PROBLEM);
     }
     if (authentik.length === 0 && drupal.length === 0) {
       problems.push("sheet only — no website account to link");
@@ -275,19 +288,31 @@ async function main(): Promise<void> {
     );
   }
 
-  const review: TsvRow[] = flagged.map((cluster) => ({
+  // Acknowledged clusters carry no problem any more, so they are not in
+  // `flagged` — but dropping their row would lose the acknowledgement and raise
+  // them again on the next run.
+  const inReview = [
+    ...flagged,
+    ...clusters.filter(
+      (cluster) =>
+        !flagged.includes(cluster) && isAccepted(acknowledged, cluster.records),
+    ),
+  ];
+
+  const review: TsvRow[] = inReview.map((cluster) => ({
     cluster: cluster.key,
-    problems: cluster.problems.join("; "),
+    problems: cluster.problems.join("; ") || "acknowledged",
     joinedBy: cluster.strengths.join("+"),
     authentik: cluster.authentik ? labelFor(sources, cluster.authentik) : "",
     drupal: cluster.drupal ? labelFor(sources, cluster.drupal) : "",
     sheet: cluster.sheet.map((key) => labelFor(sources, key)).join(" | "),
-    decision: "",
+    decision: isAccepted(acknowledged, cluster.records) ? "ok" : "",
+    records: cluster.records.join(" | "),
   }));
 
   info(
     await writeText(
-      "match-review.tsv",
+      REVIEW_FILE,
       formatTsv(review, [
         "cluster",
         "problems",
@@ -296,6 +321,7 @@ async function main(): Promise<void> {
         "drupal",
         "sheet",
         "decision",
+        "records",
       ]),
     ),
   );
