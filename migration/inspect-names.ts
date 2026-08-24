@@ -1,9 +1,10 @@
 import "dotenv/config";
+import { readFileSync } from "node:fs";
 import { done, info, step } from "../scripts/utils";
-import { writeText } from "./lib/paths";
+import { dataPath, writeText } from "./lib/paths";
 import { loadSources, type SourceRecord } from "./lib/sources";
 import { normalizeName } from "./lib/text";
-import { formatTsv, type TsvRow } from "./lib/tsv";
+import { formatTsv, parseTsv, type TsvRow } from "./lib/tsv";
 
 /**
  * Rows whose name looks written the wrong way round.
@@ -26,6 +27,34 @@ const AUTHENTIK_WEIGHT = 5;
 // at the cost of the occasional person whose family name is a common given one.
 const LIKELY_RATIO = 10;
 const LIKELY_FLOOR = 20;
+
+const REVIEW_FILE = "name-order-review.tsv";
+
+// Written into the `decision` column to say "checked, the name is right as it
+// stands". A name the corpus cannot help with — a rare family name that is a
+// common given name — would otherwise be raised on every single run.
+const ACCEPTED = new Set(["ok", "correct", "keep", "rendben"]);
+
+/**
+ * Decisions already written into the review file, so re-running does not throw
+ * them away. Keyed by record.
+ */
+function readDecisions(): Map<string, string> {
+  const decisions = new Map<string, string>();
+  try {
+    for (const row of parseTsv(readFileSync(dataPath(REVIEW_FILE), "utf8"))) {
+      const decision = (row.decision ?? "").trim();
+      if (row.record && decision) decisions.set(row.record, decision);
+    }
+  } catch {
+    // No previous run.
+  }
+  return decisions;
+}
+
+function isAccepted(decision: string | undefined): boolean {
+  return ACCEPTED.has((decision ?? "").trim().toLowerCase());
+}
 
 interface Vocabulary {
   family: Map<string, number>;
@@ -84,6 +113,7 @@ async function main(): Promise<void> {
   const sources = await loadSources();
   const vocabulary = buildVocabulary(sources.records);
   const showAmbiguous = process.argv.includes("--all");
+  const decisions = readDecisions();
 
   // ── Signal 1: Authentik's own fields ──────────────────────────────────────
 
@@ -110,7 +140,7 @@ async function main(): Promise<void> {
       name: `${record.lastName} ${record.firstName}`,
       shouldBe: `${authentik.lastName} ${authentik.firstName}`,
       votes: "",
-      decision: "",
+      decision: decisions.get(record.key) ?? "",
     });
   }
   info(
@@ -126,6 +156,9 @@ async function main(): Promise<void> {
   const certain: TsvRow[] = [];
   const likely: TsvRow[] = [];
   let ambiguous = 0;
+  // Kept out of the report but written back to the file. Dropping them would
+  // re-raise the same names on the next run.
+  const accepted: TsvRow[] = [];
 
   for (const record of sources.records) {
     // A verified split, or a name Authentik has already settled, needs no vote.
@@ -139,16 +172,19 @@ async function main(): Promise<void> {
     // Hungarian family names and given names overlap heavily — Bálint, Máté,
     // Csaba, László and Péter are all both — so a bare majority calls a great
     // many correct names flipped.
+    const decision = decisions.get(record.key);
     const row: TsvRow = {
       signal: "corpus",
       record: record.key,
       name: `${record.lastName} ${record.firstName}`,
       shouldBe: `${record.firstName} ${record.lastName}`,
       votes: `forward ${verdict.forward} vs reverse ${verdict.reverse}`,
-      decision: "",
+      decision: decision ?? "",
     };
 
-    if (verdict.forward === 0) {
+    if (isAccepted(decision)) {
+      accepted.push({ ...row, signal: "corpus-accepted" });
+    } else if (verdict.forward === 0) {
       certain.push(row);
     } else if (
       verdict.reverse >= LIKELY_RATIO * verdict.forward &&
@@ -186,11 +222,17 @@ async function main(): Promise<void> {
     show(likely.filter((r) => r.signal === "corpus-ambiguous"));
   }
 
-  const rows = [...contradicted, ...certain, ...likely];
+  if (accepted.length > 0) {
+    info(
+      `${accepted.length} already marked correct in ${REVIEW_FILE}, not raised again`,
+    );
+  }
+
+  const rows = [...contradicted, ...certain, ...likely, ...accepted];
   step("File");
   info(
     await writeText(
-      "name-order-review.tsv",
+      REVIEW_FILE,
       formatTsv(rows, [
         "signal",
         "record",
@@ -202,10 +244,12 @@ async function main(): Promise<void> {
     ),
   );
 
+  const open = rows.length - accepted.length;
   done(
-    rows.length === 0
+    open === 0
       ? "No name reads as reversed."
-      : `${rows.length} names to check. Fix them at the source, not here.`,
+      : `${open} names to check. Fix them at the source, not here — or write "ok" ` +
+          `in the decision column of ${REVIEW_FILE} if the name was right all along.`,
   );
 }
 

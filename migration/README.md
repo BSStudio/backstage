@@ -131,6 +131,11 @@ instead:
 Anything weaker is counted but not shown; `--all` lists it. Fix what it finds **at the
 source** — the Sheet or the website — not with an override here.
 
+When a flagged name was right all along, write `ok` in the `decision` column of
+`data/name-order-review.tsv`. The next run reads the file back before it overwrites it,
+keeps the decision, and stops raising that row — otherwise a rare family name that happens
+to be a common given name is reported forever.
+
 ### Reviewing what Drupal could not decide
 
 ```
