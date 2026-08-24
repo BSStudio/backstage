@@ -2,6 +2,7 @@ import "dotenv/config";
 import type { MembershipStatus } from "../app/generated/prisma/client";
 import { done, fail, info, step } from "../scripts/utils";
 import { readText, writeJson } from "./lib/paths";
+import { SKIP_DRUPAL_UIDS } from "./lib/skip";
 import { statusFromWebsiteLabel } from "./lib/status";
 import {
   normalizeEmail,
@@ -24,13 +25,6 @@ const FIELD = {
   isLeader: "profile_BSS_is_leader",
   joinYear: "profile_BSS_join_year",
 } as const;
-
-// Role accounts, not people: the site's own administrator and the shared studio
-// mailbox. Both would otherwise reach the review list on every run.
-const SKIP_UIDS = new Map<string, string>([
-  ["1", "site administrator account"],
-  ["119", "shared studio mailbox"],
-]);
 
 export interface DrupalUser {
   uid: string;
@@ -143,7 +137,7 @@ function build(
     hasRole: checkbox(profile[FIELD.hasRole]),
     roleLabel: text(profile[FIELD.roleLabel]),
     archived: passive || blocked,
-    skip: SKIP_UIDS.get(userRow.uid ?? "") ?? null,
+    skip: SKIP_DRUPAL_UIDS.get(userRow.uid ?? "") ?? null,
   };
 }
 

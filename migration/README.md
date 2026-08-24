@@ -176,19 +176,48 @@ status is kept as a bare role label and left for review rather than guessed at.
 
 ## 2. Match
 
-Clustering keys, in descending confidence:
+```
+pnpm tsx migration/match.ts
+```
 
-1. normalized email — Drupal carries three (`users.mail`, `users.init`,
-   `profile_email`), all three are indexed
-2. Drupal username against `deriveUsername(firstName, lastName)`
-3. sorted-token name key, which sidesteps the Hungarian/Western order disagreement
+Groups the three exports into one cluster per person, keyed
+`authentik:<uuid>` / `drupal:<uid>` / `sheet:<tab>:<row>`.
+
+**Strong keys**, taken at face value:
+
+1. a shared email address — Drupal carries three per account (`users.mail`,
+   `users.init`, `profile_email`) and all three are indexed
+2. an identical username between Authentik and Drupal
+
+**Weak keys**, which are how two different Kovács Jánoses become one member:
+
+3. the sorted-token name key, which sidesteps the Hungarian/Western order disagreement
    between the sources
+4. `deriveUsername(firstName, lastName)`, and only *across* sources — within one source it
+   adds nothing an email or a full name would not already have caught, and it happily
+   merges two people, since Almási Eszter and Almási Emma both derive `ealmasi`
 
-The matcher writes a review sheet with one row per proposed cluster, the keys that fired
-and a confidence. Corrections go into `data/overrides.json`, keyed by source id
-(`authentik:<uuid>`, `drupal:<uid>`, `sheet:<tab>:<row>`) — never by email, so the file
-carries no PII and re-running the matcher preserves every human decision. Re-running is
-expected; the overrides file is what makes it idempotent, not the email match.
+A weak key is refused outright when it would put two Authentik users or two Drupal users
+in one cluster, or two rows from the *same* sheet tab: a tab is one roster, so nobody is
+on it twice. A genuine duplicate row still merges, but only on a strong key. Any cluster
+that needed a weak key to form is flagged for review even when it survives.
+
+Accounts that are not people — Authentik's built-in `akadmin`, the site administrator, the
+shared studio mailbox — are listed in `lib/skip.ts` and never reach a cluster.
+
+The review file is `data/match-review.tsv`; corrections go into `data/overrides.json`:
+
+```json
+{
+  "merge": [["drupal:9001", "sheet:archived:2"]],
+  "split": [["authentik:<uuid>", "drupal:9002"]]
+}
+```
+
+Keyed by source id, never by email, so the file carries no PII and re-running preserves
+every human decision. A `split` pair that some other key joins anyway is reported rather
+than silently honoured. Re-running is expected; the overrides file is what makes it
+idempotent, not the email match.
 
 ## 3. Field precedence
 
