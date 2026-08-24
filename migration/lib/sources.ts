@@ -22,6 +22,8 @@ export interface SourceRecord {
   nameKey: string;
   firstName: string | null;
   lastName: string | null;
+  /** The split came from separate fields, not from parsing one string. */
+  splitVerified: boolean;
 }
 
 export interface Sources {
@@ -60,6 +62,9 @@ function fromAuthentik(user: RawAuthentikUser): SourceRecord {
     nameKey: nameKeyFromParts(firstName, lastName) || nameKey(user.name),
     firstName,
     lastName,
+    splitVerified: Boolean(
+      attribute(user, "first_name") && attribute(user, "last_name"),
+    ),
   };
 }
 
@@ -78,6 +83,7 @@ function fromDrupal(user: DrupalUser): SourceRecord {
     nameKey: nameKey(user.fullname) || nameKey(user.username),
     firstName: firstName || null,
     lastName: lastName || null,
+    splitVerified: false,
   };
 }
 
@@ -95,6 +101,7 @@ function fromSheet(member: SheetMember): SourceRecord {
     nameKey: nameKey(member.fullname),
     firstName: member.firstName || null,
     lastName: member.lastName || null,
+    splitVerified: false,
   };
 }
 

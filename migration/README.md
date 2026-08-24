@@ -105,6 +105,32 @@ The normalizer prints a tally of every `profile_BSS_state` value and which
 `MembershipStatus` it maps to, the join-year parse rate, and duplicate email addresses —
 which matter because `Member.email` is unique.
 
+### Names written the wrong way round
+
+```
+pnpm tsx migration/inspect-names.ts
+```
+
+A flipped name is the one error the matcher cannot catch: the name key sorts its tokens,
+so `Barcza Emese` and `Emese Barcza` are the same key and cluster correctly. It then
+lands `firstName` and `lastName` swapped on the member and derives the username from the
+wrong half, with nothing downstream to notice.
+
+Two signals, and they are not equally good. Authentik's `first_name` / `last_name`
+attributes are separate fields rather than a parsed string, so where they exist they settle
+it — that covers everyone with an account. For the rest the corpus votes, and Hungarian
+makes that hard: Bálint, Máté, Csaba, László, Balázs and Péter are all both family names
+and given names, so a bare majority calls a great many correct names flipped. Two tiers
+instead:
+
+| Tier | Rule | Measured |
+| --- | --- | --- |
+| `corpus` | both tokens sit where nothing else in the corpus ever puts them | catches 80% of synthetic flips, no false positives observed |
+| `corpus-likely` | the reverse reading wins by 10:1 or better | 87% together, at the cost of the occasional real surname that is a common given name |
+
+Anything weaker is counted but not shown; `--all` lists it. Fix what it finds **at the
+source** — the Sheet or the website — not with an override here.
+
 ### Reviewing what Drupal could not decide
 
 ```
@@ -136,9 +162,14 @@ Export each tab as CSV into `data/sheets/`, then:
 pnpm tsx migration/normalize-sheets.ts
 ```
 
-The exports are **semicolon-separated and windows-1250 encoded**, not UTF-8. Decoding them
-as latin-1 turns `ő` and `ű` into `õ` and `û` without erroring, which is why `lib/csv.ts`
-names the codepage explicitly.
+Encoding and delimiter are both detected: Sheets' own download is comma-separated UTF-8,
+while a round trip through a Hungarian Excel produces semicolon-separated windows-1250.
+Neither is guessed at — decoding windows-1250 as latin-1 turns `ő` and `ű` into `õ` and `û`
+without erroring.
+
+A file containing **U+FFFD replacement characters is rejected outright**. That is not an
+encoding to choose between; it is a file that was opened as the wrong codepage and saved
+back, and the accents are gone for good. Export that tab again rather than re-saving it.
 
 Every tab carries the same ten columns in the same order, so they are read **by position**:
 the first header cell is a stray `f` / `i` on two tabs, and the address and phone columns

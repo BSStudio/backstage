@@ -243,7 +243,7 @@ async function main(): Promise<void> {
   for (const file of files) {
     const tab = file.replace(/\.csv$/, "");
     const rows = parseCsv(
-      decodeSheet(await readFile(dataPath("sheets", file))),
+      decodeSheet(await readFile(dataPath("sheets", file)), file),
     );
     let kept = 0;
 
