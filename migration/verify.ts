@@ -84,15 +84,22 @@ async function main(): Promise<number> {
     "archived members carry an archivedAt",
     members.filter((m) => m.archived && !m.archivedAt).map((m) => label(m)),
   );
+  // Against the day the semester began, not 1 January of its first year — the
+  // looser form passes an archival eight months before an autumn joining.
+  const joinedOn = (semester: string): Date => {
+    const [startYear, endYear, number] = semester.split("/").map(Number);
+    return number === 1
+      ? new Date(Date.UTC(startYear, 8, 1))
+      : new Date(Date.UTC(endYear, 1, 1));
+  };
   add(
     "no archival predates the joining",
     members
-      .filter(
+      .filter((m) => m.archivedAt && m.archivedAt < joinedOn(m.joinedSemester))
+      .map(
         (m) =>
-          m.archivedAt &&
-          m.archivedAt < new Date(`${m.joinedSemester.slice(0, 4)}-01-01`),
-      )
-      .map((m) => `${label(m)} joined ${m.joinedSemester}`),
+          `${label(m)} joined ${m.joinedSemester}, archived ${m.archivedAt?.toISOString().slice(0, 10)}`,
+      ),
   );
   add(
     "no archival is in the future",
