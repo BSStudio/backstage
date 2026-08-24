@@ -219,6 +219,28 @@ every human decision. A `split` pair that some other key joins anyway is reporte
 than silently honoured. Re-running is expected; the overrides file is what makes it
 idempotent, not the email match.
 
+### Fixing the website instead of overriding it
+
+```
+pnpm tsx migration/export-website-tasks.ts
+```
+
+Writes two worklists for the *website*, not for this repository:
+
+- `data/website-fix-status.tsv` — accounts whose `profile_BSS_state` maps to no
+  `MembershipStatus`, with the valid labels and a link straight to the BSS adatok tab
+- `data/website-create-users.tsv` — members on a roster with no Drupal account, with the
+  username `deriveUsername` would pick (collision-checked against every existing account
+  *and* against earlier rows in the file), and a `blockers` column for rows the create form
+  would reject
+
+Prefer this over `overrides.json` wherever a decision is really about the website. The
+website outlives this migration; an override file does not. Work through both, dump the
+database again, then re-run `extract-drupal.ts`, `load-drupal.ts` and `match.ts` — the
+clusters that were Sheet-only become Drupal-linked, and `data/id-assignments.json` carries
+each member's id across the re-key because it is stored against every record in the
+cluster.
+
 ## 3. Field precedence
 
 | Field | Source |
