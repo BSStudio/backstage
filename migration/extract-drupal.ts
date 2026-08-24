@@ -63,7 +63,9 @@ function mysql(connection: Connection, sql: string): string {
   );
   if (connection.database) args.push(connection.database);
 
-  const result = spawnSync("docker", args, { input: sql, encoding: "buffer" });
+  // No `encoding` option: it would be applied to `input` as well, and "buffer"
+  // is not a valid string encoding. Buffers in, buffers out, decoded below.
+  const result = spawnSync("docker", args, { input: Buffer.from(sql, "utf8") });
 
   if (result.error) {
     const { message } = result.error as NodeJS.ErrnoException;
