@@ -105,6 +105,26 @@ function fromSheet(member: SheetMember): SourceRecord {
   };
 }
 
+/**
+ * A person's sheet rows, freshest first: `current`, then `alumni`, then
+ * whichever archival saw them last.
+ *
+ * Cluster records are stored sorted by key, which puts `sheet:alumni` ahead of
+ * `sheet:current` — the opposite of what every caller wants.
+ */
+export function sortSheetRows(rows: SheetMember[]): SheetMember[] {
+  const rank = (row: SheetMember): number =>
+    row.tab === "current" ? 0 : row.tab === "alumni" ? 1 : 2;
+  return [...rows].sort(
+    (a, b) =>
+      rank(a) - rank(b) || (b.archivedYear ?? 0) - (a.archivedYear ?? 0),
+  );
+}
+
+export function pickSheetRow(rows: SheetMember[]): SheetMember {
+  return sortSheetRows(rows)[0];
+}
+
 export async function loadSources(): Promise<Sources> {
   const [authentikAll, drupalAll, sheet] = await Promise.all([
     readJson<RawAuthentikUser[]>("authentik-users.json"),

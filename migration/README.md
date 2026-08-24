@@ -313,7 +313,34 @@ account, `UPDATE "Member" SET id = … WHERE id = …` swaps the prefixed id for
 `GoogleGroupEntry` with it, because Prisma's required relations default to
 `onUpdate: Cascade`. Stored avatar files are keyed by id and have to be renamed alongside.
 
-## 5. Import
+## 5. Build
+
+```
+pnpm tsx migration/build-members.ts
+```
+
+Resolves each cluster into the row the import will write, applying the precedence table
+above, and records **which source won every field**. That provenance is printed as a
+summary and stored per member, because "where did this value come from" is the only
+question worth asking of a merge afterwards, and the clusters are gone by then.
+
+Two details the table does not capture:
+
+- `ALUMNI` and `ACTIVE_ALUMNI` share one Authentik group, so group membership proves
+  someone is an alumnus but not which kind. Only the Sheet marks anyone `Aktív öregtag`,
+  and only on `current` — so the sheet rows are consulted freshest-first, and without a row
+  saying otherwise the plain `ALUMNI` is the honest answer.
+- `leadershipRole.authentikGroupIds` is not guessed from the label. For a member with an
+  account it is their real group membership minus the status group and the Leadership
+  group; for anyone else it is empty.
+
+A cluster that cannot produce a complete member is **rejected, listed, and the run fails**
+— no status in any source, no email, no usable name, or no join semester. Rejecting is
+usually right (a website signup who never joined has none of those for a reason), but it
+should never happen quietly. `--allow-unresolved` continues without them;
+`data/rejected.tsv` lists them either way.
+
+## 6. Import
 
 The importer writes through raw Prisma, never through `lib/services/`. `createMember`
 would call Authentik and Drupal; the whole point here is that it must not. Each member
@@ -325,7 +352,7 @@ gets one `MEMBER_CREATED` timeline entry and one audit log with `actorId: null` 
 `/admin/sync-jobs` with hundreds of rows nobody can act on buries the FAILED ones that
 matter.
 
-## 6. Verify
+## 7. Verify
 
 The verifier fails on any of:
 
@@ -342,7 +369,7 @@ The verifier fails on any of:
 Then run the app against the imported database and click through `/members`,
 `/admin/sync-jobs` and a few member pages.
 
-## 7. Cutover
+## 8. Cutover
 
 Dump the **whole** local database, `_prisma_migrations` included, and restore it into the
 empty production database. The migration table comes along, so the entrypoint's

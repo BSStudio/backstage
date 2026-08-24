@@ -3,7 +3,7 @@ import { buildJoinYearFromSemester, WEBSITE_STATE } from "../lib/website/users";
 import { done, fail, info, step } from "../scripts/utils";
 import { deriveUsername } from "../types";
 import { readJsonIfExists, writeText } from "./lib/paths";
-import { loadSources } from "./lib/sources";
+import { loadSources, pickSheetRow } from "./lib/sources";
 import { formatTsv, type TsvRow } from "./lib/tsv";
 import type { Cluster } from "./match";
 import type { SheetMember } from "./normalize-sheets";
@@ -45,18 +45,6 @@ function availableUsername(base: string, taken: Set<string>): string {
       return candidate;
     }
   }
-}
-
-function pickSheetRow(rows: SheetMember[]): SheetMember {
-  // The current tab is the freshest, then alumni, then whichever archived tab
-  // saw them last.
-  const ranked = [...rows].sort((a, b) => {
-    const rank = (row: SheetMember): number =>
-      row.tab === "current" ? 0 : row.tab === "alumni" ? 1 : 2;
-    if (rank(a) !== rank(b)) return rank(a) - rank(b);
-    return (b.archivedYear ?? 0) - (a.archivedYear ?? 0);
-  });
-  return ranked[0];
 }
 
 async function main(): Promise<void> {
