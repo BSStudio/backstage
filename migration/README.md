@@ -23,6 +23,22 @@ member PII and none of it is ever committed. Keep `data/id-assignments.json` bac
 somewhere outside the repo until the production cutover has succeeded — it is what makes
 re-runs produce the same member ids.
 
+## Which artefacts are still true
+
+```
+pnpm tsx migration/status.ts
+```
+
+The pipeline gets re-run in pieces over days, so a review file can easily be answering
+questions the newest export no longer asks. This compares every artefact's modification
+time against its declared inputs and says which are stale, which are missing, and which
+nothing under `migration/` produces at all.
+
+`--clean` deletes the orphans and any stale output that holds no human decisions. It never
+deletes a file carrying answers — `rejected.tsv`, the review sheets, `id-assignments.json`
+— because those are regenerated in place by their own script, which reads them back before
+overwriting.
+
 ## 0. Preflight
 
 ```
