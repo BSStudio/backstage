@@ -355,6 +355,11 @@ Two details the table does not capture:
 - `leadershipRole.authentikGroupIds` is not guessed from the label. For a member with an
   account it is their real group membership minus the status group and the Leadership
   group; for anyone else it is empty.
+- A **role only exists while it is current**. An archived member's label is dropped rather
+  than written, because a `LeadershipRole` row means an active role — it shows as
+  leadership in the UI and syncs the member into the Leadership group. `Pozíció` values
+  that describe how someone *left* (`Kizárva`) are not roles either, and are dropped at the
+  Sheet normalizer.
 
 A cluster that cannot produce a complete member is **rejected, listed, and the run fails**
 — no status in any source, no email, no usable name, or no join semester. Rejecting is

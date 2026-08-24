@@ -7,6 +7,7 @@ import { dataPath, writeJson } from "./lib/paths";
 import { statusFromSheetPosition } from "./lib/status";
 import {
   normalizeEmail,
+  normalizeName,
   type SemesterGuess,
   semesterFromJoinYear,
   splitHungarianFullName,
@@ -45,6 +46,11 @@ const INACTIVE_SUFFIX = /\s*\(inakt[ií]v\)\s*$/i;
 
 // "Stúdiós - Stúdióvezető" packs a status and a leadership role into one cell.
 const STATUS_ROLE_SEPARATOR = " - ";
+
+// Outcomes that describe how someone left, written where a status or a role
+// goes. Treating "Kizárva" as a role would create a LeadershipRole and put an
+// expelled member into the Leadership group on the first sync.
+const NOT_A_ROLE = new Set(["kizarva", "tavozott", "kilepett"]);
 
 const INSTITUTION = /^[A-ZÁÉÍÓÖŐÚÜŰ]{2,}(-[A-ZÁÉÍÓÖŐÚÜŰ]{2,})?$/;
 const INSTITUTION_THEN_MAJOR =
@@ -119,9 +125,10 @@ function parsePosition(raw: string | null): Position {
   }
 
   const status = statusFromSheetPosition(value);
+  const label = status ? null : collapse(value);
   return {
     status,
-    roleLabel: status ? null : collapse(value),
+    roleLabel: label && NOT_A_ROLE.has(normalizeName(label)) ? null : label,
     inactive,
   };
 }

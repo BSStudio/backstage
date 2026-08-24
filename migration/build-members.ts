@@ -279,6 +279,7 @@ async function main(): Promise<void> {
   const skipped: RejectedCluster[] = [];
   const ignoredEntries: { entry: RejectedCluster; why: string }[] = [];
   const rewritten: string[] = [];
+  const droppedRoles: string[] = [];
 
   for (const cluster of clusters) {
     const sheetRows = cluster.sheet
@@ -404,7 +405,15 @@ async function main(): Promise<void> {
       .filter((year): year is number => year !== null)
       .sort((a, b) => b - a)[0];
 
-    const label = parts.sheet?.roleLabel ?? parts.drupal?.roleLabel ?? null;
+    // LeadershipRole rows are only ever *current* ones — a role that ended is a
+    // TimelineEntry instead. An archived member holding one would show as
+    // leadership in the UI and be synced into the Leadership group.
+    const recordedLabel =
+      parts.sheet?.roleLabel ?? parts.drupal?.roleLabel ?? null;
+    const label = archived.value ? null : recordedLabel;
+    if (archived.value && recordedLabel) {
+      droppedRoles.push(`${lastName} ${firstName}: "${recordedLabel}"`);
+    }
 
     members.push({
       id: resolved.id,
@@ -538,6 +547,14 @@ async function main(): Promise<void> {
         "SKIP in decision to drop the person for good. The file is read back " +
         "before it is rewritten, so answers survive a re-run.",
     );
+  }
+
+  if (droppedRoles.length > 0) {
+    step(`Leadership roles dropped — ${droppedRoles.length}`);
+    info(
+      "the member is archived, so the role has ended; only current ones are rows",
+    );
+    for (const line of droppedRoles) info(`  ${line}`);
   }
 
   if (rewritten.length > 0) {
