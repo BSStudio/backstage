@@ -271,8 +271,10 @@ matter.
 
 The verifier fails on any of:
 
-- a non-archived member without `websiteUserId` — their first website sync would land as
-  a FAILED job. Drupal is on its way out but has not gone yet, so this stays a hard rule
+- a **non-archived** member without `websiteUserId` — their first website sync would land
+  as a FAILED job, and alumni are shown on the website's own alumni page, so they need the
+  account. Archived members without one are reported but do not fail the run: nobody edits
+  an archived member, and a FAILED job for one nobody touches costs nothing
 - **both directions** of the id shape: `hasAuthentikAccount(id)` ⇒ the id must resolve to
   a live Authentik user, and a prefixed id ⇒ it must *not*. The second direction is the
   quiet one — a member who does have an account but got a prefixed id has every Authentik
