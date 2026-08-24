@@ -126,6 +126,15 @@ async function main(): Promise<number> {
     registered.size === 0,
   );
 
+  // The Drupal field was mandatory, so anyone unwilling to give a number typed
+  // something. Whatever survived here reaches Authentik as a real contact.
+  add(
+    "mobile numbers are in international form",
+    members
+      .filter((m) => m.mobile && !/^\+[1-9]\d{9,14}$/.test(m.mobile))
+      .map((m) => `${label(m)} "${m.mobile}"`),
+  );
+
   // A role that grants a permission group would revoke it when the role ends:
   // removing "Műszaki vezető" would call REMOVE_FROM_GROUP on Admin.
   const permissionGroups = await prisma.authentikGroup.findMany({

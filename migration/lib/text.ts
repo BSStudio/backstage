@@ -111,3 +111,84 @@ export function semesterFromJoinYear(
   // it is a guess, and the review sheet has to show it as one.
   return result(`${year}/${year + 1}/1`, "guessed");
 }
+
+export interface MobileCheck {
+  /** Cleaned number, or null when the field held a placeholder. */
+  value: string | null;
+  raw: string;
+  /** What changed, or what a human should look at. */
+  note: string | null;
+}
+
+const HUNGARIAN_MOBILE_DIGITS = 9;
+const NOT_A_DIGIT = /[^0-9]/g;
+const LINE_BREAK = /[\r\n]+/;
+const SIX_REPEATS = /(\d)\1{5,}/;
+const FOUR_REPEATS = /(\d)\1{3,}/;
+const KEYPAD_WALK = /012345|123456|987654/;
+
+/**
+ * Cleans one mobile number out of a Drupal field that was mandatory.
+ *
+ * Being mandatory is the whole problem: everyone who did not want to give a
+ * number typed something, and the something is usually a run of the same digit
+ * or a walk up the keypad. Those become null rather than being carried into
+ * Authentik, where a placeholder looks exactly like a real contact.
+ *
+ * Only shapes that cannot be a number are dropped. One that merely looks odd is
+ * kept and flagged — losing a real number is worse than keeping a doubtful one
+ * somebody can check.
+ */
+export function normalizeMobile(raw: string | null | undefined): MobileCheck {
+  const original = (raw ?? "").trim();
+  const check = (value: string | null, note: string | null): MobileCheck => ({
+    value,
+    raw: original,
+    note,
+  });
+  const withExtra = (
+    note: string | null,
+    extra: string | null,
+  ): string | null => [extra, note].filter(Boolean).join("; ") || null;
+
+  if (!original) return check(null, null);
+
+  // A field holding several numbers keeps the first; the rest are usually a
+  // second country's number nobody uses for the studio.
+  const lines = original.split(LINE_BREAK).filter((line) => line.trim() !== "");
+  const first = lines[0].trim();
+  const extra =
+    lines.length > 1 ? `dropped ${lines.length - 1} further number(s)` : null;
+
+  const international = first.startsWith("+") || first.startsWith("00");
+  let digits = first.replace(NOT_A_DIGIT, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  const local = digits.replace(/^36/, "").replace(/^06/, "");
+
+  if (new Set(local).size <= 2 || SIX_REPEATS.test(local)) {
+    return check(null, "placeholder: barely any distinct digits");
+  }
+  if (KEYPAD_WALK.test(local)) {
+    return check(null, "placeholder: sequential digits");
+  }
+
+  // Short of the run that drops a number, but still worth a glance: a real one
+  // rarely carries four of the same digit in a row.
+  const odd = FOUR_REPEATS.test(local)
+    ? "unusual run of repeated digits — worth checking"
+    : null;
+
+  // A bare Hungarian number, written 30/555-0123 or 06 30 555 0123.
+  if (!international && local.length === HUNGARIAN_MOBILE_DIGITS) {
+    return check(
+      `+36${local}`,
+      withExtra(odd ?? "added the +36 prefix", extra),
+    );
+  }
+  if (digits.length === 11 && digits.startsWith("36")) {
+    return check(`+${digits}`, withExtra(odd, extra));
+  }
+  if (international) return check(`+${digits}`, withExtra(odd, extra));
+
+  return check(first, withExtra("not a recognisable mobile number", extra));
+}

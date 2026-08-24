@@ -17,6 +17,7 @@ import {
 } from "./lib/ids";
 import { readJsonIfExists, writeJson, writeText } from "./lib/paths";
 import { loadSources, pickSheetRow, sortSheetRows } from "./lib/sources";
+import { normalizeMobile } from "./lib/text";
 import { formatTsv, type TsvRow } from "./lib/tsv";
 import type { DrupalUser } from "./load-drupal";
 import type { Cluster } from "./match";
@@ -312,6 +313,7 @@ async function main(): Promise<void> {
   const ignoredEntries: { entry: RejectedCluster; why: string }[] = [];
   const rewritten: string[] = [];
   const droppedRoles: string[] = [];
+  const mobileNotes: string[] = [];
 
   for (const cluster of clusters) {
     const sheetRows = cluster.sheet
@@ -443,6 +445,20 @@ async function main(): Promise<void> {
     const recordedLabel =
       parts.sheet?.roleLabel ?? parts.drupal?.roleLabel ?? null;
     const label = archived.value ? null : recordedLabel;
+
+    const mobile = normalizeMobile(
+      take<string>("mobile", [
+        ["authentik.attributes", attribute(parts.authentik, "mobile")],
+        ["sheet", parts.sheet?.mobile],
+        ["drupal", parts.drupal?.mobile],
+      ]),
+    );
+    if (mobile.note) {
+      mobileNotes.push(
+        `${lastName} ${firstName}: "${mobile.raw}" → ${mobile.value ?? "dropped"} (${mobile.note})`,
+      );
+    }
+    if (!mobile.value) provenance.mobile = undefined;
     if (archived.value && recordedLabel) {
       droppedRoles.push(`${lastName} ${firstName}: "${recordedLabel}"`);
     }
@@ -460,11 +476,7 @@ async function main(): Promise<void> {
         ["drupal", parts.drupal?.nickname],
       ]),
       email: email as string,
-      mobile: take<string>("mobile", [
-        ["authentik.attributes", attribute(parts.authentik, "mobile")],
-        ["sheet", parts.sheet?.mobile],
-        ["drupal", parts.drupal?.mobile],
-      ]),
+      mobile: mobile.value,
       university: take<string>("university", [
         ["sheet", parts.sheet?.university],
       ]),
@@ -579,6 +591,33 @@ async function main(): Promise<void> {
         "SKIP in decision to drop the person for good. The file is read back " +
         "before it is rewritten, so answers survive a re-run.",
     );
+  }
+
+  // A number two people both "have" is not a number either of them has. The
+  // Drupal field was mandatory, so the same placeholder got typed repeatedly.
+  const sharedMobiles = new Map<string, BuiltMember[]>();
+  for (const member of members) {
+    if (!member.mobile) continue;
+    sharedMobiles.set(member.mobile, [
+      ...(sharedMobiles.get(member.mobile) ?? []),
+      member,
+    ]);
+  }
+  const shared = [...sharedMobiles].filter(([, who]) => who.length > 1);
+  for (const [number, who] of shared) {
+    for (const member of who) {
+      member.mobile = null;
+      member.provenance.mobile = undefined;
+    }
+    mobileNotes.push(
+      `"${number}" dropped from ${who.length} members who cannot all have it: ` +
+        who.map((m) => `${m.lastName} ${m.firstName}`).join(", "),
+    );
+  }
+
+  if (mobileNotes.length > 0) {
+    step(`Mobile numbers — ${mobileNotes.length}`);
+    for (const note of mobileNotes) info(`  ${note}`);
   }
 
   if (droppedRoles.length > 0) {

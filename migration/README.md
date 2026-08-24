@@ -346,7 +346,16 @@ above, and records **which source won every field**. That provenance is printed 
 summary and stored per member, because "where did this value come from" is the only
 question worth asking of a merge afterwards, and the clusters are gone by then.
 
-Two details the table does not capture:
+`mobile` gets more than a straight copy. The Drupal field was **mandatory**, so everyone
+unwilling to give a number typed something: a run of one digit, or a walk up the keypad.
+Those become null rather than reaching Authentik, where a placeholder looks exactly like a
+real contact. A number two members both "have" is dropped from both — neither of them has
+it. Everything else is normalised to international form (`06 30 …`, `30/555-0123` and a
+stray Excel apostrophe all become `+3630…`), and where a field held two numbers the first
+is kept. Anything merely odd is **kept and flagged**: losing a real number is worse than
+keeping a doubtful one somebody can check.
+
+Two details the precedence table does not capture:
 
 - `ALUMNI` and `ACTIVE_ALUMNI` share one Authentik group, so group membership proves
   someone is an alumnus but not which kind. Only the Sheet marks anyone `Aktív öregtag`,
@@ -446,6 +455,8 @@ wrote it, so it would catch a bad import produced some other way. It fails on an
   quiet one — a member who does have an account but got a prefixed id has every Authentik
   job recorded SKIPPED, so their sync stops without a single failure to look at
 - duplicate emails, or a `LeadershipRole` referencing an unregistered `authentikGroupId`
+- a mobile that is not in international form — the last line of defence on a field that
+  was mandatory in a system that did not check it
 - a `LeadershipRole` granting a **permission** group. `Admin`, the API-client group and
   `Vezetőség` are configured by name, so they land in a member's Authentik groups looking
   exactly like a role group — and a role that grants one revokes it when the role ends.
