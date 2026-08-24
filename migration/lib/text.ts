@@ -55,6 +55,15 @@ export function splitHungarianFullName(fullname: string): {
   return { firstName: tokens.slice(1).join(" "), lastName: tokens[0] };
 }
 
+// A guard against a four-digit number that is not a year at all — a room, a
+// fragment of a phone number — and nothing more. It is deliberately wider than
+// the roster: the studio predates the oldest member anyone has entered, and a
+// bound drawn around the data would silently drop whoever turns out to be older
+// than it. One alumna joined in 1982 while every other parsed year was 1996 or
+// later.
+const FIRST_PLAUSIBLE_YEAR = 1960;
+const LAST_PLAUSIBLE_YEAR = 2100;
+
 export type SemesterGuess = {
   semester: string | null;
   confidence: "exact" | "guessed" | "unknown";
@@ -91,7 +100,9 @@ export function semesterFromJoinYear(
   if (years.length === 0) return result(null, "unknown");
 
   const year = years[0];
-  if (year < 1990 || year > 2100) return result(null, "unknown");
+  if (year < FIRST_PLAUSIBLE_YEAR || year > LAST_PLAUSIBLE_YEAR) {
+    return result(null, "unknown");
+  }
 
   if (AUTUMN.test(normalized)) return result(`${year}/${year + 1}/1`, "exact");
   if (SPRING.test(normalized)) return result(`${year - 1}/${year}/2`, "exact");
