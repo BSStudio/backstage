@@ -98,7 +98,21 @@ function auditRow(member: BuiltMember): Prisma.AuditLogCreateManyInput {
     actorId: null,
     targetId: member.id,
     action: "MEMBER_CREATED",
+    // `created` is the shape `createMember` writes for this action, and
+    // `parseAuditDiff` keys off it to render "Új tag". Anything else here is
+    // read as a field-level diff and comes out as a row of empty arrows.
+    // Everything the migration knows still travels alongside it: the UI ignores
+    // the extra keys, and a query does not.
     diff: {
+      created: {
+        firstName: member.firstName,
+        lastName: member.lastName,
+        email: member.email,
+        status: member.status,
+        joinedSemester: member.joinedSemester,
+        websiteUserId: member.websiteUserId,
+        archived: member.archived,
+      },
       imported: true,
       sources: member.records,
       provenance: member.provenance,

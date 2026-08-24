@@ -453,6 +453,12 @@ timestamps, plus a `MEMBER_ARCHIVED` entry where the archival date is actually k
 audit log entry carries `actorId: null` — nobody did this — and records the source records
 and per-field provenance in its diff.
 
+That diff is shaped `{ created: … }`, which is what `createMember` writes for this action
+and what `parseAuditDiff` keys off to render *Új tag*. Any other shape is read as a
+field-level diff and comes out as a row of empty arrows on both `/admin/audit` and the
+member page. The migration's own keys — `sources`, `provenance`, `archivedAtEstimated` —
+sit alongside it: the UI ignores them, a query does not.
+
 **No `SyncJob` rows at all** — not even `SKIPPED` ones for the accountless members.
 `SKIPPED` records a call the app declined to make; the import makes no calls, and seeding
 `/admin/sync-jobs` with hundreds of rows nobody can act on buries the FAILED ones that
