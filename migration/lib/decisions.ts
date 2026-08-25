@@ -77,10 +77,22 @@ export function isKeep(decision: Decision | null): boolean {
 // "I looked, it is right." Distinct from SKIP, which discards the row.
 const ACCEPTED = new Set(["ok", "correct", "keep", "rendben", "confirmed"]);
 
+/** The record set a row was answered about, order-independent. */
+function signature(records: string[]): string {
+  return records
+    .map((key) => key.trim())
+    .filter(Boolean)
+    .sort()
+    .join("|");
+}
+
 /**
- * Record keys whose row has been signed off in a review file. Indexed by every
- * record on the row for the same reason decisions are: a cluster re-keys as soon
- * as it gains a source.
+ * Clusters signed off in a review file, keyed by their whole record set.
+ *
+ * The opposite of how decisions are indexed, and deliberately: an answer about a
+ * person follows them into whatever cluster they end up in, but "I looked, these
+ * two are one person" stops being true the moment a third record joins them.
+ * Keyed per record, that sign-off would suppress the question forever.
  */
 export function readAcknowledgements(file: string): Set<string> {
   const acknowledged = new Set<string>();
@@ -88,10 +100,8 @@ export function readAcknowledgements(file: string): Set<string> {
 
   for (const row of parseTsv(readFileSync(dataPath(file), "utf8"))) {
     if (!ACCEPTED.has((row.decision ?? "").trim().toLowerCase())) continue;
-    for (const key of (row.records ?? "").split("|")) {
-      const trimmed = key.trim();
-      if (trimmed) acknowledged.add(trimmed);
-    }
+    const key = signature((row.records ?? "").split("|"));
+    if (key) acknowledged.add(key);
   }
   return acknowledged;
 }
@@ -100,5 +110,5 @@ export function isAccepted(
   acknowledged: Set<string>,
   records: string[],
 ): boolean {
-  return records.some((key) => acknowledged.has(key));
+  return acknowledged.has(signature(records));
 }
