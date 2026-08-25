@@ -512,10 +512,31 @@ empty production database. The migration table comes along, so the entrypoint's
 
 The local schema must be at the exact commit the production image is built from.
 
+Build it from an empty database rather than on top of whatever the last run left, so the
+dump is a clean-slate result:
+
 ```
-pg_dump --format=custom --no-owner --no-privileges "$LOCAL_DATABASE_URL" > backstage.dump
-pg_restore --no-owner --no-privileges -d "$PROD_DATABASE_URL" backstage.dump
+pnpm db:reset --skip-seed
+pnpm tsx migration/seed-groups.ts
+pnpm tsx migration/import.ts
+pnpm tsx migration/verify.ts
+
+docker exec <postgres container> pg_dump --format=custom --no-owner --no-privileges   -U backstage -d backstage > migration/data/backstage-migration-<date>.dump
 ```
+
+Then prove the dump restores **before** production depends on it — restoring into a
+scratch database in the same container costs a minute and is the only thing that turns a
+file into a backup:
+
+```
+docker exec <c> psql -U backstage -d postgres -c 'CREATE DATABASE restore_drill;'
+docker exec -i <c> pg_restore --no-owner --no-privileges -U backstage -d restore_drill < <dump>
+```
+
+Compare row counts against the source, confirm `_prisma_migrations` came across with the
+migration recorded as applied and not rolled back, then drop the scratch database. The
+dump is gitignored along with the rest of `data/` — it holds every member's contact
+details.
 
 First thing after the cutover: log in yourself and confirm you land on your existing
 member row rather than a new one. That is the live proof of step 0.

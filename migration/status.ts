@@ -106,6 +106,9 @@ const NOT_GENERATED = new Set([
   "member-overrides.json",
 ]);
 
+// The cutover artefact, not a pipeline one: a pg_dump of the built database.
+const DUMP = /^backstage-migration-\d{8}\.dump$/;
+
 /** Newest mtime in a file or anywhere under a directory. */
 function newest(path: string): number | null {
   if (!existsSync(path)) return null;
@@ -173,6 +176,7 @@ function main(): void {
     for (const entry of readdirSync(directory)) {
       const key = prefix ? `${prefix}/${entry}` : entry;
       if (NOT_GENERATED.has(key) || declared.has(key)) continue;
+      if (DUMP.test(key)) continue;
       if (statSync(`${directory}/${entry}`).isDirectory()) {
         walk(`${directory}/${entry}`, key);
         continue;
