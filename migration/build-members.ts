@@ -283,34 +283,76 @@ function firstOf<T>(candidates: [string, T | null | undefined][]): {
 function resolveStatus(
   parts: Parts,
   groups: Map<string, MembershipStatus[]>,
-): { value: MembershipStatus | null; from: string | null } {
-  const fromGroups = (parts.authentik?.groups ?? [])
+): {
+  value: MembershipStatus | null;
+  from: string | null;
+  conflict: string | null;
+} {
+  const memberOf = (parts.authentik?.groups ?? []).filter((uuid) =>
+    groups.has(uuid),
+  );
+  const fromGroups = memberOf
     .flatMap((uuid) => groups.get(uuid) ?? [])
     .filter((status, index, all) => all.indexOf(status) === index);
 
   if (fromGroups.length === 1) {
-    return { value: fromGroups[0], from: "authentik.groups" };
+    return { value: fromGroups[0], from: "authentik.groups", conflict: null };
   }
   if (fromGroups.length > 1) {
-    // The shared alumni group: the membership proves they are an alumnus but not
-    // which kind. Only the Sheet marks someone Aktív öregtag, so without a row
-    // saying so the plain ALUMNI is the honest answer.
     const sheet = sortSheetRows(parts.sheetRows).find(
       (row) => row.status && fromGroups.includes(row.status),
     );
     if (sheet?.status) {
-      return { value: sheet.status, from: "authentik.groups + sheet" };
+      return {
+        value: sheet.status,
+        from: "authentik.groups + sheet",
+        conflict: null,
+      };
     }
+    // One group covering both alumni statuses proves they are an alumnus but not
+    // which kind. Only the Sheet marks someone Aktív öregtag, so without a row
+    // saying so the plain ALUMNI is the honest answer.
+    if (memberOf.length === 1) {
+      return {
+        value: fromGroups.includes("ALUMNI") ? "ALUMNI" : fromGroups[0],
+        from: "authentik.groups",
+        conflict: null,
+      };
+    }
+    // Two *different* status groups is not that. orchestrateStatusChange adds
+    // before it removes, so a half-finished promotion leaves a current member in
+    // their old group as well, and either half could be the stale one. Guessing
+    // here imported active members as alumni.
     return {
-      value: fromGroups.includes("ALUMNI") ? "ALUMNI" : fromGroups[0],
-      from: "authentik.groups",
+      value: null,
+      from: null,
+      conflict: `in ${memberOf.length} status groups at once (${fromGroups.join(", ")}) and no sheet row settles it`,
     };
   }
 
-  return firstOf<MembershipStatus>([
-    ["sheet", parts.sheet?.status ?? null],
-    ["drupal", parts.drupal?.status ?? null],
-  ]);
+  return {
+    ...firstOf<MembershipStatus>([
+      ["sheet", parts.sheet?.status ?? null],
+      ["drupal", parts.drupal?.status ?? null],
+    ]),
+    conflict: null,
+  };
+}
+
+/**
+ * Source records building this cluster would throw away.
+ *
+ * A member takes one Authentik and one Drupal account, so a cluster holding two
+ * of either loses a person — silently, because the extra key appears in no
+ * report and the run still exits 0.
+ */
+function collapsedRecords(cluster: Cluster): string[] {
+  const extras = (prefix: string, kept: string | null): string[] =>
+    cluster.records.filter((key) => key.startsWith(prefix) && key !== kept);
+  return [
+    ...extras("authentik:", cluster.authentik),
+    ...extras("drupal:", cluster.drupal),
+  ];
 }
 
 function resolveArchived(parts: Parts): { value: boolean; from: string } {
@@ -399,6 +441,7 @@ async function main(): Promise<void> {
   const ignoredEntries: { entry: RejectedCluster; why: string }[] = [];
   const rewritten: string[] = [];
   const droppedRoles: string[] = [];
+  const collapsedNotes: string[] = [];
   const mobileNotes: string[] = [];
   let estimatedArchivals = 0;
 
@@ -448,6 +491,7 @@ async function main(): Promise<void> {
     if (decision?.setStatus) {
       status.value = decision.setStatus as MembershipStatus;
       status.from = REJECTED_FILE;
+      status.conflict = null;
     }
     if (status.from) provenance.status = status.from;
 
@@ -460,14 +504,30 @@ async function main(): Promise<void> {
       provenance.joinedSemester = REJECTED_FILE;
     }
 
-    const ignored = isKeep(decision) ? null : ignoreReason(parts, status.value);
+    // A contradictory status is not a missing one. ignoreReason drops people no
+    // system ever placed; a member Authentik puts in two status groups at once is
+    // the opposite case, and letting it fall through there loses them silently.
+    const ignored =
+      isKeep(decision) || status.conflict
+        ? null
+        : ignoreReason(parts, status.value);
+
+    const collapsed = collapsedRecords(cluster);
 
     const reasons: string[] = [];
     if (!ignored) {
-      if (!status.value) reasons.push("no status in any source");
+      if (!status.value) {
+        reasons.push(status.conflict ?? "no status in any source");
+      }
       if (!email) reasons.push("no email address");
       if (!firstName || !lastName) reasons.push("no usable name");
       if (!joined) reasons.push("no join semester");
+      if (collapsed.length > 0 && !isKeep(decision)) {
+        reasons.push(
+          `would discard ${collapsed.join(", ")} — split the cluster in ` +
+            "data/overrides.json, or answer KEEP if they are one person twice",
+        );
+      }
     }
 
     if (reasons.length > 0 || ignored || isSkip(decision)) {
@@ -516,6 +576,12 @@ async function main(): Promise<void> {
     if (resolved.rewrittenFrom) {
       rewritten.push(
         `${cluster.key}: ${resolved.rewrittenFrom} → ${resolved.id}`,
+      );
+    }
+
+    if (collapsed.length > 0) {
+      collapsedNotes.push(
+        `${lastName} ${firstName}: kept one account, dropped ${collapsed.join(", ")}`,
       );
     }
 
@@ -771,6 +837,15 @@ async function main(): Promise<void> {
       "the member is archived, so the role has ended; only current ones are rows",
     );
     for (const line of droppedRoles) info(`  ${line}`);
+  }
+
+  if (collapsedNotes.length > 0) {
+    step(`Clusters collapsed by hand — ${collapsedNotes.length}`);
+    info(
+      `answered KEEP in ${REJECTED_FILE}, so the extra account counts as the same ` +
+        "person twice and is not imported on its own",
+    );
+    for (const line of collapsedNotes) info(`  ${line}`);
   }
 
   if (rewritten.length > 0) {
