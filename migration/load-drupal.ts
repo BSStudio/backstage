@@ -89,19 +89,18 @@ async function read(name: string): Promise<TsvRow[]> {
   }
 }
 
-function warnUnknownFields(fields: TsvRow[]): void {
+function requireKnownFields(fields: TsvRow[]): void {
   const present = new Set(fields.map((row) => row.name));
   const missing = Object.values(FIELD).filter((name) => !present.has(name));
   if (missing.length === 0) {
     info("all expected profile fields exist");
     return;
   }
-  console.error(
-    `\n  ✖ profile fields not found in this database: ${missing.join(", ")}\n` +
-      "    Every member would silently get null for them. Reconcile FIELD in\n" +
-      "    migration/load-drupal.ts against 01-profile-fields.tsv before continuing.\n",
+  fail(
+    `profile fields not found in this database: ${missing.join(", ")}\n` +
+      "  Every member would silently get null for them. Reconcile FIELD in\n" +
+      "  migration/load-drupal.ts against 01-profile-fields.tsv before continuing.",
   );
-  process.exitCode = 1;
 }
 
 function build(
@@ -150,7 +149,7 @@ async function main(): Promise<void> {
     read("04-user-roles"),
   ]);
   info(`${userRows.length} users, ${valueRows.length} profile values`);
-  warnUnknownFields(fields);
+  requireKnownFields(fields);
 
   const profiles = new Map<string, Record<string, string>>();
   for (const row of valueRows) {
