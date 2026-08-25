@@ -37,6 +37,14 @@ const nextConfig: NextConfig = {
   images: {
     localPatterns: [{ pathname: "/avatars/**" }],
   },
+  // The tracer copies @swc/helpers' `cjs/` half, but Node 24 resolves the package's
+  // `module-sync` export to `esm/` — without this the standalone server dies on boot.
+  outputFileTracingIncludes: {
+    "/*": [
+      "node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/esm/**/*",
+      "node_modules/@swc/helpers/esm/**/*",
+    ],
+  },
 };
 
 // Upload is off without the build secret, so a local `pnpm build` still succeeds.
