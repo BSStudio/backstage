@@ -1559,7 +1559,7 @@ describe("uploadMemberAvatar", () => {
     expect(result.member.portraitUrl).toBe("/p.webp");
   });
 
-  it("writes an AVATAR_UPLOADED audit log entry on first upload", async () => {
+  it("writes an AVATAR_UPLOADED audit log entry and syncs on first upload", async () => {
     const prisma = getTestPrisma();
     await uploadMemberAvatar(prisma, MEMBER_ID, URLS, ACTOR);
 
@@ -1568,9 +1568,16 @@ describe("uploadMemberAvatar", () => {
     });
     expect(audit).toHaveLength(1);
     expect(audit[0]).toMatchObject({ action: "AVATAR_UPLOADED" });
+    expect(mockOrchestrateUpdateAttributes).toHaveBeenCalledTimes(1);
+    const [, syncedId, syncedData] =
+      mockOrchestrateUpdateAttributes.mock.calls[0];
+    expect(syncedId).toBe(MEMBER_ID);
+    expect(syncedData).toEqual({
+      attributes: expect.objectContaining({ avatar_url: "/a.webp" }),
+    });
   });
 
-  it("writes an AVATAR_UPLOADED audit log entry on replace (URLs unchanged)", async () => {
+  it("writes an AVATAR_UPLOADED audit log entry on replace but skips the sync", async () => {
     const prisma = getTestPrisma();
     await prisma.member.update({
       where: { id: MEMBER_ID },
@@ -1584,6 +1591,7 @@ describe("uploadMemberAvatar", () => {
     });
     expect(audit).toHaveLength(1);
     expect(audit[0]).toMatchObject({ action: "AVATAR_UPLOADED" });
+    expect(mockOrchestrateUpdateAttributes).not.toHaveBeenCalled();
   });
 
   it("collects syncErrors when Authentik update fails", async () => {
@@ -1645,6 +1653,19 @@ describe("removeMemberAvatar", () => {
     });
     expect(audit).toHaveLength(1);
     expect(audit[0]).toMatchObject({ action: "AVATAR_REMOVED" });
+  });
+
+  it("skips the sync when only the portrait was set", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: { portraitUrl: "/old-p.webp" },
+    });
+
+    const result = await removeMemberAvatar(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.member.portraitUrl).toBeNull();
+    expect(mockOrchestrateUpdateAttributes).not.toHaveBeenCalled();
   });
 
   it("collects syncErrors when Authentik update fails", async () => {

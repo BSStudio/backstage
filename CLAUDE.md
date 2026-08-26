@@ -653,6 +653,11 @@ collision *there* still fails the create and lands as a `FAILED` job.
 member UUID, so a replace would be invisible in the diff without dedicated `AVATAR_UPLOADED` /
 `AVATAR_REMOVED` actions. `removeMemberAvatar` no-ops when there is nothing to remove.
 
+That same determinism is why both paths sync Authentik only when `avatarUrl` actually changes
+(`syncAvatarUrl` in `lib/services/members.ts`): replacing an image leaves the URL identical, so the
+attribute push would be a `SyncJob` row and an Authentik call that change nothing. The audit entry
+is still written — that is what records the replace.
+
 **Leadership role → group sync.** Assigning a role adds the member to the common Leadership group
 (`AUTHENTIK_GROUP_LEADERSHIP_UUID`) **plus** any role-specific `authentikGroupIds`; `removeRole`
 removes both. Updating an existing role keeps the Leadership membership and only diffs the

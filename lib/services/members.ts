@@ -196,6 +196,26 @@ export function ensureCanModifyAvatar(actor: Actor, targetId: string): void {
   if (!isSelf && !isLeaderOrAdmin) throw new ForbiddenError();
 }
 
+async function syncAvatarUrl(
+  prisma: PrismaClient,
+  memberId: string,
+  before: { avatarUrl: string | null },
+  after: {
+    firstName: string;
+    lastName: string;
+    mobile: string | null;
+    avatarUrl: string | null;
+  },
+  syncErrors: string[],
+): Promise<void> {
+  if (before.avatarUrl === after.avatarUrl) return;
+
+  const result = await orchestrateUpdateAttributes(prisma, memberId, {
+    attributes: buildAuthentikAttributes(after),
+  });
+  if (!result.success) syncErrors.push(result.error);
+}
+
 export async function uploadMemberAvatar(
   prisma: PrismaClient,
   id: string,
@@ -220,10 +240,7 @@ export async function uploadMemberAvatar(
   });
 
   const syncErrors: string[] = [];
-  const result = await orchestrateUpdateAttributes(prisma, id, {
-    attributes: buildAuthentikAttributes(updated),
-  });
-  if (!result.success) syncErrors.push(result.error);
+  await syncAvatarUrl(prisma, id, member, updated, syncErrors);
 
   return { member: updated, syncErrors };
 }
@@ -258,10 +275,7 @@ export async function removeMemberAvatar(
   });
 
   const syncErrors: string[] = [];
-  const result = await orchestrateUpdateAttributes(prisma, id, {
-    attributes: buildAuthentikAttributes(updated),
-  });
-  if (!result.success) syncErrors.push(result.error);
+  await syncAvatarUrl(prisma, id, member, updated, syncErrors);
 
   return { member: updated, syncErrors };
 }
