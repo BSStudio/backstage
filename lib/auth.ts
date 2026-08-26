@@ -14,6 +14,8 @@ const ALLOWED_AUTH_PATHS = new Set([
 ]);
 
 export const auth = betterAuth({
+  baseURL: process.env.APP_URL,
+
   user: {
     additionalFields: {
       role: {

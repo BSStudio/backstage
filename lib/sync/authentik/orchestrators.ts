@@ -39,6 +39,14 @@ async function runAuthentikJob(
   return executeSyncJob(prisma, job.id);
 }
 
+function absoluteAvatarUrl(path: string): string {
+  const origin = process.env.APP_URL;
+  if (!origin) {
+    throw new Error("Missing APP_URL, needed to build the avatar URL");
+  }
+  return new URL(path, origin).toString();
+}
+
 export function buildAuthentikAttributes(member: {
   firstName: string;
   lastName: string;
@@ -50,7 +58,7 @@ export function buildAuthentikAttributes(member: {
     last_name: member.lastName,
   };
   if (member.mobile) attrs.mobile = member.mobile;
-  if (member.avatarUrl) attrs.avatar_url = member.avatarUrl;
+  if (member.avatarUrl) attrs.avatar_url = absoluteAvatarUrl(member.avatarUrl);
   return attrs;
 }
 

@@ -614,6 +614,10 @@ errors (`NotFoundError`, `ForbiddenError`, `ValidationError`) flow through `mapS
 (`first_name`, `last_name`, `mobile`, `avatar_url`). Trade-off: attributes set by hand in the
 Authentik admin UI get wiped on the next update. Acceptable for a managed fleet.
 
+`avatar_url` is absolutised against `APP_URL` on the way out, while the DB and the UI keep the
+`/avatars/…` path. Authentik renders the attribute verbatim and has no placeholder for our origin,
+so a path there would resolve against the Authentik host.
+
 **Status change adds before removing.** `orchestrateStatusChange` issues `ADD_TO_GROUP` before
 `REMOVE_FROM_GROUP`. If ADD fails nothing changed; if REMOVE fails the user is briefly in both
 groups, which a retry fixes. The reverse order risks leaving a user in **no** group.

@@ -56,6 +56,7 @@ beforeEach(async () => {
   vi.stubEnv("AUTHENTIK_GROUP_CANDIDATE", "group-c");
   vi.stubEnv("AUTHENTIK_GROUP_MEMBER", "group-m");
   vi.stubEnv("AUTHENTIK_GROUP_ALUMNI", "group-a");
+  vi.stubEnv("APP_URL", "https://backstage.example.com");
 
   const prisma = getTestPrisma();
   await prisma.member.upsert({
@@ -327,7 +328,7 @@ describe("buildAuthentikAttributes", () => {
     });
   });
 
-  it("adds avatar_url when set", () => {
+  it("adds avatar_url as an absolute URL when set", () => {
     const attrs = buildAuthentikAttributes({
       firstName: "A",
       lastName: "B",
@@ -337,7 +338,7 @@ describe("buildAuthentikAttributes", () => {
     expect(attrs).toEqual({
       first_name: "A",
       last_name: "B",
-      avatar_url: "/avatars/x-square.webp",
+      avatar_url: "https://backstage.example.com/avatars/x-square.webp",
     });
   });
 
@@ -352,7 +353,19 @@ describe("buildAuthentikAttributes", () => {
       first_name: "A",
       last_name: "B",
       mobile: "+36301234567",
-      avatar_url: "/avatars/x-square.webp",
+      avatar_url: "https://backstage.example.com/avatars/x-square.webp",
     });
+  });
+
+  it("throws when APP_URL is not set", () => {
+    vi.stubEnv("APP_URL", "");
+    expect(() =>
+      buildAuthentikAttributes({
+        firstName: "A",
+        lastName: "B",
+        mobile: null,
+        avatarUrl: "/avatars/x-square.webp",
+      }),
+    ).toThrow("Missing APP_URL");
   });
 });
