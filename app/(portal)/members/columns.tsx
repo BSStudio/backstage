@@ -147,14 +147,12 @@ export const nameColumn: MemberColumnDef = {
     );
   },
   filterFn: (row, _id, value) => {
+    const tokens = String(value).toLowerCase().split(/\s+/).filter(Boolean);
     const m = row.original;
-    const search = String(value).toLowerCase();
-    return (
-      m.firstName.toLowerCase().includes(search) ||
-      m.lastName.toLowerCase().includes(search) ||
-      (m.nickname?.toLowerCase().includes(search) ?? false) ||
-      m.email.toLowerCase().includes(search)
-    );
+    const haystack = [m.lastName, m.firstName, m.nickname, m.email]
+      .join(" ")
+      .toLowerCase();
+    return tokens.every((token) => haystack.includes(token));
   },
 };
 
