@@ -23,16 +23,21 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 FROM base AS builder
 
 # `next build` freezes NEXT_PUBLIC_* into the bundle, so these cannot be set on the
-# running container. A DSN is public, hence plain args rather than secrets.
+# running container. None of them is a secret, hence plain args.
 ARG NEXT_PUBLIC_SENTRY_DSN=""
+# Empty falls back to NODE_ENV, i.e. production.
+ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT=""
 ARG NEXT_PUBLIC_APP_VERSION="dev"
 # No `.git` or git binary here, so CI passes what next.config.ts derives locally.
 ARG NEXT_PUBLIC_COMMIT_HASH=""
+ARG NEXT_PUBLIC_GOOGLE_GROUP_URL=""
 ARG SENTRY_ORG=""
 ARG SENTRY_PROJECT=""
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=$NEXT_PUBLIC_SENTRY_ENVIRONMENT
 ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
 ENV NEXT_PUBLIC_COMMIT_HASH=$NEXT_PUBLIC_COMMIT_HASH
+ENV NEXT_PUBLIC_GOOGLE_GROUP_URL=$NEXT_PUBLIC_GOOGLE_GROUP_URL
 ENV SENTRY_ORG=$SENTRY_ORG
 ENV SENTRY_PROJECT=$SENTRY_PROJECT
 
