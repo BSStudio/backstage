@@ -88,7 +88,6 @@ jobs:
             NEXT_PUBLIC_SENTRY_ENVIRONMENT=${{ vars.NEXT_PUBLIC_SENTRY_ENVIRONMENT }}
             NEXT_PUBLIC_APP_VERSION=${{ steps.build-meta.outputs.version }}
             NEXT_PUBLIC_COMMIT_HASH=${{ steps.build-meta.outputs.hash }}
-            NEXT_PUBLIC_GOOGLE_GROUP_URL=${{ vars.NEXT_PUBLIC_GOOGLE_GROUP_URL }}
             SENTRY_ORG=${{ vars.SENTRY_ORG }}
             SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
           # Empty on pull requests, which switches source map upload off rather than

@@ -511,18 +511,17 @@ Do not try to shrink that tree by deleting `@prisma/studio-core` or `@prisma/dev
 requires both eagerly and the CLI stops loading at all.
 
 **Build args vs secrets.** Every `NEXT_PUBLIC_*` value is a plain build arg —
-`NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, `NEXT_PUBLIC_APP_VERSION`,
-`NEXT_PUBLIC_COMMIT_HASH` and `NEXT_PUBLIC_GOOGLE_GROUP_URL`. A DSN and a Google Group URL are
-public, the rest name the build or the environment, and `next build` freezes all of them into the
-bundle, so setting any of them on the running container reports nothing at all. An empty
+`NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, `NEXT_PUBLIC_APP_VERSION` and
+`NEXT_PUBLIC_COMMIT_HASH`. A DSN is public, the rest name the build or the environment, and
+`next build` freezes all of them into the bundle, so setting any of them on the running container
+reports nothing at all. An empty
 `NEXT_PUBLIC_SENTRY_ENVIRONMENT` falls back to `NODE_ENV`, which is what an unconfigured image
 reports as. `SENTRY_ORG` and `SENTRY_PROJECT` are build args too: they only address the upload
 target, and without them `withSentryConfig` has nowhere to send source maps. `SENTRY_AUTH_TOKEN`
 is the only real secret and comes in as a BuildKit secret mount; a build arg would land in the
 image history. The publish workflow derives the version and the hash from the ref it is building,
-and reads `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`,
-`NEXT_PUBLIC_GOOGLE_GROUP_URL`, `SENTRY_ORG` and `SENTRY_PROJECT` from repository *variables*, the
-token from a repository *secret*.
+and reads `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, `SENTRY_ORG` and
+`SENTRY_PROJECT` from repository *variables*, the token from a repository *secret*.
 
 **Workflows** (`.github/workflows/`), actions pinned to a patch version, mirroring
 [BSStudio/request-manager](https://github.com/BSStudio/request-manager):
@@ -563,7 +562,6 @@ automation, and all of it is set once:
 | Secret | `CODECOV_TOKEN` | the coverage upload fails the `Test` job (`fail_ci_if_error`) |
 | Secret | `SENTRY_AUTH_TOKEN` | no source map upload, so production stack traces stay minified |
 | Variable | `NEXT_PUBLIC_SENTRY_DSN` | the built image reports nothing to Sentry at all |
-| Variable | `NEXT_PUBLIC_GOOGLE_GROUP_URL` | the new-member page drops its Google Group link |
 | Variable | `SENTRY_ORG` / `SENTRY_PROJECT` | source map upload has no target |
 
 Branch protection on `main` requires exactly `ci.yml`'s three jobs — `Lint and typecheck`, `Test`,
