@@ -23,6 +23,7 @@ enum MembershipStatus {
 enum SyncTarget {
   AUTHENTIK
   WEBSITE
+  GOOGLE_GROUP
 }
 
 enum SyncOperation {

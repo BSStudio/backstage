@@ -75,7 +75,7 @@ export async function addGroupMember(
     });
     return { added: true };
   } catch (error) {
-    // Already a member: the end state is the one we asked for, so not a failure.
+    // Already a member: the end state is the one we asked for.
     if (error instanceof GoogleApiError && error.status === 409) {
       return { added: false };
     }
@@ -95,8 +95,7 @@ export async function removeGroupMember(
     );
     membershipName = lookup.name;
   } catch (error) {
-    // Not on the list — nothing to remove, and a retry of an already-applied removal
-    // must not fail.
+    // A retry of an already-applied removal must not fail.
     if (error instanceof GoogleApiError && error.status === 404) {
       return { removed: false };
     }

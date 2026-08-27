@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "SyncTarget" ADD VALUE 'GOOGLE_GROUP';
