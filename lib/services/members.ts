@@ -19,6 +19,10 @@ import {
   orchestrateStatusChange,
   orchestrateUpdateAttributes,
 } from "@/lib/sync/authentik/orchestrators";
+import {
+  orchestrateAddToGoogleGroup,
+  orchestrateRemoveFromGoogleGroup,
+} from "@/lib/sync/google/orchestrators";
 import { getWebsiteStatusLabel } from "@/lib/sync/website/group-mapping";
 import {
   orchestrateCreateWebsiteUser,
@@ -184,6 +188,13 @@ export async function createMember(
   } else {
     syncErrors.push(websiteResult.error);
   }
+
+  const googleResult = await orchestrateAddToGoogleGroup(
+    prisma,
+    member.id,
+    data.email,
+  );
+  if (!googleResult.success) syncErrors.push(googleResult.error);
 
   return { member, syncErrors };
 }
@@ -437,10 +448,15 @@ export async function updateMember(
   return { member: updated, syncErrors };
 }
 
+export interface ArchiveOptions {
+  removeFromGoogleGroup?: boolean;
+}
+
 export async function archiveMember(
   prisma: PrismaClient,
   id: string,
   actor: Actor,
+  options: ArchiveOptions = {},
 ) {
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) throw new NotFoundError();
@@ -473,6 +489,15 @@ export async function archiveMember(
   );
   if (!websiteResult.success) syncErrors.push(websiteResult.error);
 
+  if (options.removeFromGoogleGroup) {
+    const googleResult = await orchestrateRemoveFromGoogleGroup(
+      prisma,
+      member.id,
+      member.email,
+    );
+    if (!googleResult.success) syncErrors.push(googleResult.error);
+  }
+
   return { syncErrors };
 }
 
@@ -480,6 +505,7 @@ export async function batchArchive(
   prisma: PrismaClient,
   ids: string[],
   actor: Actor,
+  options: ArchiveOptions = {},
 ) {
   const members = await prisma.member.findMany({
     where: { id: { in: ids }, archived: false },
@@ -513,6 +539,9 @@ export async function batchArchive(
     members.flatMap((m) => [
       orchestrateDeactivate(prisma, m.id),
       orchestrateDeactivateWebsiteUser(prisma, m.id),
+      ...(options.removeFromGoogleGroup
+        ? [orchestrateRemoveFromGoogleGroup(prisma, m.id, m.email)]
+        : []),
     ]),
   );
   const syncErrors = syncResults

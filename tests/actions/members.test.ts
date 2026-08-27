@@ -185,6 +185,21 @@ describe("archiveMemberAction", () => {
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
   });
+
+  it("passes the Google Group removal flag to the service", async () => {
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockArchiveMember.mockResolvedValue({ syncErrors: [] });
+    const { archiveMemberAction } = await import("@/lib/actions/members");
+
+    await archiveMemberAction("m-1", { removeFromGoogleGroup: true });
+
+    expect(mockArchiveMember).toHaveBeenCalledWith(
+      expect.anything(),
+      "m-1",
+      expect.anything(),
+      { removeFromGoogleGroup: true },
+    );
+  });
 });
 
 // ─── batchArchiveAction ─────────────────────────────────────────────────────

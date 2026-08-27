@@ -35,6 +35,18 @@ export function mockWebsiteOrchestrators() {
   }));
 }
 
+export function mockGoogleGroupOrchestrators() {
+  const orchestrateAddToGoogleGroup = vi.fn(async () => ok);
+  const orchestrateRemoveFromGoogleGroup = vi.fn(async () => ok);
+
+  vi.doMock("@/lib/sync/google/orchestrators", () => ({
+    orchestrateAddToGoogleGroup,
+    orchestrateRemoveFromGoogleGroup,
+  }));
+
+  return { orchestrateAddToGoogleGroup, orchestrateRemoveFromGoogleGroup };
+}
+
 export function mockNoSession() {
   const response = NextResponse.json(
     { error: "Unauthorized" },

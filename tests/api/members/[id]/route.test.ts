@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  mockGoogleGroupOrchestrators,
   mockNoSession,
   mockSession,
   mockWebsiteOrchestrators,
@@ -78,9 +79,9 @@ beforeEach(async () => {
   });
 });
 
-function reqWithParams(id: string) {
+function reqWithParams(id: string, search = "") {
   return [
-    new NextRequest(new URL(`/api/members/${id}`, "http://localhost")),
+    new NextRequest(new URL(`/api/members/${id}${search}`, "http://localhost")),
     { params: Promise.resolve({ id }) },
   ] as const;
 }
@@ -226,6 +227,32 @@ describe("DELETE /api/members/[id]", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({ archived: true });
+  });
+
+  it("removes the member from the Google Group when the flag is set", async () => {
+    mockSession({ id: ACTOR_ID, role: "LEADER" });
+    mockOrchestratorsSuccess();
+    const google = mockGoogleGroupOrchestrators();
+
+    const { DELETE } = await import("@/app/api/members/[id]/route");
+    const res = await DELETE(
+      ...reqWithParams(MEMBER_ID, "?removeFromGoogleGroup=true"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(google.orchestrateRemoveFromGoogleGroup).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the Google Group alone without the flag", async () => {
+    mockSession({ id: ACTOR_ID, role: "LEADER" });
+    mockOrchestratorsSuccess();
+    const google = mockGoogleGroupOrchestrators();
+
+    const { DELETE } = await import("@/app/api/members/[id]/route");
+    const res = await DELETE(...reqWithParams(MEMBER_ID));
+
+    expect(res.status).toBe(200);
+    expect(google.orchestrateRemoveFromGoogleGroup).not.toHaveBeenCalled();
   });
 
   it("returns 207 with syncErrors when Authentik deactivation fails", async () => {

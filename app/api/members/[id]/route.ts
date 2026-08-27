@@ -40,16 +40,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
   const session = await requireRole("ADMIN", "LEADER");
   if (session instanceof NextResponse) return session;
 
   try {
     const { id } = await params;
-    const { syncErrors } = await archiveMember(prisma, id, {
-      id: session.user.id,
-      role: session.user.role as "ADMIN" | "LEADER",
-    });
+    const { syncErrors } = await archiveMember(
+      prisma,
+      id,
+      {
+        id: session.user.id,
+        role: session.user.role as "ADMIN" | "LEADER",
+      },
+      {
+        removeFromGoogleGroup:
+          req.nextUrl.searchParams.get("removeFromGoogleGroup") === "true",
+      },
+    );
     if (syncErrors.length > 0) {
       return NextResponse.json({ archived: true, syncErrors }, { status: 207 });
     }

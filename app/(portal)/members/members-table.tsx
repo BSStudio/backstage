@@ -29,12 +29,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
 import {
   batchArchiveAction,
   batchUpdateStatusAction,
@@ -69,6 +71,7 @@ export function MembersTable({
     "status" | "archive" | null
   >(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [removeFromGoogleGroup, setRemoveFromGoogleGroup] = useState(false);
   const [archiveData, setArchiveData] = useState<{
     ids: string[];
     count: number;
@@ -110,7 +113,9 @@ export function MembersTable({
     setPendingAction("archive");
     startTransition(async () => {
       try {
-        const result = await batchArchiveAction(ids);
+        const result = await batchArchiveAction(ids, {
+          removeFromGoogleGroup,
+        });
         if (result.success) {
           if (result.syncErrors && result.syncErrors.length > 0) {
             toast.warning(
@@ -188,6 +193,7 @@ export function MembersTable({
                           count: selectedCount,
                           reset: resetSelection,
                         });
+                        setRemoveFromGoogleGroup(false);
                         setArchiveOpen(true);
                       }}
                     >
@@ -213,6 +219,21 @@ export function MembersTable({
               művelet jelenleg NEM visszavonható.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="batch-remove-from-google-group"
+              checked={removeFromGoogleGroup}
+              onCheckedChange={(checked) =>
+                setRemoveFromGoogleGroup(checked === true)
+              }
+            />
+            <Label
+              htmlFor="batch-remove-from-google-group"
+              className="font-normal"
+            >
+              Törlés a Google Group levelezőlistáról is
+            </Label>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Mégse</AlertDialogCancel>
             <AlertDialogAction onClick={handleArchiveConfirm}>
