@@ -40,6 +40,7 @@ type EditProps = {
   member: MemberData;
   currentRole: RoleData;
   authentikGroups: AuthentikGroupOption[];
+  canChangeEmail: boolean;
   canChangeStatus: boolean;
   canManageRole: boolean;
 };
@@ -72,6 +73,7 @@ function EditForms({
   member,
   currentRole,
   authentikGroups,
+  canChangeEmail,
   canChangeStatus,
   canManageRole,
   onClose,
@@ -93,11 +95,12 @@ function EditForms({
     },
     validators: { onChange: EditMemberFormSchema },
     onSubmit: async ({ value }) => {
-      const { status, ...profile } = value;
-      const result = await updateMemberAction(
-        member.id,
-        canChangeStatus ? { ...profile, status } : profile,
-      );
+      const { status, email, ...profile } = value;
+      const result = await updateMemberAction(member.id, {
+        ...profile,
+        ...(canChangeEmail ? { email } : {}),
+        ...(canChangeStatus ? { status } : {}),
+      });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -172,9 +175,11 @@ function EditForms({
         <profileForm.AppField name="nickname">
           {(field) => <field.TextField label="Becenév" />}
         </profileForm.AppField>
-        <profileForm.AppField name="email">
-          {(field) => <field.TextField label="Email" type="email" required />}
-        </profileForm.AppField>
+        {canChangeEmail && (
+          <profileForm.AppField name="email">
+            {(field) => <field.TextField label="Email" type="email" required />}
+          </profileForm.AppField>
+        )}
         <profileForm.AppField name="mobile">
           {(field) => <field.TextField label="Telefonszám" type="tel" />}
         </profileForm.AppField>

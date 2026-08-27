@@ -150,6 +150,7 @@ export default async function MemberDetailPage({
                 : null
             }
             authentikGroups={authentikGroups}
+            canChangeEmail={isLeaderOrAdmin}
             canChangeStatus={isLeaderOrAdmin}
             canManageRole={isLeaderOrAdmin}
             canArchive={isLeaderOrAdmin}

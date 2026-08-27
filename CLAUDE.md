@@ -311,8 +311,8 @@ and an `AuditLog`.
 
 `GET /api/members/[id]` — member with `leadershipRole` and full `timeline` (newest first).
 
-`PATCH /api/members/[id]` — members may edit themselves, leaders/admins anyone. Status changes
-require leader/admin. Timeline entry only on status change.
+`PATCH /api/members/[id]` — members may edit themselves, leaders/admins anyone. Status **and email**
+changes require leader/admin. Timeline entry only on status change.
 
 `DELETE /api/members/[id]` — soft archive (leader/admin): sets `archived` + `archivedAt`.
 
@@ -682,6 +682,14 @@ use `*FormSchema` variants (`CreateMemberSchema.required()` and friends) because
 submits every field as a present string, while an API caller may send a partial payload. Validation
 messages therefore live in the schema and are Hungarian; they surface both inline in the form and
 in a 400 body.
+
+**Email changes are leader/admin only.** Everything else on a member's own profile is
+self-service. The email is not: it syncs to Authentik and reaches the OIDC `email` claim, which the
+studio's other applications consume as an identity attribute, so an address Backstage has not
+verified is not ours to set unilaterally. The guard lives in `updateMember`, so the API route and
+the Server Action are both covered; the edit sheet hides the field via `canChangeEmail` rather than
+relying on that. Self-service returns once the address can be confirmed before it reaches
+Authentik.
 
 **Save is disabled until something changes.** Edit forms subscribe to TanStack Form's
 `isDefaultValue`, so reverting an edit re-disables the button. The role checkbox group keeps its

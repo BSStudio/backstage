@@ -23,6 +23,7 @@ export function MemberEditButton({
   member,
   currentRole,
   authentikGroups,
+  canChangeEmail,
   canChangeStatus,
   canManageRole,
   canArchive,
@@ -30,6 +31,7 @@ export function MemberEditButton({
   member: MemberData;
   currentRole: RoleData;
   authentikGroups: AuthentikGroupOption[];
+  canChangeEmail: boolean;
   canChangeStatus: boolean;
   canManageRole: boolean;
   canArchive: boolean;
@@ -86,6 +88,7 @@ export function MemberEditButton({
         member={member}
         currentRole={currentRole}
         authentikGroups={authentikGroups}
+        canChangeEmail={canChangeEmail}
         canChangeStatus={canChangeStatus}
         canManageRole={canManageRole}
         open={editOpen}

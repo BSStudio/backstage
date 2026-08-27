@@ -312,6 +312,12 @@ export async function updateMember(
     throw new ForbiddenError("Only leaders and admins can change status");
   }
 
+  // So does the email address
+  const emailChanging = data.email && data.email !== member.email;
+  if (emailChanging && !isLeaderOrAdmin) {
+    throw new ForbiddenError("Only leaders and admins can change the email");
+  }
+
   // Build diff for audit log
   const diff: Record<string, { old: unknown; new: unknown }> = {};
   for (const [key, val] of Object.entries(data)) {

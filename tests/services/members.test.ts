@@ -632,6 +632,45 @@ describe("updateMember", () => {
     ).rejects.toThrow(ValidationError);
   });
 
+  // ─── Email changes ──────────────────────────────────────────────────────────
+
+  it("throws ForbiddenError when member tries to change their email", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      updateMember(
+        prisma,
+        MEMBER_ID,
+        { email: "attacker@test.com" },
+        MEMBER_ACTOR,
+      ),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("lets a member submit their unchanged email alongside other fields", async () => {
+    const prisma = getTestPrisma();
+    const { member: updated } = await updateMember(
+      prisma,
+      MEMBER_ID,
+      { email: "target@test.com", nickname: "Self" },
+      MEMBER_ACTOR,
+    );
+
+    expect(updated.email).toBe("target@test.com");
+    expect(updated.nickname).toBe("Self");
+  });
+
+  it("allows leader to change the email", async () => {
+    const prisma = getTestPrisma();
+    const { member: updated } = await updateMember(
+      prisma,
+      MEMBER_ID,
+      { email: "moved@test.com" },
+      ACTOR,
+    );
+
+    expect(updated.email).toBe("moved@test.com");
+  });
+
   // ─── Status changes ─────────────────────────────────────────────────────────
 
   it("throws ForbiddenError when member tries to change status", async () => {
