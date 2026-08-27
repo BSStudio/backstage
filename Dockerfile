@@ -22,6 +22,20 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 FROM base AS builder
 
+COPY --from=deps /app/node_modules ./node_modules
+
+# `pnpm exec` reinstalls when the lockfile or workspace file is missing.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml prisma.config.ts ./
+COPY prisma ./prisma
+RUN pnpm exec prisma generate
+
+# Generating first only works because `app/generated` is in .dockerignore. Drop that
+# entry and this copies the developer's stale client back over the fresh one.
+COPY . .
+
+# Declared last on purpose: buildkit folds stage env into the cache key of every RUN
+# below it, so a version string that differs between a branch build and a tag build of
+# the same commit would re-run `prisma generate` and the copies too, not just the build.
 # `next build` freezes NEXT_PUBLIC_* into the bundle, so these cannot be set on the
 # running container. None of them is a secret, hence plain args.
 ARG NEXT_PUBLIC_SENTRY_DSN=""
@@ -40,17 +54,6 @@ ENV NEXT_PUBLIC_COMMIT_HASH=$NEXT_PUBLIC_COMMIT_HASH
 ENV NEXT_PUBLIC_GOOGLE_GROUP_URL=$NEXT_PUBLIC_GOOGLE_GROUP_URL
 ENV SENTRY_ORG=$SENTRY_ORG
 ENV SENTRY_PROJECT=$SENTRY_PROJECT
-
-COPY --from=deps /app/node_modules ./node_modules
-
-# `pnpm exec` reinstalls when the lockfile or workspace file is missing.
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml prisma.config.ts ./
-COPY prisma ./prisma
-RUN pnpm exec prisma generate
-
-# Generating first only works because `app/generated` is in .dockerignore. Drop that
-# entry and this copies the developer's stale client back over the fresh one.
-COPY . .
 
 # Without the token `withSentryConfig` skips source map upload and the build still passes.
 RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
