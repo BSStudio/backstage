@@ -163,6 +163,22 @@ describe("PATCH /api/members/[id]", () => {
     expect(res.status).toBe(200);
   });
 
+  it("adds the address to the alumni list on the move into alumni", async () => {
+    mockSession({ id: ACTOR_ID, role: "LEADER" });
+    mockOrchestratorsSuccess();
+    const google = mockGoogleGroupOrchestrators();
+
+    const { PATCH } = await import("@/app/api/members/[id]/route");
+    const res = await PATCH(...patchReq(MEMBER_ID, { status: "ALUMNI" }));
+
+    expect(res.status).toBe(200);
+    expect(google.orchestrateAddToAlumniGroup).toHaveBeenCalledWith(
+      expect.anything(),
+      MEMBER_ID,
+      "target@test.com",
+    );
+  });
+
   it("returns 207 with syncErrors when Authentik attribute sync fails", async () => {
     mockSession({ id: ACTOR_ID, role: "LEADER" });
     vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
