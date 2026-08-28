@@ -5,6 +5,7 @@ export const GOOGLE_GROUP_MATCH_LABELS: Record<GoogleGroupMatchStatus, string> =
     MATCHED: "Aktív tag",
     ARCHIVED_ON_LIST: "Archivált tag",
     SECONDARY_EMAIL: "Másodlagos cím",
+    KNOWN_ADDRESS: "Ismert cím",
     UNKNOWN: "Ismeretlen",
   };
 
@@ -15,6 +16,7 @@ export const GOOGLE_GROUP_MATCH_VARIANT: Record<
   MATCHED: "bg-green-500/15 text-green-600 dark:text-green-400",
   ARCHIVED_ON_LIST: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
   SECONDARY_EMAIL: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  KNOWN_ADDRESS: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   UNKNOWN: "bg-red-500/15 text-red-600 dark:text-red-400",
 };
 
@@ -24,7 +26,8 @@ export const GOOGLE_GROUP_MATCH_ORDER: Record<GoogleGroupMatchStatus, number> =
     UNKNOWN: 0,
     ARCHIVED_ON_LIST: 1,
     SECONDARY_EMAIL: 2,
-    MATCHED: 3,
+    KNOWN_ADDRESS: 3,
+    MATCHED: 4,
   };
 
 // Workspace-hosted groups live under /a/<domain>/g/<name>, and the address is all we store.

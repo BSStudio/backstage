@@ -30,10 +30,14 @@ import {
   GOOGLE_GROUP_MATCH_ORDER,
   GOOGLE_GROUP_MATCH_VARIANT,
 } from "@/lib/google-group";
-import { AnnotateEntryFormSchema } from "@/lib/services/google-group-schemas";
+import {
+  AnnotateEntryFormSchema,
+  KnownAddressFormSchema,
+} from "@/lib/services/google-group-schemas";
 import type { GoogleGroupEntryRow, MemberPickerOption } from "./types";
 
 type SortColumn = "email" | "status";
+type AnnotationTarget = { entry: GoogleGroupEntryRow; known: boolean };
 
 export function EntriesTable({
   entries,
@@ -45,9 +49,7 @@ export function EntriesTable({
   canManage: boolean;
 }) {
   const router = useRouter();
-  const [annotating, setAnnotating] = useState<GoogleGroupEntryRow | null>(
-    null,
-  );
+  const [annotating, setAnnotating] = useState<AnnotationTarget | null>(null);
   const [clearing, setClearing] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [sort, setSort] = useState<{
@@ -173,7 +175,8 @@ export function EntriesTable({
                   {canManage ? (
                     <TableCell>
                       {/* A matched address needs no decision; only an unrecognised one does. */}
-                      {entry.matchStatus === "SECONDARY_EMAIL" && (
+                      {(entry.matchStatus === "SECONDARY_EMAIL" ||
+                        entry.matchStatus === "KNOWN_ADDRESS") && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -184,13 +187,26 @@ export function EntriesTable({
                         </Button>
                       )}
                       {entry.matchStatus === "UNKNOWN" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setAnnotating(entry)}
-                        >
-                          Másodlagos cím
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setAnnotating({ entry, known: false })
+                            }
+                          >
+                            Másodlagos cím
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setAnnotating({ entry, known: true })
+                            }
+                          >
+                            Ismert cím
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   ) : null}
@@ -208,16 +224,25 @@ export function EntriesTable({
         }}
       >
         <SheetContent>
-          {annotating && (
-            <AnnotateForm
-              entry={annotating}
-              members={members}
-              onDone={() => {
-                setAnnotating(null);
-                router.refresh();
-              }}
-            />
-          )}
+          {annotating &&
+            (annotating.known ? (
+              <KnownAddressForm
+                entry={annotating.entry}
+                onDone={() => {
+                  setAnnotating(null);
+                  router.refresh();
+                }}
+              />
+            ) : (
+              <AnnotateForm
+                entry={annotating.entry}
+                members={members}
+                onDone={() => {
+                  setAnnotating(null);
+                  router.refresh();
+                }}
+              />
+            ))}
         </SheetContent>
       </Sheet>
     </>
@@ -279,6 +304,64 @@ function AnnotateForm({
       <form.AppField name="note">
         {(field) => (
           <field.TextField label="Megjegyzés" placeholder="Privát cím" />
+        )}
+      </form.AppField>
+
+      <SheetFooter className="px-0">
+        <form.AppForm>
+          <form.SubmitButton>Mentés</form.SubmitButton>
+        </form.AppForm>
+      </SheetFooter>
+    </form>
+  );
+}
+
+function KnownAddressForm({
+  entry,
+  onDone,
+}: {
+  entry: GoogleGroupEntryRow;
+  onDone: () => void;
+}) {
+  const form = useAppForm({
+    defaultValues: { note: entry.note ?? "" },
+    validators: { onChange: KnownAddressFormSchema },
+    onSubmit: async ({ value }) => {
+      const result = await annotateGoogleGroupEntryAction(entry.email, {
+        matchStatus: "KNOWN_ADDRESS",
+        note: value.note,
+      });
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Cím megjelölve");
+      onDone();
+    },
+  });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        form.handleSubmit();
+      }}
+      className="flex flex-col gap-4 px-4"
+    >
+      <SheetHeader className="px-0">
+        <SheetTitle>Ismert cím</SheetTitle>
+        <SheetDescription>
+          {entry.email} — nem tartozik hozzá tag, de rendben van.
+        </SheetDescription>
+      </SheetHeader>
+
+      <form.AppField name="note">
+        {(field) => (
+          <field.TextField
+            label="Megjegyzés"
+            placeholder="Másik levelezőlista"
+            required
+          />
         )}
       </form.AppField>
 

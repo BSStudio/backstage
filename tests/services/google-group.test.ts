@@ -166,6 +166,29 @@ describe("refreshGoogleGroupEntries", () => {
     });
   });
 
+  it("keeps a KNOWN_ADDRESS annotation across refreshes", async () => {
+    const prisma = getTestPrisma();
+    await prisma.googleGroupEntry.create({
+      data: {
+        email: "masik.lista@example.com",
+        matchStatus: "KNOWN_ADDRESS",
+        note: "másik levelezőlista",
+      },
+    });
+    mockListGroupMembers.mockResolvedValue([member("masik.lista@example.com")]);
+
+    await refreshGoogleGroupEntries(prisma, ADMIN);
+
+    const entry = await prisma.googleGroupEntry.findUnique({
+      where: { email: "masik.lista@example.com" },
+    });
+    expect(entry).toMatchObject({
+      matchStatus: "KNOWN_ADDRESS",
+      memberId: null,
+      note: "másik levelezőlista",
+    });
+  });
+
   it("re-runs matching for every other status and keeps the note", async () => {
     const prisma = getTestPrisma();
     await prisma.googleGroupEntry.create({
@@ -323,6 +346,32 @@ describe("annotateGoogleGroupEntry", () => {
       memberId: ACTIVE_ID,
       note: "magáncím",
     });
+  });
+
+  it("marks an address as known without a member", async () => {
+    const entry = await annotateGoogleGroupEntry(
+      getTestPrisma(),
+      "ismeretlen@example.com",
+      { matchStatus: "KNOWN_ADDRESS", note: "másik levelezőlista" },
+      ADMIN,
+    );
+
+    expect(entry).toMatchObject({
+      matchStatus: "KNOWN_ADDRESS",
+      memberId: null,
+      note: "másik levelezőlista",
+    });
+  });
+
+  it("rejects a known address with no note", async () => {
+    await expect(
+      annotateGoogleGroupEntry(
+        getTestPrisma(),
+        "ismeretlen@example.com",
+        { matchStatus: "KNOWN_ADDRESS" },
+        ADMIN,
+      ),
+    ).rejects.toThrow(ValidationError);
   });
 
   it("clears the annotation back to UNKNOWN", async () => {

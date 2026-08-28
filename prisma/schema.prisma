@@ -60,6 +60,7 @@ enum GoogleGroupMatchStatus {
   MATCHED          // known active member
   ARCHIVED_ON_LIST // archived member, still on list
   SECONDARY_EMAIL  // known to be a secondary address
+  KNOWN_ADDRESS    // no member behind it, but recognised and accepted
   UNKNOWN          // no match found
 }
 

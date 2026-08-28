@@ -36,6 +36,7 @@ describe("GOOGLE_GROUP_MATCH_ORDER", () => {
       "UNKNOWN",
       "ARCHIVED_ON_LIST",
       "SECONDARY_EMAIL",
+      "KNOWN_ADDRESS",
       "MATCHED",
     ]);
   });

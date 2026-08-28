@@ -48,16 +48,20 @@ export async function refreshGoogleGroupEntries(
   const byEmail = new Map(members.map((m) => [m.email.toLowerCase(), m]));
 
   const existing = await prisma.googleGroupEntry.findMany();
-  const stickyByEmail = new Map(
+  const annotatedByEmail = new Map(
     existing
-      .filter((entry) => entry.matchStatus === "SECONDARY_EMAIL")
+      .filter(
+        (entry) =>
+          entry.matchStatus === "SECONDARY_EMAIL" ||
+          entry.matchStatus === "KNOWN_ADDRESS",
+      )
       .map((entry) => [entry.email, entry]),
   );
 
   const rows = addresses.map((email) => {
-    // Only SECONDARY_EMAIL survives a refresh: it is the one status matching cannot derive.
-    const sticky = stickyByEmail.get(email);
-    if (sticky) return sticky;
+    // The states a human set survive a refresh; matching cannot derive either of them.
+    const annotated = annotatedByEmail.get(email);
+    if (annotated) return annotated;
 
     const member = byEmail.get(email);
     return {
