@@ -19,6 +19,13 @@ export function proxy(request: NextRequest) {
 
   const sessionCookie = getSessionCookie(request);
   if (!sessionCookie) {
+    // A fetch has no login page to follow. Redirected, it resolves with the login HTML under a
+    // 200 and the caller cannot tell that apart from a real answer, so `requireAuth`'s 401 was
+    // unreachable for anyone without a cookie.
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const loginUrl = new URL("/login", request.url);
     if (pathname !== "/") {
       loginUrl.searchParams.set("callbackUrl", pathname);

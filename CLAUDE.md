@@ -282,11 +282,17 @@ The handler mounts Better Auth's whole router, so `hooks.before` 404s every path
 linking and `/update-user` — which without `input: false` would let a member set their own `role` —
 belong to Authentik.
 
-`proxy.ts` lets `/login`, `/api/auth` and `/api/usernames` through and redirects everything else to
-`/login` when no session cookie is present, preserving the original path as `callbackUrl`. Its
-matcher excludes static assets and image extensions — which is why avatar URLs are readable without
-auth. `/api/usernames` is public to the proxy because it carries a bearer token instead of a session
+`proxy.ts` lets `/login`, `/api/auth` and `/api/usernames` through and turns everything else away
+when no session cookie is present: a page request redirects to `/login` with the original path as
+`callbackUrl`, an `/api/` one gets a 401 JSON body instead. Redirecting an API call answered it
+with the login HTML under a 200, which a `fetch` cannot tell from a real response. Its matcher
+excludes static assets and image extensions — which is why avatar URLs are readable without auth.
+`/api/usernames` is public to the proxy because it carries a bearer token instead of a session
 cookie; the route itself does the authenticating.
+
+The proxy only sees whether a cookie *exists*. `requireAuth()` is what rejects one that is expired
+or forged, so it is still the check that matters — the proxy only decides what an anonymous caller
+is told.
 
 Session helpers in `lib/session.ts` return `Session | NextResponse`, so routes early-return the
 response: `requireAuth()` (401) and `requirePermission(allows)` (401/403), which takes a predicate
