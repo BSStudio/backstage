@@ -16,6 +16,10 @@ const ALLOWED_AUTH_PATHS = new Set([
 export const auth = betterAuth({
   baseURL: process.env.APP_URL,
 
+  session: {
+    expiresIn: 60 * 60 * 8,
+  },
+
   user: {
     additionalFields: {
       role: {
@@ -74,6 +78,11 @@ export const auth = betterAuth({
           clientId: process.env.AUTHENTIK_CLIENT_ID ?? "",
           clientSecret: process.env.AUTHENTIK_CLIENT_SECRET ?? "",
           scopes: ["openid", "email", "profile"],
+
+          // Without this better-auth writes the mapped fields once, at first sign-in, and
+          // ignores them forever after — so a group change in Authentik would never reach
+          // `role`, and revoking leadership there would leave Backstage access intact.
+          overrideUserInfo: true,
 
           mapProfileToUser: async (profile) => {
             const groups = Array.isArray(profile.groups)
