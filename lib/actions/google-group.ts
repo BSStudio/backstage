@@ -11,7 +11,6 @@ import {
   refreshGoogleGroupEntries,
 } from "@/lib/services/google-group";
 import { getSession } from "@/lib/session";
-import type { UserRole } from "@/types";
 
 type ActionResult<T = unknown> =
   | { success: true; data: T }
@@ -19,8 +18,8 @@ type ActionResult<T = unknown> =
 
 async function requireAdminActor(): Promise<Actor | null> {
   const session = await getSession();
-  if (!session || !canAdminister(session.user.role as UserRole)) return null;
-  return { id: session.user.id, role: session.user.role as UserRole };
+  if (!session || !canAdminister(session.user.role)) return null;
+  return { id: session.user.id, role: session.user.role };
 }
 
 // A Google failure is the one error worth showing verbatim: it names what the API refused,

@@ -35,11 +35,7 @@ import prisma from "@/lib/prisma";
 import { listMemberAuditLogs } from "@/lib/services/audit";
 import { listAuthentikGroups } from "@/lib/services/members";
 import { getSession } from "@/lib/session";
-import {
-  formatSemester,
-  MEMBERSHIP_STATUS_LABELS,
-  type UserRole,
-} from "@/types";
+import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
 import { MemberAvatar } from "./member-avatar";
 import { MemberEditButton } from "./member-edit-button";
 
@@ -74,7 +70,7 @@ export default async function MemberDetailPage({
   if (!session) redirect("/");
   const actor: Actor = {
     id: session.user.id,
-    role: session.user.role as UserRole,
+    role: session.user.role,
   };
   const isLeaderOrAdmin = canManageMembers(actor.role);
   const isSelf = actor.id === id;

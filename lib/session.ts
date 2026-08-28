@@ -29,7 +29,7 @@ export async function requirePermission(
 ): Promise<Session | NextResponse> {
   const session = await requireAuth();
   if (session instanceof NextResponse) return session;
-  if (!allows(session.user.role as UserRole)) {
+  if (!allows(session.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   return session;

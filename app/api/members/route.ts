@@ -5,7 +5,6 @@ import { canManageMembers } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { createMember, listMembers } from "@/lib/services/members";
 import { requireAuth, requirePermission } from "@/lib/session";
-import type { UserRole } from "@/types";
 
 export async function GET(req: NextRequest) {
   const session = await requireAuth();
@@ -25,7 +24,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { member, syncErrors } = await createMember(prisma, body, {
       id: session.user.id,
-      role: session.user.role as UserRole,
+      role: session.user.role,
     });
     /* v8 ignore next 3 -- createMember currently throws on Authentik failure (no partial-success path); branch preserved for future orchestrations */
     if (syncErrors.length > 0) {

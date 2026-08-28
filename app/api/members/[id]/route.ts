@@ -5,7 +5,6 @@ import { canManageMembers } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { archiveMember, getMember, updateMember } from "@/lib/services/members";
 import { requireAuth, requirePermission } from "@/lib/session";
-import type { UserRole } from "@/types";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -31,7 +30,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const body = await req.json();
     const { member, syncErrors } = await updateMember(prisma, id, body, {
       id: session.user.id,
-      role: session.user.role as UserRole,
+      role: session.user.role,
     });
     if (syncErrors.length > 0) {
       return NextResponse.json({ member, syncErrors }, { status: 207 });
@@ -53,7 +52,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       id,
       {
         id: session.user.id,
-        role: session.user.role as UserRole,
+        role: session.user.role,
       },
       {
         removeFromGoogleGroup:

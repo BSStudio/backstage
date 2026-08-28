@@ -24,7 +24,6 @@ import { type Actor, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listAuditLogs } from "@/lib/services/audit";
 import { getSession } from "@/lib/session";
-import type { UserRole } from "@/types";
 
 export const metadata: Metadata = { title: "Audit napló - Backstage" };
 
@@ -54,7 +53,7 @@ export default async function AuditPage({
   if (!session) redirect("/");
   const actor: Actor = {
     id: session.user.id,
-    role: session.user.role as UserRole,
+    role: session.user.role,
   };
   if (!canViewAdminArea(actor.role)) redirect("/");
 

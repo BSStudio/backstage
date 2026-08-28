@@ -10,7 +10,6 @@ import {
   removeRole,
 } from "@/lib/services/members";
 import { requirePermission } from "@/lib/session";
-import type { UserRole } from "@/types";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -33,7 +32,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       parsed.data.authentikGroupIds,
       {
         id: session.user.id,
-        role: session.user.role as UserRole,
+        role: session.user.role,
       },
     );
     if (syncErrors.length > 0) {
@@ -53,7 +52,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const { id } = await params;
     const { syncErrors } = await removeRole(prisma, id, {
       id: session.user.id,
-      role: session.user.role as UserRole,
+      role: session.user.role,
     });
     if (syncErrors.length > 0) {
       return NextResponse.json({ removed: true, syncErrors }, { status: 207 });

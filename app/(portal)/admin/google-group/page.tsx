@@ -7,7 +7,6 @@ import { type Actor, canAdminister, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { getGoogleGroupReconciliation } from "@/lib/services/google-group";
 import { getSession } from "@/lib/session";
-import type { UserRole } from "@/types";
 import { EntriesTable } from "./entries-table";
 import { MissingTable } from "./missing-table";
 import { RefreshButton } from "./refresh-button";
@@ -20,7 +19,7 @@ export default async function GoogleGroupPage() {
 
   const actor: Actor = {
     id: session.user.id,
-    role: session.user.role as UserRole,
+    role: session.user.role,
   };
   if (!canViewAdminArea(actor.role)) redirect("/");
   const canManage = canAdminister(actor.role);

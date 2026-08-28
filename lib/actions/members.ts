@@ -15,8 +15,7 @@ import {
   removeRole,
   updateMember,
 } from "@/lib/services/members";
-import { getSession } from "@/lib/session";
-import type { UserRole } from "@/types";
+import { getSession, type Session } from "@/lib/session";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -24,10 +23,8 @@ type ActionResult<T = unknown> =
   | { success: true; data: T; syncErrors?: string[] }
   | { success: false; error: string };
 
-function actorFromSession(session: {
-  user: { id: string; role: string };
-}): Actor {
-  return { id: session.user.id, role: session.user.role as UserRole };
+function actorFromSession(session: Session): Actor {
+  return { id: session.user.id, role: session.user.role };
 }
 
 function mapError(error: unknown): ActionResult<never> {

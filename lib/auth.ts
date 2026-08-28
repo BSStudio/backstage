@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
-import { resolveUserRole } from "@/types";
+import { resolveUserRole, USER_ROLES } from "@/types";
 
 // Better Auth mounts its whole router, including password, account-linking and
 // profile-mutation routes Authentik owns. Patterns, not resolved URLs.
@@ -22,8 +22,10 @@ export const auth = betterAuth({
 
   user: {
     additionalFields: {
+      // The literal list, not "string": better-auth infers the field's type from it, so
+      // `session.user.role` lands as UserRole and no caller has to assert it back.
       role: {
-        type: "string",
+        type: [...USER_ROLES],
         required: true,
         defaultValue: "MEMBER",
       },

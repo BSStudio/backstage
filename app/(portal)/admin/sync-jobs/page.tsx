@@ -29,7 +29,6 @@ import {
   SYNC_STATUS_VARIANT,
   SYNC_TARGET_LABELS,
 } from "@/lib/sync-jobs";
-import type { UserRole } from "@/types";
 import { RetryButton } from "./retry-button";
 
 export const metadata: Metadata = { title: "Szinkronizáció - Backstage" };
@@ -66,7 +65,7 @@ export default async function SyncJobsPage({
   if (!session) redirect("/");
   const actor: Actor = {
     id: session.user.id,
-    role: session.user.role as UserRole,
+    role: session.user.role,
   };
   if (!canViewAdminArea(actor.role)) redirect("/");
   const canRetry = canAdminister(actor.role);

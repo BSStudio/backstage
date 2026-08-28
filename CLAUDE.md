@@ -270,6 +270,10 @@ user row `id`, so it matches the Member `id`. None of these `additionalFields` m
 `input: false` — better-auth strips such fields from the OAuth profile as well, which leaves every
 login unnamed, `MEMBER`, and keyed on a generated id.
 
+`role`'s field `type` is the `USER_ROLES` list rather than `"string"`: better-auth infers the
+field's type from a literal array, so `session.user.role` reads as `UserRole` everywhere and no
+caller asserts it back. Nothing changes at runtime — a literal-array field is still a text column.
+
 **The provider's subject mode must be "Based on the User's UUID"** (Applications → Providers → the
 Backstage provider → Advanced protocol settings). Authentik's default is a *hashed* user id, which
 is not the UUID the REST API filters on — so with the default, `sub` matches no Member row and
