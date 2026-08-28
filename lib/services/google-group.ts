@@ -3,26 +3,20 @@ import type {
   GoogleGroupMatchStatus,
   PrismaClient,
 } from "@/app/generated/prisma/client";
-import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import {
   getServiceAccountEmail,
   isGoogleGroupConfigured,
 } from "@/lib/google/client";
 import { listGroupMembers } from "@/lib/google/groups";
+import {
+  type Actor,
+  ensureCanAdminister,
+  ensureCanManageMembers,
+} from "@/lib/permissions";
 import { AnnotateEntrySchema } from "./google-group-schemas";
-import type { Actor } from "./members";
 
 export { AnnotateEntrySchema } from "./google-group-schemas";
-
-function ensureAdmin(actor: Actor): void {
-  if (actor.role !== "ADMIN") throw new ForbiddenError();
-}
-
-function ensureLeaderOrAdmin(actor: Actor): void {
-  if (actor.role !== "ADMIN" && actor.role !== "LEADER") {
-    throw new ForbiddenError();
-  }
-}
 
 function matchStatusFor(member: { archived: boolean }): GoogleGroupMatchStatus {
   return member.archived ? "ARCHIVED_ON_LIST" : "MATCHED";
@@ -32,7 +26,7 @@ export async function refreshGoogleGroupEntries(
   prisma: PrismaClient,
   actor: Actor,
 ) {
-  ensureAdmin(actor);
+  ensureCanAdminister(actor);
   if (!isGoogleGroupConfigured()) {
     throw new ValidationError({ config: "Nincs Google Group beállítva" });
   }
@@ -103,7 +97,7 @@ export async function getGoogleGroupReconciliation(
   prisma: PrismaClient,
   actor: Actor,
 ) {
-  ensureLeaderOrAdmin(actor);
+  ensureCanManageMembers(actor);
 
   const [entries, allMembers, lastSync] = await Promise.all([
     prisma.googleGroupEntry.findMany({
@@ -137,7 +131,7 @@ export async function annotateGoogleGroupEntry(
   input: unknown,
   actor: Actor,
 ) {
-  ensureAdmin(actor);
+  ensureCanAdminister(actor);
 
   const parsed = AnnotateEntrySchema.safeParse(input);
   if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));

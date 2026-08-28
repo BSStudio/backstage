@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { canAdminister, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import {
@@ -27,6 +28,7 @@ import {
   SYNC_STATUS_VARIANT,
   SYNC_TARGET_LABELS,
 } from "@/lib/sync-jobs";
+import type { UserRole } from "@/types";
 import { RetryButton } from "./retry-button";
 
 export const metadata: Metadata = { title: "Szinkronizáció - Backstage" };
@@ -62,9 +64,9 @@ export default async function SyncJobsPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const session = await getSession();
-  const role = session?.user.role;
-  if (role !== "ADMIN" && role !== "LEADER") redirect("/");
-  const canRetry = role === "ADMIN";
+  const role = session?.user.role as UserRole | undefined;
+  if (!canViewAdminArea(role)) redirect("/");
+  const canRetry = canAdminister(role);
 
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);

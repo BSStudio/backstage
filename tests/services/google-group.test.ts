@@ -18,12 +18,12 @@ vi.mock("@/lib/google/client", () => ({
 }));
 
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import type { Actor } from "@/lib/permissions";
 import {
   annotateGoogleGroupEntry,
   getGoogleGroupReconciliation,
   refreshGoogleGroupEntries,
 } from "@/lib/services/google-group";
-import type { Actor } from "@/lib/services/members";
 
 const ADMIN: Actor = { id: "admin-id", role: "ADMIN" };
 const LEADER: Actor = { id: "leader-id", role: "LEADER" };

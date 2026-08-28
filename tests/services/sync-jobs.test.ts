@@ -12,7 +12,7 @@ vi.mock("@/lib/sync/executor", async () => {
 });
 
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import type { Actor } from "@/lib/services/members";
+import type { Actor } from "@/lib/permissions";
 import { retrySyncJob } from "@/lib/services/sync-jobs";
 import { getTestPrisma } from "../setup";
 

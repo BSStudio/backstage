@@ -26,9 +26,14 @@ import {
   AUDIT_ACTION_VARIANT,
   STATUS_BADGE_CLASS,
 } from "@/lib/members";
+import { canManageMembers } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
+import {
+  formatSemester,
+  MEMBERSHIP_STATUS_LABELS,
+  type UserRole,
+} from "@/types";
 import { MemberAvatar } from "./member-avatar";
 import { MemberEditButton } from "./member-edit-button";
 
@@ -60,8 +65,9 @@ export default async function MemberDetailPage({
 }) {
   const { id } = await params;
   const session = await getSession();
-  const role = session?.user.role as string;
-  const isLeaderOrAdmin = ["ADMIN", "LEADER"].includes(role);
+  const isLeaderOrAdmin = canManageMembers(
+    session?.user.role as UserRole | undefined,
+  );
   const isSelf = session?.user.id === id;
   const canEdit = isSelf || isLeaderOrAdmin;
 

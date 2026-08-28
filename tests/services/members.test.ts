@@ -65,7 +65,7 @@ vi.mock("@/lib/sync/google/orchestrators", () => ({
 }));
 
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import type { Actor } from "@/lib/services/members";
+import type { Actor } from "@/lib/permissions";
 import {
   archiveMember,
   assignRole,

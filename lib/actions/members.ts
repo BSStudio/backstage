@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import type { MembershipStatus } from "@/app/generated/prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { type Actor, canManageMembers } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
-import type { Actor } from "@/lib/services/members";
 import {
   type ArchiveOptions,
   archiveMember,
@@ -50,8 +50,7 @@ export async function createMemberAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  const role = session.user.role as UserRole;
-  if (!["ADMIN", "LEADER"].includes(role)) {
+  if (!canManageMembers(session.user.role as UserRole)) {
     return { success: false, error: "Hozzáférés megtagadva" };
   }
 
@@ -97,8 +96,7 @@ export async function archiveMemberAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  const role = session.user.role as UserRole;
-  if (!["ADMIN", "LEADER"].includes(role)) {
+  if (!canManageMembers(session.user.role as UserRole)) {
     return { success: false, error: "Hozzáférés megtagadva" };
   }
 
@@ -123,8 +121,7 @@ export async function batchArchiveAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  const role = session.user.role as UserRole;
-  if (!["ADMIN", "LEADER"].includes(role)) {
+  if (!canManageMembers(session.user.role as UserRole)) {
     return { success: false, error: "Hozzáférés megtagadva" };
   }
 
@@ -145,8 +142,7 @@ export async function batchUpdateStatusAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  const role = session.user.role as UserRole;
-  if (!["ADMIN", "LEADER"].includes(role)) {
+  if (!canManageMembers(session.user.role as UserRole)) {
     return { success: false, error: "Hozzáférés megtagadva" };
   }
 
@@ -168,8 +164,7 @@ export async function assignRoleAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  const role = session.user.role as UserRole;
-  if (!["ADMIN", "LEADER"].includes(role)) {
+  if (!canManageMembers(session.user.role as UserRole)) {
     return { success: false, error: "Hozzáférés megtagadva" };
   }
 
@@ -195,8 +190,7 @@ export async function removeRoleAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  const role = session.user.role as UserRole;
-  if (!["ADMIN", "LEADER"].includes(role)) {
+  if (!canManageMembers(session.user.role as UserRole)) {
     return { success: false, error: "Hozzáférés megtagadva" };
   }
 

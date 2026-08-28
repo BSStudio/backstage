@@ -20,8 +20,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
+import { canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import type { UserRole } from "@/types";
 
 export const metadata: Metadata = { title: "Audit napló - Backstage" };
 
@@ -50,8 +52,9 @@ export default async function AuditPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const session = await getSession();
-  const role = session?.user.role;
-  if (role !== "ADMIN" && role !== "LEADER") redirect("/");
+  if (!canViewAdminArea(session?.user.role as UserRole | undefined)) {
+    redirect("/");
+  }
 
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);

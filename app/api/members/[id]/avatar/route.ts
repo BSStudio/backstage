@@ -2,12 +2,9 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { deleteAvatars, saveAvatar } from "@/lib/avatar-storage";
 import { mapServiceError } from "@/lib/errors";
+import { ensureCanModifyMember } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
-import {
-  ensureCanModifyAvatar,
-  removeMemberAvatar,
-  uploadMemberAvatar,
-} from "@/lib/services/members";
+import { removeMemberAvatar, uploadMemberAvatar } from "@/lib/services/members";
 import { requireAuth } from "@/lib/session";
 import type { UserRole } from "@/types";
 
@@ -25,7 +22,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {
-    ensureCanModifyAvatar(actor, id);
+    ensureCanModifyMember(actor, id);
   } catch (error) {
     return mapServiceError(error);
   }
@@ -89,7 +86,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {
-    ensureCanModifyAvatar(actor, id);
+    ensureCanModifyMember(actor, id);
   } catch (error) {
     return mapServiceError(error);
   }

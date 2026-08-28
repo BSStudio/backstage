@@ -2,16 +2,18 @@ import { Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { canManageMembers } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/session";
+import type { UserRole } from "@/types";
 import { MembersTable } from "./members-table";
 
 export const metadata: Metadata = { title: "Aktív tagok - Backstage" };
 
 export default async function MembersPage() {
   const session = await requireAuth();
-  const canManage = ["ADMIN", "LEADER"].includes(
-    (session as { user: { role: string } }).user.role,
+  const canManage = canManageMembers(
+    (session as { user: { role: UserRole } }).user.role,
   );
   const members = await prisma.member.findMany({
     where: {
