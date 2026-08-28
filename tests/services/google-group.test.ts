@@ -318,6 +318,17 @@ describe("annotateGoogleGroupEntry", () => {
     ).rejects.toThrow(ValidationError);
   });
 
+  it("rejects a secondary address pointing at an unknown member", async () => {
+    await expect(
+      annotateGoogleGroupEntry(
+        getTestPrisma(),
+        "ismeretlen@example.com",
+        { matchStatus: "SECONDARY_EMAIL", memberId: "nincs-ilyen-tag" },
+        ADMIN,
+      ),
+    ).rejects.toThrow(ValidationError);
+  });
+
   it("throws NotFoundError for an address that is not on the list", async () => {
     await expect(
       annotateGoogleGroupEntry(

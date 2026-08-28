@@ -146,11 +146,20 @@ export async function annotateGoogleGroupEntry(
   if (!entry) throw new NotFoundError();
 
   const isSecondary = parsed.data.matchStatus === "SECONDARY_EMAIL";
+  const memberId = isSecondary ? parsed.data.memberId : null;
+
+  // The picker only offers real members, so a missing one means a hand-built request. The
+  // foreign key would catch it either way, but as an error nothing maps — a 500 instead of
+  // a rejected field.
+  if (memberId && !(await prisma.member.count({ where: { id: memberId } }))) {
+    throw new ValidationError({ memberId: "Nincs ilyen tag" });
+  }
+
   return prisma.googleGroupEntry.update({
     where: { email },
     data: {
       matchStatus: parsed.data.matchStatus,
-      memberId: isSecondary ? parsed.data.memberId : null,
+      memberId,
       note: parsed.data.note || null,
     },
   });
