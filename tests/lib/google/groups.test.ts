@@ -149,10 +149,17 @@ describe("addGroupMember", () => {
 });
 
 describe("removeGroupMember", () => {
-  it("looks the membership up and deletes it", async () => {
+  it("finds the membership in the listing and deletes it", async () => {
     googleRequest
       .mockResolvedValueOnce({ name: "groups/abc" })
-      .mockResolvedValueOnce({ name: "groups/abc/memberships/7" })
+      .mockResolvedValueOnce({
+        memberships: [
+          {
+            name: "groups/abc/memberships/7",
+            preferredMemberKey: { id: "Regi@example.com" },
+          },
+        ],
+      })
       .mockResolvedValueOnce({});
 
     const { removeGroupMember } = await importGroups();
@@ -160,9 +167,6 @@ describe("removeGroupMember", () => {
       removed: true,
     });
 
-    expect(googleRequest.mock.calls[1][0]).toBe(
-      "/groups/abc/memberships:lookup?memberKey.id=regi%40example.com",
-    );
     expect(googleRequest.mock.calls[2]).toEqual([
       "/groups/abc/memberships/7",
       {
@@ -172,10 +176,31 @@ describe("removeGroupMember", () => {
     ]);
   });
 
+  it("pages through the listing to find the membership", async () => {
+    googleRequest
+      .mockResolvedValueOnce({ name: "groups/abc" })
+      .mockResolvedValueOnce({ memberships: [], nextPageToken: "page-2" })
+      .mockResolvedValueOnce({
+        memberships: [
+          {
+            name: "groups/abc/memberships/9",
+            preferredMemberKey: { id: "regi@example.com" },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({});
+
+    const { removeGroupMember } = await importGroups();
+    await expect(removeGroupMember("regi@example.com")).resolves.toEqual({
+      removed: true,
+    });
+    expect(googleRequest.mock.calls[3][0]).toBe("/groups/abc/memberships/9");
+  });
+
   it("reports a member that is not on the list as nothing removed", async () => {
     googleRequest
       .mockResolvedValueOnce({ name: "groups/abc" })
-      .mockRejectedValueOnce(new GoogleApiError(404, {}));
+      .mockResolvedValueOnce({ memberships: [{ name: "m1" }] });
 
     const { removeGroupMember } = await importGroups();
     await expect(removeGroupMember("nincs@example.com")).resolves.toEqual({
@@ -183,9 +208,17 @@ describe("removeGroupMember", () => {
     });
   });
 
-  it("rethrows any other API error", async () => {
+  it("rethrows an API error from the delete", async () => {
     googleRequest
       .mockResolvedValueOnce({ name: "groups/abc" })
+      .mockResolvedValueOnce({
+        memberships: [
+          {
+            name: "groups/abc/memberships/7",
+            preferredMemberKey: { id: "regi@example.com" },
+          },
+        ],
+      })
       .mockRejectedValueOnce(
         new GoogleApiError(500, { error: { message: "Backend error" } }),
       );

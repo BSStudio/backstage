@@ -34,9 +34,9 @@ async function getGroupResourceName(): Promise<string> {
   return name;
 }
 
-export async function listGroupMembers(): Promise<GoogleGroupMember[]> {
+async function fetchMemberships(): Promise<Membership[]> {
   const parent = await getGroupResourceName();
-  const members: GoogleGroupMember[] = [];
+  const memberships: Membership[] = [];
   let pageToken: string | undefined;
 
   do {
@@ -46,16 +46,24 @@ export async function listGroupMembers(): Promise<GoogleGroupMember[]> {
     const page = await googleRequest<MembershipsPage>(
       `/${parent}/memberships?${params}`,
     );
-    for (const membership of page.memberships ?? []) {
-      const email = membership.preferredMemberKey?.id;
-      if (!email) continue;
-      members.push({
-        email: email.toLowerCase(),
-        roles: (membership.roles ?? []).map((role) => role.name),
-      });
-    }
+    memberships.push(...(page.memberships ?? []));
     pageToken = page.nextPageToken;
   } while (pageToken);
+
+  return memberships;
+}
+
+export async function listGroupMembers(): Promise<GoogleGroupMember[]> {
+  const members: GoogleGroupMember[] = [];
+
+  for (const membership of await fetchMemberships()) {
+    const email = membership.preferredMemberKey?.id;
+    if (!email) continue;
+    members.push({
+      email: email.toLowerCase(),
+      roles: (membership.roles ?? []).map((role) => role.name),
+    });
+  }
 
   return members;
 }
@@ -86,23 +94,15 @@ export async function addGroupMember(
 export async function removeGroupMember(
   email: string,
 ): Promise<{ removed: boolean }> {
-  const parent = await getGroupResourceName();
+  const wanted = email.toLowerCase();
+  const membership = (await fetchMemberships()).find(
+    (entry) => entry.preferredMemberKey?.id?.toLowerCase() === wanted,
+  );
 
-  let membershipName: string;
-  try {
-    const lookup = await googleRequest<{ name: string }>(
-      `/${parent}/memberships:lookup?memberKey.id=${encodeURIComponent(email)}`,
-    );
-    membershipName = lookup.name;
-  } catch (error) {
-    // A retry of an already-applied removal must not fail.
-    if (error instanceof GoogleApiError && error.status === 404) {
-      return { removed: false };
-    }
-    throw error;
-  }
+  // Not on the list, so a retry of an already-applied removal stays green.
+  if (!membership) return { removed: false };
 
-  await googleRequest(`/${membershipName}`, {
+  await googleRequest(`/${membership.name}`, {
     method: "DELETE",
     scope: GOOGLE_SCOPE_WRITE,
   });
