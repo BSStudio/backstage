@@ -18,6 +18,15 @@ export const GOOGLE_GROUP_MATCH_VARIANT: Record<
   UNKNOWN: "bg-red-500/15 text-red-600 dark:text-red-400",
 };
 
+// Sorting by state puts the rows somebody has to decide on first.
+export const GOOGLE_GROUP_MATCH_ORDER: Record<GoogleGroupMatchStatus, number> =
+  {
+    UNKNOWN: 0,
+    ARCHIVED_ON_LIST: 1,
+    SECONDARY_EMAIL: 2,
+    MATCHED: 3,
+  };
+
 // Workspace-hosted groups live under /a/<domain>/g/<name>, and the address is all we store.
 export function googleGroupUrl(groupEmail: string): string {
   const [name, domain] = groupEmail.split("@");

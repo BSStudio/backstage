@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { SortIcon } from "@/app/(portal)/members/columns";
 import { useAppForm } from "@/components/form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,10 +27,13 @@ import {
 import { annotateGoogleGroupEntryAction } from "@/lib/actions/google-group";
 import {
   GOOGLE_GROUP_MATCH_LABELS,
+  GOOGLE_GROUP_MATCH_ORDER,
   GOOGLE_GROUP_MATCH_VARIANT,
 } from "@/lib/google-group";
 import { AnnotateEntryFormSchema } from "@/lib/services/google-group-schemas";
 import type { GoogleGroupEntryRow, MemberPickerOption } from "./types";
+
+type SortColumn = "email" | "status";
 
 export function EntriesTable({
   entries,
@@ -46,6 +50,37 @@ export function EntriesTable({
   );
   const [clearing, setClearing] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [sort, setSort] = useState<{
+    column: SortColumn;
+    direction: "asc" | "desc";
+  }>({ column: "email", direction: "asc" });
+
+  const sorted = useMemo(() => {
+    const factor = sort.direction === "asc" ? 1 : -1;
+    return [...entries].sort((a, b) => {
+      const byEmail = a.email.localeCompare(b.email);
+      if (sort.column === "email") return factor * byEmail;
+      const byState =
+        GOOGLE_GROUP_MATCH_ORDER[a.matchStatus] -
+        GOOGLE_GROUP_MATCH_ORDER[b.matchStatus];
+      return byState === 0 ? byEmail : factor * byState;
+    });
+  }, [entries, sort]);
+
+  function toggleSort(column: SortColumn) {
+    setSort((current) =>
+      current.column === column
+        ? {
+            column,
+            direction: current.direction === "asc" ? "desc" : "asc",
+          }
+        : { column, direction: "asc" },
+    );
+  }
+
+  function sortedState(column: SortColumn) {
+    return sort.column === column ? sort.direction : false;
+  }
 
   function clearAnnotation(email: string) {
     setClearing(email);
@@ -69,8 +104,28 @@ export function EntriesTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Email-cím</TableHead>
-              <TableHead>Állapot</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="-ml-2 h-8"
+                  onClick={() => toggleSort("email")}
+                >
+                  Email-cím
+                  <SortIcon sorted={sortedState("email")} />
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="-ml-2 h-8"
+                  onClick={() => toggleSort("status")}
+                >
+                  Állapot
+                  <SortIcon sorted={sortedState("status")} />
+                </Button>
+              </TableHead>
               <TableHead>Tag</TableHead>
               <TableHead>Megjegyzés</TableHead>
               {canManage ? <TableHead className="w-44" /> : null}
@@ -87,7 +142,7 @@ export function EntriesTable({
                 </TableCell>
               </TableRow>
             ) : (
-              entries.map((entry) => (
+              sorted.map((entry) => (
                 <TableRow key={entry.email}>
                   <TableCell className="font-mono text-xs">
                     {entry.email}

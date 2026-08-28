@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   GOOGLE_GROUP_MATCH_LABELS,
+  GOOGLE_GROUP_MATCH_ORDER,
   GOOGLE_GROUP_MATCH_VARIANT,
   googleGroupUrl,
 } from "@/lib/google-group";
@@ -21,6 +22,22 @@ describe("google group labels", () => {
         ],
       ).toBeTruthy();
     }
+  });
+});
+
+describe("GOOGLE_GROUP_MATCH_ORDER", () => {
+  it("sorts the states that need a decision first", () => {
+    const byOrder = Object.keys(GOOGLE_GROUP_MATCH_ORDER).sort(
+      (a, b) =>
+        GOOGLE_GROUP_MATCH_ORDER[a as keyof typeof GOOGLE_GROUP_MATCH_ORDER] -
+        GOOGLE_GROUP_MATCH_ORDER[b as keyof typeof GOOGLE_GROUP_MATCH_ORDER],
+    );
+    expect(byOrder).toEqual([
+      "UNKNOWN",
+      "ARCHIVED_ON_LIST",
+      "SECONDARY_EMAIL",
+      "MATCHED",
+    ]);
   });
 });
 
