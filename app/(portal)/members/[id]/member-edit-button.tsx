@@ -15,6 +15,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { archiveMemberAction } from "@/lib/actions/members";
 import { MemberEditSheet } from "./member-edit-sheet";
 import type { AuthentikGroupOption, MemberData, RoleData } from "./types";
@@ -39,12 +41,15 @@ export function MemberEditButton({
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [removeFromGoogleGroup, setRemoveFromGoogleGroup] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function handleArchive() {
     setArchiveOpen(false);
     startTransition(async () => {
-      const result = await archiveMemberAction(member.id);
+      const result = await archiveMemberAction(member.id, {
+        removeFromGoogleGroup,
+      });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -72,7 +77,10 @@ export function MemberEditButton({
             variant="outline"
             size="sm"
             disabled={isPending}
-            onClick={() => setArchiveOpen(true)}
+            onClick={() => {
+              setRemoveFromGoogleGroup(false);
+              setArchiveOpen(true);
+            }}
           >
             {isPending ? (
               <Loader2 className="mr-2 size-4 animate-spin" />
@@ -104,6 +112,18 @@ export function MemberEditButton({
               {member.firstName}?
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="remove-from-google-group"
+              checked={removeFromGoogleGroup}
+              onCheckedChange={(checked) =>
+                setRemoveFromGoogleGroup(checked === true)
+              }
+            />
+            <Label htmlFor="remove-from-google-group" className="font-normal">
+              Törlés a Google Group levelezőlistáról is
+            </Label>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Mégse</AlertDialogCancel>
             <AlertDialogAction onClick={handleArchive}>

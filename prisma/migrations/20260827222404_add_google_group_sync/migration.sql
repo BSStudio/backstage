@@ -1,0 +1,11 @@
+-- AlterEnum
+ALTER TYPE "SyncTarget" ADD VALUE 'GOOGLE_GROUP';
+
+-- AlterEnum
+ALTER TYPE "AuditAction" ADD VALUE 'GOOGLE_GROUP_SYNCED';
+
+-- AlterTable
+ALTER TABLE "AuditLog" ALTER COLUMN "targetId" DROP NOT NULL;
+
+-- AlterEnum
+ALTER TYPE "GoogleGroupMatchStatus" ADD VALUE 'KNOWN_ADDRESS';

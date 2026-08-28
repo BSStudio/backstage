@@ -6,6 +6,7 @@ import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import prisma from "@/lib/prisma";
 import type { Actor } from "@/lib/services/members";
 import {
+  type ArchiveOptions,
   archiveMember,
   assignRole,
   batchArchive,
@@ -89,7 +90,10 @@ export async function updateMemberAction(
   }
 }
 
-export async function archiveMemberAction(id: string): Promise<ActionResult> {
+export async function archiveMemberAction(
+  id: string,
+  options: ArchiveOptions = {},
+): Promise<ActionResult> {
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
@@ -103,6 +107,7 @@ export async function archiveMemberAction(id: string): Promise<ActionResult> {
       prisma,
       id,
       actorFromSession(session),
+      options,
     );
     revalidatePath("/members");
     return { success: true, data: { archived: true }, syncErrors };
@@ -113,6 +118,7 @@ export async function archiveMemberAction(id: string): Promise<ActionResult> {
 
 export async function batchArchiveAction(
   ids: string[],
+  options: ArchiveOptions = {},
 ): Promise<ActionResult<{ count: number }>> {
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
@@ -126,6 +132,7 @@ export async function batchArchiveAction(
     prisma,
     ids,
     actorFromSession(session),
+    options,
   );
   revalidatePath("/members");
   return { success: true, data: { count }, syncErrors };

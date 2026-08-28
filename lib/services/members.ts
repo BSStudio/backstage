@@ -19,6 +19,11 @@ import {
   orchestrateStatusChange,
   orchestrateUpdateAttributes,
 } from "@/lib/sync/authentik/orchestrators";
+import {
+  orchestrateAddToAlumniGroup,
+  orchestrateAddToGoogleGroup,
+  orchestrateRemoveFromGoogleGroup,
+} from "@/lib/sync/google/orchestrators";
 import { getWebsiteStatusLabel } from "@/lib/sync/website/group-mapping";
 import {
   orchestrateCreateWebsiteUser,
@@ -26,7 +31,7 @@ import {
   orchestrateUpdateWebsiteUser,
 } from "@/lib/sync/website/orchestrators";
 import type { UpdateWebsiteUserInput } from "@/lib/website/users";
-import { currentSemester, type UserRole } from "@/types";
+import { currentSemester, isAlumniStatus, type UserRole } from "@/types";
 
 export type {
   AssignRoleInput,
@@ -184,6 +189,13 @@ export async function createMember(
   } else {
     syncErrors.push(websiteResult.error);
   }
+
+  const googleResult = await orchestrateAddToGoogleGroup(
+    prisma,
+    member.id,
+    data.email,
+  );
+  if (!googleResult.success) syncErrors.push(googleResult.error);
 
   return { member, syncErrors };
 }
@@ -410,6 +422,15 @@ export async function updateMember(
     for (const r of results) {
       if (!r.success) syncErrors.push(r.error);
     }
+
+    if (becomesAlumni(member.status, data.status)) {
+      const alumniResult = await orchestrateAddToAlumniGroup(
+        prisma,
+        member.id,
+        updated.email,
+      );
+      if (!alumniResult.success) syncErrors.push(alumniResult.error);
+    }
   }
 
   // Sync website if any website-tracked field changed
@@ -437,10 +458,20 @@ export async function updateMember(
   return { member: updated, syncErrors };
 }
 
+// Only the move into alumni adds the address; leaving alumni is rare enough to handle by hand.
+function becomesAlumni(from: MembershipStatus, to: MembershipStatus): boolean {
+  return isAlumniStatus(to) && !isAlumniStatus(from);
+}
+
+export interface ArchiveOptions {
+  removeFromGoogleGroup?: boolean;
+}
+
 export async function archiveMember(
   prisma: PrismaClient,
   id: string,
   actor: Actor,
+  options: ArchiveOptions = {},
 ) {
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) throw new NotFoundError();
@@ -473,6 +504,15 @@ export async function archiveMember(
   );
   if (!websiteResult.success) syncErrors.push(websiteResult.error);
 
+  if (options.removeFromGoogleGroup) {
+    const googleResult = await orchestrateRemoveFromGoogleGroup(
+      prisma,
+      member.id,
+      member.email,
+    );
+    if (!googleResult.success) syncErrors.push(googleResult.error);
+  }
+
   return { syncErrors };
 }
 
@@ -480,6 +520,7 @@ export async function batchArchive(
   prisma: PrismaClient,
   ids: string[],
   actor: Actor,
+  options: ArchiveOptions = {},
 ) {
   const members = await prisma.member.findMany({
     where: { id: { in: ids }, archived: false },
@@ -513,6 +554,9 @@ export async function batchArchive(
     members.flatMap((m) => [
       orchestrateDeactivate(prisma, m.id),
       orchestrateDeactivateWebsiteUser(prisma, m.id),
+      ...(options.removeFromGoogleGroup
+        ? [orchestrateRemoveFromGoogleGroup(prisma, m.id, m.email)]
+        : []),
     ]),
   );
   const syncErrors = syncResults
@@ -560,6 +604,11 @@ export async function batchUpdateStatus(
   const groupResultsPerMember = await Promise.all(
     members.map((m) => orchestrateStatusChange(prisma, m.id, m.status, status)),
   );
+  const alumniResults = await Promise.all(
+    members
+      .filter((m) => becomesAlumni(m.status, status))
+      .map((m) => orchestrateAddToAlumniGroup(prisma, m.id, m.email)),
+  );
   const websiteResults = await Promise.all(
     members.map((m) =>
       orchestrateUpdateWebsiteUser(prisma, m.id, {
@@ -567,7 +616,11 @@ export async function batchUpdateStatus(
       }),
     ),
   );
-  const syncErrors = [...groupResultsPerMember.flat(), ...websiteResults]
+  const syncErrors = [
+    ...groupResultsPerMember.flat(),
+    ...alumniResults,
+    ...websiteResults,
+  ]
     .filter((r): r is { success: false; error: string } => !r.success)
     .map((r) => r.error);
 

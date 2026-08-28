@@ -10,6 +10,9 @@ const {
   mockOrchestrateCreateWebsiteUser,
   mockOrchestrateUpdateWebsiteUser,
   mockOrchestrateDeactivateWebsiteUser,
+  mockOrchestrateAddToGoogleGroup,
+  mockOrchestrateRemoveFromGoogleGroup,
+  mockOrchestrateAddToAlumniGroup,
 } = vi.hoisted(() => ({
   mockCreateAuthentikUser: vi.fn(),
   mockOrchestrateDeactivate: vi.fn(),
@@ -20,6 +23,9 @@ const {
   mockOrchestrateCreateWebsiteUser: vi.fn(),
   mockOrchestrateUpdateWebsiteUser: vi.fn(),
   mockOrchestrateDeactivateWebsiteUser: vi.fn(),
+  mockOrchestrateAddToGoogleGroup: vi.fn(),
+  mockOrchestrateRemoveFromGoogleGroup: vi.fn(),
+  mockOrchestrateAddToAlumniGroup: vi.fn(),
 }));
 
 vi.mock("@/lib/sync/authentik/orchestrators", () => ({
@@ -50,6 +56,12 @@ vi.mock("@/lib/sync/website/orchestrators", () => ({
   orchestrateCreateWebsiteUser: mockOrchestrateCreateWebsiteUser,
   orchestrateUpdateWebsiteUser: mockOrchestrateUpdateWebsiteUser,
   orchestrateDeactivateWebsiteUser: mockOrchestrateDeactivateWebsiteUser,
+}));
+
+vi.mock("@/lib/sync/google/orchestrators", () => ({
+  orchestrateAddToGoogleGroup: mockOrchestrateAddToGoogleGroup,
+  orchestrateRemoveFromGoogleGroup: mockOrchestrateRemoveFromGoogleGroup,
+  orchestrateAddToAlumniGroup: mockOrchestrateAddToAlumniGroup,
 }));
 
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -111,6 +123,9 @@ beforeEach(async () => {
   mockOrchestrateCreateWebsiteUser.mockResolvedValue(websiteOk);
   mockOrchestrateUpdateWebsiteUser.mockResolvedValue(websiteOk);
   mockOrchestrateDeactivateWebsiteUser.mockResolvedValue(websiteOk);
+  mockOrchestrateAddToGoogleGroup.mockResolvedValue(websiteOk);
+  mockOrchestrateRemoveFromGoogleGroup.mockResolvedValue(websiteOk);
+  mockOrchestrateAddToAlumniGroup.mockResolvedValue(websiteOk);
 
   const prisma = getTestPrisma();
 
@@ -487,6 +502,38 @@ describe("createMember", () => {
     );
 
     expect(member).not.toHaveProperty("unknownField");
+  });
+
+  it("adds the new member to the Google Group", async () => {
+    const prisma = getTestPrisma();
+    const { syncErrors } = await createMember(
+      prisma,
+      { firstName: "New", lastName: "Member", email: "new@test.com" },
+      ACTOR,
+    );
+
+    expect(syncErrors).toEqual([]);
+    expect(mockOrchestrateAddToGoogleGroup).toHaveBeenCalledTimes(1);
+    const [, memberId, email] = mockOrchestrateAddToGoogleGroup.mock.calls[0];
+    expect(memberId).toMatch(/^authentik-uuid-/);
+    expect(email).toBe("new@test.com");
+  });
+
+  it("returns a syncError when the Google Group add fails", async () => {
+    const prisma = getTestPrisma();
+    mockOrchestrateAddToGoogleGroup.mockResolvedValueOnce({
+      success: false,
+      error: "Google API error: Permission denied",
+    });
+
+    const { member, syncErrors } = await createMember(
+      prisma,
+      { firstName: "New", lastName: "Member", email: "new@test.com" },
+      ACTOR,
+    );
+
+    expect(syncErrors).toEqual(["Google API error: Permission denied"]);
+    expect(member.id).toMatch(/^authentik-uuid-/);
   });
 });
 
@@ -930,6 +977,84 @@ describe("updateMember", () => {
 
 // ─── archiveMember ───────────────────────────────────────────────────────────
 
+describe("alumni list", () => {
+  it("adds the member when the status becomes alumni", async () => {
+    const prisma = getTestPrisma();
+    await updateMember(prisma, MEMBER_ID, { status: "ALUMNI" }, ACTOR);
+
+    expect(mockOrchestrateAddToAlumniGroup).toHaveBeenCalledTimes(1);
+    const [, memberId, email] = mockOrchestrateAddToAlumniGroup.mock.calls[0];
+    expect(memberId).toBe(MEMBER_ID);
+    expect(email).toBe("target@test.com");
+  });
+
+  it("adds the member for the active alumni status too", async () => {
+    const prisma = getTestPrisma();
+    await updateMember(prisma, MEMBER_ID, { status: "ACTIVE_ALUMNI" }, ACTOR);
+
+    expect(mockOrchestrateAddToAlumniGroup).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not add again when moving between the two alumni statuses", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: { status: "ACTIVE_ALUMNI" },
+    });
+
+    await updateMember(prisma, MEMBER_ID, { status: "ALUMNI" }, ACTOR);
+
+    expect(mockOrchestrateAddToAlumniGroup).not.toHaveBeenCalled();
+  });
+
+  it("leaves the alumni list alone for any other status change", async () => {
+    const prisma = getTestPrisma();
+    await updateMember(prisma, MEMBER_ID, { status: "MEMBER" }, ACTOR);
+
+    expect(mockOrchestrateAddToAlumniGroup).not.toHaveBeenCalled();
+  });
+
+  it("returns a syncError when the alumni add fails", async () => {
+    const prisma = getTestPrisma();
+    mockOrchestrateAddToAlumniGroup.mockResolvedValueOnce({
+      success: false,
+      error: "Google API error: Permission denied",
+    });
+
+    const { syncErrors } = await updateMember(
+      prisma,
+      MEMBER_ID,
+      { status: "ALUMNI" },
+      ACTOR,
+    );
+
+    expect(syncErrors).toContain("Google API error: Permission denied");
+  });
+
+  it("adds every member promoted to alumni in a batch", async () => {
+    const prisma = getTestPrisma();
+    const id2 = crypto.randomUUID();
+    await prisma.member.create({
+      data: {
+        id: id2,
+        firstName: "Second",
+        lastName: "Target",
+        email: "second@test.com",
+        joinedSemester: "2025/2026/1",
+        status: "ALUMNI",
+      },
+    });
+
+    await batchUpdateStatus(prisma, [MEMBER_ID, id2], "ALUMNI", ACTOR);
+
+    // id2 is already an alumnus, so only the promoted member is added
+    expect(mockOrchestrateAddToAlumniGroup).toHaveBeenCalledTimes(1);
+    expect(mockOrchestrateAddToAlumniGroup.mock.calls[0][1]).toBe(MEMBER_ID);
+  });
+});
+
+// ─── archiveMember ──────────────────────────────────────────────────────────
+
 describe("archiveMember", () => {
   it("throws NotFoundError for non-existent member", async () => {
     const prisma = getTestPrisma();
@@ -1007,6 +1132,40 @@ describe("archiveMember", () => {
       MEMBER_ID,
     );
   });
+
+  it("leaves the Google Group alone unless asked", async () => {
+    const prisma = getTestPrisma();
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(mockOrchestrateRemoveFromGoogleGroup).not.toHaveBeenCalled();
+  });
+
+  it("removes the member from the Google Group when asked", async () => {
+    const prisma = getTestPrisma();
+    await archiveMember(prisma, MEMBER_ID, ACTOR, {
+      removeFromGoogleGroup: true,
+    });
+
+    expect(mockOrchestrateRemoveFromGoogleGroup).toHaveBeenCalledTimes(1);
+    const [, memberId, email] =
+      mockOrchestrateRemoveFromGoogleGroup.mock.calls[0];
+    expect(memberId).toBe(MEMBER_ID);
+    expect(email).toBe("target@test.com");
+  });
+
+  it("returns a syncError when the Google Group removal fails", async () => {
+    const prisma = getTestPrisma();
+    mockOrchestrateRemoveFromGoogleGroup.mockResolvedValueOnce({
+      success: false,
+      error: "Google API error: Backend error",
+    });
+
+    const result = await archiveMember(prisma, MEMBER_ID, ACTOR, {
+      removeFromGoogleGroup: true,
+    });
+
+    expect(result.syncErrors).toEqual(["Google API error: Backend error"]);
+  });
 });
 
 // ─── batchArchive ───────────────────────────────────────────────────────────
@@ -1042,6 +1201,31 @@ describe("batchArchive", () => {
     const audit = await prisma.auditLog.findMany();
     expect(audit).toHaveLength(2);
     expect(audit.every((a) => a.action === "MEMBER_ARCHIVED")).toBe(true);
+  });
+
+  it("removes each archived member from the Google Group when asked", async () => {
+    const prisma = getTestPrisma();
+    const id2 = crypto.randomUUID();
+    await prisma.member.create({
+      data: {
+        id: id2,
+        firstName: "Second",
+        lastName: "Target",
+        email: "second@test.com",
+        joinedSemester: "2025/2026/1",
+      },
+    });
+
+    await batchArchive(prisma, [MEMBER_ID, id2], ACTOR, {
+      removeFromGoogleGroup: true,
+    });
+
+    expect(mockOrchestrateRemoveFromGoogleGroup).toHaveBeenCalledTimes(2);
+    expect(
+      mockOrchestrateRemoveFromGoogleGroup.mock.calls.map(
+        ([, , email]) => email,
+      ),
+    ).toEqual(expect.arrayContaining(["target@test.com", "second@test.com"]));
   });
 
   it("skips already-archived members", async () => {

@@ -5,11 +5,25 @@ import {
   createFormHookContexts,
   useSelector,
 } from "@tanstack/react-form";
-import { Loader2 } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -17,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 const { fieldContext, formContext, useFieldContext, useFormContext } =
   createFormHookContexts();
@@ -25,6 +40,19 @@ export type FieldOption<T extends string = string> = {
   value: T;
   label: string;
 };
+
+// cmdk scores a fuzzy subsequence by default, which matches any name carrying the query's
+// letters in order. Substring only, accent-insensitive so "kovacs" still finds "Kovács".
+function searchable(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+}
+
+// `hint` is shown beside the label but stays out of the search text, so a marker like
+// "archivált" cannot match every archived member at once.
+export type ComboboxOption = FieldOption & { hint?: string };
 
 function messagesOf(errors: unknown[]): string[] {
   const messages = errors.map((error) =>
@@ -73,16 +101,23 @@ function TextField({
   type = "text",
   placeholder,
   required = false,
+  hint,
 }: {
   label: string;
   type?: string;
   placeholder?: string;
   required?: boolean;
+  hint?: string;
 }) {
   const field = useFieldContext<string>();
   const errors = useFieldErrors();
   const handleBlur = useBlurHandler();
   const errorId = `${field.name}-error`;
+  const hintId = `${field.name}-hint`;
+  const describedBy =
+    [hint ? hintId : null, errors.length > 0 ? errorId : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -99,11 +134,16 @@ function TextField({
         onChange={(e) => field.handleChange(e.target.value)}
         onBlur={handleBlur}
         aria-invalid={errors.length > 0}
-        aria-describedby={errors.length > 0 ? errorId : undefined}
+        aria-describedby={describedBy}
         autoComplete="off"
         data-1p-ignore
         data-lpignore="true"
       />
+      {hint && (
+        <p id={hintId} className="text-muted-foreground text-xs">
+          {hint}
+        </p>
+      )}
       <FieldErrors id={errorId} messages={errors} />
     </div>
   );
@@ -144,6 +184,104 @@ function SelectField<T extends string>({
           ))}
         </SelectContent>
       </Select>
+      <FieldErrors id={errorId} messages={errors} />
+    </div>
+  );
+}
+
+function ComboboxField({
+  label,
+  options,
+  placeholder = "Válassz…",
+  searchPlaceholder = "Keresés…",
+}: {
+  label: string;
+  options: ComboboxOption[];
+  placeholder?: string;
+  searchPlaceholder?: string;
+}) {
+  const field = useFieldContext<string>();
+  const errors = useFieldErrors();
+  const handleBlur = useBlurHandler();
+  const [open, setOpen] = useState(false);
+  const errorId = `${field.name}-error`;
+  const selected = options.find((option) => option.value === field.state.value);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={field.name}>{label}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            id={field.name}
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            aria-invalid={errors.length > 0}
+            aria-describedby={errors.length > 0 ? errorId : undefined}
+            onBlur={handleBlur}
+            className="w-full justify-between font-normal"
+          >
+            {selected ? (
+              <span className="truncate">
+                {selected.label}
+                {selected.hint ? (
+                  <span className="ml-2 text-muted-foreground">
+                    {selected.hint}
+                  </span>
+                ) : null}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">{placeholder}</span>
+            )}
+            <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        {/* Matching the trigger width keeps long names from widening the popover past the field. */}
+        <PopoverContent
+          align="start"
+          className="w-(--radix-popover-trigger-width) p-0"
+        >
+          <Command
+            filter={(value, search) =>
+              searchable(value).includes(searchable(search)) ? 1 : 0
+            }
+          >
+            <CommandInput placeholder={searchPlaceholder} />
+            <CommandList>
+              <CommandEmpty>Nincs találat.</CommandEmpty>
+              <CommandGroup>
+                {options.map((option) => (
+                  <CommandItem
+                    key={option.value}
+                    value={option.label}
+                    onSelect={() => {
+                      field.handleChange(option.value);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 size-4",
+                        option.value === field.state.value
+                          ? "opacity-100"
+                          : "opacity-0",
+                      )}
+                    />
+                    {option.label}
+                    {option.hint ? (
+                      <span className="ml-2 text-muted-foreground text-xs">
+                        {option.hint}
+                      </span>
+                    ) : null}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
       <FieldErrors id={errorId} messages={errors} />
     </div>
   );
@@ -227,7 +365,12 @@ function SubmitButton({
 }
 
 export const { useAppForm } = createFormHook({
-  fieldComponents: { TextField, SelectField, CheckboxGroupField },
+  fieldComponents: {
+    TextField,
+    SelectField,
+    ComboboxField,
+    CheckboxGroupField,
+  },
   formComponents: { SubmitButton },
   fieldContext,
   formContext,

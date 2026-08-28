@@ -23,6 +23,7 @@ enum MembershipStatus {
 enum SyncTarget {
   AUTHENTIK
   WEBSITE
+  GOOGLE_GROUP
 }
 
 enum SyncOperation {
@@ -52,12 +53,14 @@ enum AuditAction {
   ROLE_REMOVED
   AVATAR_UPLOADED
   AVATAR_REMOVED
+  GOOGLE_GROUP_SYNCED
 }
 
 enum GoogleGroupMatchStatus {
   MATCHED          // known active member
   ARCHIVED_ON_LIST // archived member, still on list
   SECONDARY_EMAIL  // known to be a secondary address
+  KNOWN_ADDRESS    // no member behind it, but recognised and accepted
   UNKNOWN          // no match found
 }
 
@@ -142,8 +145,9 @@ model AuditLog {
   id         String      @id @default(cuid())
   actorId    String?
   actor      Member?     @relation("AuditActor", fields: [actorId], references: [id])
-  targetId   String
-  target     Member      @relation("AuditTarget", fields: [targetId], references: [id])
+  // Null for entries about no single member, like a Google Group read
+  targetId   String?
+  target     Member?     @relation("AuditTarget", fields: [targetId], references: [id])
   action     AuditAction
   diff       Json        // { field: { old, new } }
   createdAt  DateTime    @default(now())

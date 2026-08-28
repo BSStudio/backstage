@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CheckCircle2, Copy, ExternalLink, Mail } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -14,10 +14,7 @@ type CreatedMember = {
   id: string;
   firstName: string;
   lastName: string;
-  email: string;
 };
-
-const GOOGLE_GROUP_URL = process.env.NEXT_PUBLIC_GOOGLE_GROUP_URL;
 
 const EMPTY_MEMBER = {
   lastName: "",
@@ -176,18 +173,7 @@ function SuccessStep({
   onAddAnother: () => void;
 }) {
   const router = useRouter();
-  const [emailCopied, setEmailCopied] = useState(false);
   const fullName = `${created.lastName} ${created.firstName}`;
-
-  async function copyEmail() {
-    try {
-      await navigator.clipboard.writeText(created.email);
-      setEmailCopied(true);
-      setTimeout(() => setEmailCopied(false), 2000);
-    } catch {
-      toast.error("Nem sikerült másolni az email-címet");
-    }
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -200,41 +186,6 @@ function SuccessStep({
           </p>
         </div>
       </div>
-
-      <Card className="max-w-2xl border-primary/40 bg-primary/5">
-        <CardContent className="flex flex-col gap-3 px-4">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <Mail className="size-4" />
-            Még egy lépés: Google Group
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Add hozzá az új tag email-címét a stúdió Google csoportjához. Ez nem
-            történik meg automatikusan.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={copyEmail}>
-              {emailCopied ? (
-                <Check className="mr-2 size-3.5" />
-              ) : (
-                <Copy className="mr-2 size-3.5" />
-              )}
-              {emailCopied ? "Másolva" : "Email másolása"}
-            </Button>
-            {GOOGLE_GROUP_URL ? (
-              <Button asChild variant="outline" size="sm">
-                <a
-                  href={GOOGLE_GROUP_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Google Group megnyitása
-                  <ExternalLink className="ml-2 size-3.5" />
-                </a>
-              </Button>
-            ) : null}
-          </div>
-        </CardContent>
-      </Card>
 
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => router.push(`/members/${created.id}`)}>

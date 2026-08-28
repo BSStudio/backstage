@@ -3,8 +3,8 @@
 # Backstage
 
 Internal portal for a university TV studio (BSS). Source of truth for member data, syncing to
-Authentik (identity provider) and a legacy Drupal website, plus tooling to reconcile a Google Group
-mailing list. Also the studio's landing page.
+Authentik (identity provider), a legacy Drupal website and the studio's Google Group mailing lists,
+which it also reconciles against the member roster. Also the studio's landing page.
 
 Scale: ~30 active members, growing alumni list (~10 per semester). Single deployment, no tenancy,
 no public traffic.
@@ -87,13 +87,16 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `app/api/` — REST routes: `members/`, `members/[id]/{roles,avatar}`, `usernames/suggest`,
   `auth/[...all]`
 - `app/avatars/[...path]/route.ts` — serves avatar bytes from whichever storage backend is active
-- `lib/services/` — business logic (`members.ts`, `sync-jobs.ts`, `usernames.ts`). All real work
-  happens here. `member-schemas.ts` holds the Zod schemas, split out so client forms can import
-  them.
+- `lib/services/` — business logic (`members.ts`, `sync-jobs.ts`, `usernames.ts`,
+  `google-group.ts`). All real work happens here. `member-schemas.ts` and
+  `google-group-schemas.ts` hold the Zod schemas, split out so client forms can import them.
 - `lib/actions/` — Server Actions; thin wrappers around services
 - `lib/authentik/` — Authentik REST client (`client`, `users`, `groups`)
 - `lib/website/` — legacy Drupal client (`client.ts` transport, `users.ts` operations)
+- `lib/google/` — Cloud Identity client (`client.ts` token minting + transport, `groups.ts`
+  membership operations)
 - `lib/sync/` — `executor.ts` + per-target `{authentik,website}/{operations,orchestrators,group-mapping}.ts`
+  and `google/{operations,orchestrators}.ts`
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
 - `lib/errors.ts` — typed error hierarchy + `mapServiceError`
 - `lib/api-client-auth.ts` — bearer verification for machine-to-machine callers
@@ -101,13 +104,15 @@ The scripts refuse to run against a database whose host is not local unless pass
   it enforces is per replica; the single-replica deployment is what makes that correct
 - `lib/observability/` — `sentry.ts` (shared init options), `scrub.ts` (PII redaction),
   `capture.ts` (capture helpers), `logger.ts` (structured logging)
-- `lib/members.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts` — display helpers + Hungarian labels
+- `lib/members.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts`, `lib/google-group.ts` — display
+  helpers + Hungarian labels
 - `components/form.tsx` — TanStack Form `useAppForm` plus the field/submit components every form
   is built from
 - `components/ui/` — shadcn/ui primitives
 - `scripts/` — dev tooling run with `tsx`: `dev-setup.ts`, `seed-dev.ts` (+ `seed-data.ts` roster,
-  `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`, and
-  `authentik-contract.ts` + its `authentik-contract.json` snapshot
+  `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`,
+  `authentik-contract.ts` + its `authentik-contract.json` snapshot, and `google-group-probe.ts`,
+  which lists the configured group through the real client to check credentials
 - `tests/` — mirrors the source layout; `setup.ts` spins Testcontainers Postgres
 - `proxy.ts` — route protection (Next.js 16 convention)
 - `instrumentation.ts`, `instrumentation-client.ts`, `sentry.{server,edge}.config.ts` — Sentry
@@ -136,7 +141,8 @@ The scripts refuse to run against a database whose host is not local unless pass
 6. Tests: `tests/services/members.test.ts`
 
 **Add a sync operation**
-1. Low-level call in `lib/authentik/*` (then see below) or `lib/website/users.ts`
+1. Low-level call in `lib/authentik/*` (then see below), `lib/website/users.ts` or
+   `lib/google/groups.ts`
 2. Register the handler in `lib/sync/<target>/operations.ts` — it receives
    `(payload, memberId, prisma)` and resolves external IDs itself at execute time
 3. Orchestrator in `lib/sync/<target>/orchestrators.ts`: create the `SyncJob` row, then
@@ -201,13 +207,21 @@ Populated manually by admins. The Authentik UUID is the primary key — no separ
 
 **AuditLog** — field-level diff log, `{ field: { old, new } }` JSON. Written on every mutation.
 A status change and a field update in the same request produce **separate** entries
-(`STATUS_CHANGED` + `MEMBER_UPDATED`).
+(`STATUS_CHANGED` + `MEMBER_UPDATED`). `targetId` is nullable because `GOOGLE_GROUP_SYNCED`
+records a read of the mailing list, which is about no single member.
 
-**SyncJob** — one row per external call. PENDING → IN_PROGRESS → SUCCESS | FAILED, plus `SKIPPED`
-for a call that was never attempted (see Sync architecture). `memberId` is a required FK. Failed
+**SyncJob** — one row per external call, against Authentik, the website or a Google Group.
+PENDING → IN_PROGRESS → SUCCESS | FAILED, plus `SKIPPED` for a call that was never attempted
+(see Sync architecture). `memberId` is a required FK. Failed
 jobs surface at `/admin/sync-jobs` and are individually retryable; `SKIPPED` is not retryable.
 
-**GoogleGroupEntry** — reconciliation state for the mailing list. Annotations survive re-uploads.
+**GoogleGroupEntry** — one row per address on the mailing list, rebuilt from a live read.
+`matchStatus` is either derived by matching the address against `Member.email` (`MATCHED`,
+`ARCHIVED_ON_LIST`, `UNKNOWN`) or set by hand (`SECONDARY_EMAIL` — a member's other address;
+`KNOWN_ADDRESS` — no member behind it and that is fine, another list or an external contact).
+The two hand-set states survive a refresh, everything else is recomputed, and notes survive
+either way. `KNOWN_ADDRESS` requires a note: with no member link it is the only record of what
+the address is.
 
 ### Membership status
 
@@ -221,8 +235,10 @@ enum MembershipStatus {
 }
 ```
 
-`ACTIVE_ALUMNI` and `ALUMNI` map to the **same** Authentik group — the distinction exists only in
-the DB and the UI, with no permission difference.
+`ACTIVE_ALUMNI` and `ALUMNI` map to the **same** Authentik group and the **same** mailing list —
+the distinction exists only in the DB and the UI, with no permission difference. `ALUMNI_STATUSES`
+and `isAlumniStatus()` in `types/index.ts` are the shared predicate; the members and alumni pages
+keep their own filters because they enumerate different concepts.
 
 ### Semester format
 
@@ -274,8 +290,11 @@ response: `requireAuth()` (401) and `requireRole(...roles)` (401/403).
 | Role | Derived from | Can |
 | --- | --- | --- |
 | `MEMBER` | everyone else | view member list, view/edit own profile |
-| `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive |
-| `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + view audit log, retry failed sync jobs |
+| `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive; read the whole admin area — audit log, sync jobs, Google Group reconciliation |
+| `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + retry failed sync jobs, refresh and annotate the Google Group list |
+
+The admin area splits on read vs write: `LEADER` sees every admin page, `ADMIN` is what the
+mutations on them require.
 
 `resolveUserRole(groups)` in `types/index.ts` implements the mapping.
 
@@ -315,6 +334,9 @@ and an `AuditLog`.
 changes require leader/admin. Timeline entry only on status change.
 
 `DELETE /api/members/[id]` — soft archive (leader/admin): sets `archived` + `archivedAt`.
+`?removeFromGoogleGroup=true` also takes the member off the mailing list; anything else leaves the
+address in place. A query parameter because a DELETE body is undefined territory that proxies
+drop.
 
 `PUT /api/members/[id]/roles` — assign/update a leadership role (leader/admin). `label` +
 `authentikGroupIds`. Identical label and groups is a no-op returning 200 with no audit entry. New
@@ -333,8 +355,8 @@ because every miss fans out to Authentik's user API once per collision candidate
 
 `websiteUserId` is never accepted on any write — it is set by sync and import only.
 
-Admin-only resources (sync jobs, audit log) deliberately have **no** REST routes; see
-Architectural Decisions.
+Admin-area resources (sync jobs, audit log, Google Group) deliberately have **no** REST routes;
+see Architectural Decisions.
 
 ---
 
@@ -391,6 +413,28 @@ logs in as an admin and scrapes/posts Drupal admin forms, with a hand-rolled coo
 `fetch` has none) and form-token extraction via cheerio. Expect it to be slow and brittle relative
 to Authentik.
 
+### Google Workspace (Cloud Identity)
+
+`GOOGLE_SERVICE_ACCOUNT_KEY` (the downloaded JSON key, base64-encoded), `GOOGLE_GROUP_EMAIL`, and
+the optional `GOOGLE_ALUMNI_GROUP_EMAIL`. No `googleapis` dependency: `lib/google/client.ts` signs
+a JWT with `jose`, exchanges it at `oauth2.googleapis.com`, and caches the token **per scope**, so
+a read path never carries write authority.
+
+**The Admin SDK Directory API is not usable here** — it answers only to a Workspace admin, and the
+university owns the domain. Cloud Identity accepts a service account that holds the **MANAGER**
+role on the group itself, with no domain-wide delegation, which is the whole reason this
+integration exists at all.
+
+What that role can reach was established by probing, not from docs: `groups:lookup`,
+`memberships.list`, `memberships.create` and `memberships.delete` all work, while
+`memberships:lookup` is refused on both scopes — it resolves an address against the *directory*,
+where group-manager rights do not reach. So `removeGroupMember` finds the membership name in the
+listing instead of looking it up. Restoring that call would mean granting the service account the
+Workspace **Groups Administrator** role, which needs a Super Admin and buys one saved request.
+
+The service account is itself a member of the group; the reconciliation read filters its own
+address out, or it would sit there as a permanent `UNKNOWN`.
+
 ---
 
 ## Sync architecture
@@ -425,6 +469,41 @@ a sync step failed. The UI shows a warning toast, not an error.
 Website specifics: `CREATE_USER` / `UPDATE_USER` / `DEACTIVATE_USER` are wired into create, update,
 status change, archive and bulk operations. Status changes flow through `UPDATE_USER` via the
 `position` field — there is no dedicated status orchestrator on this target.
+
+Google Group specifics: `ADD_TO_GROUP` / `REMOVE_FROM_GROUP` on the `GOOGLE_GROUP` target, with
+`{ email, groupEmail }` as the payload — the list is in the payload because there are two of them.
+This target deliberately **does not** resolve its identifier at execute time: the address *is* what
+the group holds, so re-deriving it from the member row would let a retry act on an address the job
+was never about. `runGoogleGroupJob` is the choke point and writes `SKIPPED` when credentials or
+the target list are unconfigured, the same shape as the Authentik one.
+
+Only three things touch the lists automatically: creating a member adds the address to the main
+list; a status change **into** alumni adds it to the alumni list (once — the two alumni statuses
+share one list); archiving offers an optional removal, a checkbox in the confirm dialog that
+defaults to off and reaches the REST route as `?removeFromGoogleGroup=true`. Everything else is
+manual on purpose — an email change leaves the old address on the list (the edit sheet says so),
+nobody is removed on becoming alumni, and leaving alumni does not undo the membership. The
+reconciliation page is where those leftovers surface.
+
+---
+
+## Google Group reconciliation
+
+`/admin/google-group`. "Lista frissítése" reads the group live and rebuilds `GoogleGroupEntry`:
+addresses no longer on the list are deleted, matched ones are linked to their member, hand-set
+states and notes survive. There is no upload step — that was the pre-API design.
+
+Each refresh writes a `GOOGLE_GROUP_SYNCED` audit entry carrying
+`{ addresses: { old, new } }`, and that entry **is** the "last read" timestamp the page shows.
+Nothing else records when a read happened, and a column would duplicate the same fact.
+
+Two tables: the group's addresses (sortable by address or state, state ordered by how much
+attention a row needs — `UNKNOWN` first, `MATCHED` last) and members no address on the list
+resolves to. Alumni and archived members sit behind a checkbox in the second one, since they are
+expected to be absent and would bury the rows worth acting on.
+
+Leaders read the page; refreshing and annotating are admin-only, enforced in the service and the
+Server Action rather than by hiding the buttons.
 
 ---
 
@@ -511,18 +590,17 @@ Do not try to shrink that tree by deleting `@prisma/studio-core` or `@prisma/dev
 requires both eagerly and the CLI stops loading at all.
 
 **Build args vs secrets.** Every `NEXT_PUBLIC_*` value is a plain build arg —
-`NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, `NEXT_PUBLIC_APP_VERSION`,
-`NEXT_PUBLIC_COMMIT_HASH` and `NEXT_PUBLIC_GOOGLE_GROUP_URL`. A DSN and a Google Group URL are
-public, the rest name the build or the environment, and `next build` freezes all of them into the
-bundle, so setting any of them on the running container reports nothing at all. An empty
+`NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, `NEXT_PUBLIC_APP_VERSION` and
+`NEXT_PUBLIC_COMMIT_HASH`. A DSN is public, the rest name the build or the environment, and
+`next build` freezes all of them into the bundle, so setting any of them on the running container
+reports nothing at all. An empty
 `NEXT_PUBLIC_SENTRY_ENVIRONMENT` falls back to `NODE_ENV`, which is what an unconfigured image
 reports as. `SENTRY_ORG` and `SENTRY_PROJECT` are build args too: they only address the upload
 target, and without them `withSentryConfig` has nowhere to send source maps. `SENTRY_AUTH_TOKEN`
 is the only real secret and comes in as a BuildKit secret mount; a build arg would land in the
 image history. The publish workflow derives the version and the hash from the ref it is building,
-and reads `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`,
-`NEXT_PUBLIC_GOOGLE_GROUP_URL`, `SENTRY_ORG` and `SENTRY_PROJECT` from repository *variables*, the
-token from a repository *secret*.
+and reads `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, `SENTRY_ORG` and
+`SENTRY_PROJECT` from repository *variables*, the token from a repository *secret*.
 
 **Workflows** (`.github/workflows/`), actions pinned to a patch version, mirroring
 [BSStudio/request-manager](https://github.com/BSStudio/request-manager):
@@ -563,7 +641,6 @@ automation, and all of it is set once:
 | Secret | `CODECOV_TOKEN` | the coverage upload fails the `Test` job (`fail_ci_if_error`) |
 | Secret | `SENTRY_AUTH_TOKEN` | no source map upload, so production stack traces stay minified |
 | Variable | `NEXT_PUBLIC_SENTRY_DSN` | the built image reports nothing to Sentry at all |
-| Variable | `NEXT_PUBLIC_GOOGLE_GROUP_URL` | the new-member page drops its Google Group link |
 | Variable | `SENTRY_ORG` / `SENTRY_PROJECT` | source map upload has no target |
 
 Branch protection on `main` requires exactly `ci.yml`'s three jobs — `Lint and typecheck`, `Test`,
@@ -586,8 +663,9 @@ container; routes and actions get smoke tests for auth and error mapping only.
 
 - `tests/setup.ts` — starts the container in `beforeAll`, migrates, truncates all tables in
   `afterEach`, stops in `afterAll`. Exports `getTestPrisma()` and `mockPrisma()`.
-- `tests/helpers.ts` — `mockSession(overrides)` / `mockNoSession()` for auth, and
-  `mockWebsiteOrchestrators()` to stub the Drupal fan-out in route tests.
+- `tests/helpers.ts` — `mockSession(overrides)` / `mockNoSession()` for auth, plus
+  `mockWebsiteOrchestrators()` and `mockGoogleGroupOrchestrators()` to stub the external fan-out in
+  route tests; the Google one returns its mocks so a test can assert on them.
 - Route tests use `vi.resetModules()` + `vi.doMock()` + dynamic `import()` to swap in the test
   database and session before each test.
 - Website client tests stub `fetch` with real `Response`/`Headers` objects so `getSetCookie()`
@@ -641,8 +719,9 @@ routine.
 
 **The Drupal password never leaves `createWebsiteUser`.** Drupal demands a password at account
 creation but nobody uses it — members log in through Authentik. It is minted inside the function,
-is not part of `CreateWebsiteUserInput`, and therefore never reaches a SyncJob payload, which is
-rendered verbatim in the admin UI. A retry mints a fresh one.
+is not part of `CreateWebsiteUserInput`, and therefore never reaches a SyncJob payload at all.
+`/admin/sync-jobs` renders only `result`, but the payload is one column change away from being
+shown and is readable by anyone with database access. A retry mints a fresh one.
 
 **Both systems share one username.** `createMember` reuses `authentikUser.username` — the name
 `createAuthentikUser` settled on after its collision loop — rather than re-deriving. Otherwise a
@@ -663,9 +742,20 @@ is still written — that is what records the replace.
 removes both. Updating an existing role keeps the Leadership membership and only diffs the
 role-specific groups.
 
-**No REST routes for admin resources.** Sync jobs and the audit log are read directly via
-service/Prisma in server components; mutations go through Server Actions. No external consumer
-exists, so an HTTP API would be surface area for nothing.
+**No REST routes for admin resources.** Sync jobs, the audit log and the Google Group
+reconciliation are read directly via service/Prisma in server components; mutations go through
+Server Actions. No external consumer exists, so an HTTP API would be surface area for nothing.
+
+**The mailing list is reconciled, not synced.** Backstage writes to the group in exactly three
+narrow cases (see Sync architecture) and otherwise only reads it. A full two-way sync would have to
+decide what an address with no member means, and the honest answer is "a human knows" — so an email
+change deliberately leaves the stale address in place and the reconciliation page reports it, rather
+than the app guessing that the old one should go.
+
+**`KNOWN_ADDRESS` exists so `UNKNOWN` can reach zero.** Without a state meaning *decided, no member*,
+every permanently-fine address — another list, an external contact — stays `UNKNOWN` forever, and
+nobody can tell a reviewed row from an unreviewed one. The value is in the state, not the note; the
+note is mandatory anyway because with no member link it is the only thing identifying the address.
 
 **Avatar storage is backend-agnostic.** `lib/avatar-storage.ts` is the facade: it validates member
 ID shape, 5MB size and WebP magic bytes, then delegates to a backend implementing `AvatarStorage`
@@ -731,7 +821,11 @@ contact details, and the wiki already provides editing and audit.
   actions share one `useTransition` (`members-table.tsx`) a `pendingAction` discriminator says
   which button is busy
 - Forms are TanStack Form via `useAppForm` (`components/form.tsx`) — no raw `FormData` reads.
-  Fields are `<form.AppField>` + a field component, submit buttons go inside `<form.AppForm>`
+  Fields are `<form.AppField>` + a field component, submit buttons go inside `<form.AppForm>`.
+  `SelectField` for a handful of options, `ComboboxField` (Popover + cmdk) once the list is long
+  enough to need typing — its filter replaces cmdk's default fuzzy scoring, which matches any name
+  carrying the query's letters in order, with an accent-insensitive substring match. A field's
+  `hint` renders a note under the input and joins `aria-describedby`
 - Every portal page exports `metadata` (or `generateMetadata`) for a descriptive Hungarian title
 - Non-login form fields carry `autoComplete="off"` + `data-1p-ignore` + `data-lpignore="true"` to
   suppress password-manager autofill

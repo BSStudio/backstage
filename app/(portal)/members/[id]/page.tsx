@@ -61,7 +61,6 @@ export default async function MemberDetailPage({
   const { id } = await params;
   const session = await getSession();
   const role = session?.user.role as string;
-  const isAdmin = role === "ADMIN";
   const isLeaderOrAdmin = ["ADMIN", "LEADER"].includes(role);
   const isSelf = session?.user.id === id;
   const canEdit = isSelf || isLeaderOrAdmin;
@@ -77,7 +76,7 @@ export default async function MemberDetailPage({
       })
     : [];
 
-  const auditLogs = isAdmin
+  const auditLogs = isLeaderOrAdmin
     ? await prisma.auditLog.findMany({
         where: { targetId: id },
         include: {
@@ -248,7 +247,7 @@ export default async function MemberDetailPage({
       </div>
 
       {/* Audit section (admin only) */}
-      {isAdmin && (
+      {isLeaderOrAdmin && (
         <div className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">Audit napló</h2>
           {auditLogs.length === 0 ? (

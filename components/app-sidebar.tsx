@@ -91,7 +91,6 @@ const adminNav: NavItem[] = [
     title: NAV_LABELS["google-group"],
     url: "/admin/google-group",
     icon: Mails,
-    disabled: true,
   },
   {
     title: NAV_LABELS.adminApps,
@@ -182,7 +181,7 @@ function NavSection({
 
 export function AppSidebar({ role }: { role: UserRole }) {
   const pathname = usePathname();
-  const isAdmin = role === "ADMIN";
+  const canSeeAdminNav = role === "ADMIN" || role === "LEADER";
 
   return (
     <Sidebar collapsible="icon">
@@ -196,7 +195,7 @@ export function AppSidebar({ role }: { role: UserRole }) {
       </SidebarHeader>
       <SidebarContent>
         <NavSection label="Navigáció" items={mainNav} pathname={pathname} />
-        {isAdmin && (
+        {canSeeAdminNav && (
           <NavSection label="Admin" items={adminNav} pathname={pathname} />
         )}
       </SidebarContent>
