@@ -12,8 +12,8 @@ export function mockSession(overrides: { id?: string; role?: UserRole } = {}) {
 
   vi.doMock("@/lib/session", () => ({
     requireAuth: vi.fn().mockResolvedValue(session),
-    requireRole: vi.fn((...roles: UserRole[]) => {
-      if (!roles.includes(role)) {
+    requirePermission: vi.fn((allows: (r: UserRole) => boolean) => {
+      if (!allows(role)) {
         return Promise.resolve(
           NextResponse.json({ error: "Forbidden" }, { status: 403 }),
         );
@@ -61,6 +61,6 @@ export function mockNoSession() {
 
   vi.doMock("@/lib/session", () => ({
     requireAuth: vi.fn().mockResolvedValue(response),
-    requireRole: vi.fn().mockResolvedValue(response),
+    requirePermission: vi.fn().mockResolvedValue(response),
   }));
 }

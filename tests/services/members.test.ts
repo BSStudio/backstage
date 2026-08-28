@@ -1907,3 +1907,58 @@ describe("removeMemberAvatar", () => {
     expect(result.syncErrors).toEqual(["Authentik unreachable"]);
   });
 });
+
+// ─── Manager-only mutations ──────────────────────────────────────────────────
+
+describe("member management guards", () => {
+  it("rejects a member creating another member", async () => {
+    await expect(
+      createMember(
+        getTestPrisma(),
+        { firstName: "A", lastName: "B", email: "a@b.com" },
+        MEMBER_ACTOR,
+      ),
+    ).rejects.toThrow(ForbiddenError);
+    expect(mockCreateAuthentikUser).not.toHaveBeenCalled();
+  });
+
+  it("rejects a member archiving anyone, themselves included", async () => {
+    await expect(
+      archiveMember(getTestPrisma(), MEMBER_ID, MEMBER_ACTOR),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("rejects a member batch-archiving", async () => {
+    await expect(
+      batchArchive(getTestPrisma(), [MEMBER_ID], MEMBER_ACTOR),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("rejects a member batch-updating status", async () => {
+    await expect(
+      batchUpdateStatus(getTestPrisma(), [MEMBER_ID], "MEMBER", MEMBER_ACTOR),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("rejects a member assigning a leadership role", async () => {
+    await expect(
+      assignRole(getTestPrisma(), MEMBER_ID, "Stúdióvezető", [], MEMBER_ACTOR),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("rejects a member removing a leadership role", async () => {
+    await expect(
+      removeRole(getTestPrisma(), MEMBER_ID, MEMBER_ACTOR),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("leaves the member untouched when the guard rejects", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      archiveMember(prisma, MEMBER_ID, MEMBER_ACTOR),
+    ).rejects.toThrow(ForbiddenError);
+
+    const member = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
+    expect(member?.archived).toBe(false);
+  });
+});

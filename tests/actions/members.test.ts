@@ -53,8 +53,10 @@ describe("createMemberAction", () => {
     });
   });
 
-  it("returns error when role is MEMBER", async () => {
+  it("maps ForbiddenError from service", async () => {
+    const { ForbiddenError } = await import("@/lib/errors");
     mockGetSession.mockResolvedValue(session("MEMBER"));
+    mockCreateMember.mockRejectedValue(new ForbiddenError());
     const { createMemberAction } = await import("@/lib/actions/members");
     const result = await createMemberAction({ firstName: "A" });
     expect(result).toEqual({
@@ -154,8 +156,10 @@ describe("archiveMemberAction", () => {
     });
   });
 
-  it("returns error when role is MEMBER", async () => {
+  it("maps ForbiddenError from service", async () => {
+    const { ForbiddenError } = await import("@/lib/errors");
     mockGetSession.mockResolvedValue(session("MEMBER"));
+    mockArchiveMember.mockRejectedValue(new ForbiddenError());
     const { archiveMemberAction } = await import("@/lib/actions/members");
     const result = await archiveMemberAction("id");
     expect(result).toEqual({
@@ -215,8 +219,10 @@ describe("batchArchiveAction", () => {
     });
   });
 
-  it("returns error when role is MEMBER", async () => {
+  it("maps ForbiddenError from service", async () => {
+    const { ForbiddenError } = await import("@/lib/errors");
     mockGetSession.mockResolvedValue(session("MEMBER"));
+    mockBatchArchive.mockRejectedValue(new ForbiddenError());
     const { batchArchiveAction } = await import("@/lib/actions/members");
     const result = await batchArchiveAction(["id-1"]);
     expect(result).toEqual({
@@ -252,8 +258,10 @@ describe("batchUpdateStatusAction", () => {
     });
   });
 
-  it("returns error when role is MEMBER", async () => {
+  it("maps ForbiddenError from service", async () => {
+    const { ForbiddenError } = await import("@/lib/errors");
     mockGetSession.mockResolvedValue(session("MEMBER"));
+    mockBatchUpdateStatus.mockRejectedValue(new ForbiddenError());
     const { batchUpdateStatusAction } = await import("@/lib/actions/members");
     const result = await batchUpdateStatusAction(["id-1"], "MEMBER");
     expect(result).toEqual({
@@ -292,8 +300,10 @@ describe("assignRoleAction", () => {
     });
   });
 
-  it("returns error when role is MEMBER", async () => {
+  it("maps ForbiddenError from service", async () => {
+    const { ForbiddenError } = await import("@/lib/errors");
     mockGetSession.mockResolvedValue(session("MEMBER"));
+    mockAssignRole.mockRejectedValue(new ForbiddenError());
     const { assignRoleAction } = await import("@/lib/actions/members");
     const result = await assignRoleAction("m-1", "Főszerkesztő", []);
     expect(result).toEqual({
@@ -335,8 +345,10 @@ describe("removeRoleAction", () => {
     });
   });
 
-  it("returns error when role is MEMBER", async () => {
+  it("maps ForbiddenError from service", async () => {
+    const { ForbiddenError } = await import("@/lib/errors");
     mockGetSession.mockResolvedValue(session("MEMBER"));
+    mockRemoveRole.mockRejectedValue(new ForbiddenError());
     const { removeRoleAction } = await import("@/lib/actions/members");
     const result = await removeRoleAction("m-1");
     expect(result).toEqual({

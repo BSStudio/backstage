@@ -99,6 +99,8 @@ The scripts refuse to run against a database whose host is not local unless pass
   and `google/{operations,orchestrators}.ts`
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
 - `lib/errors.ts` — typed error hierarchy + `mapServiceError`
+- `lib/permissions.ts` — every role rule: `can*` predicates for the UI, `ensureCan*` guards that
+  throw `ForbiddenError` for services
 - `lib/api-client-auth.ts` — bearer verification for machine-to-machine callers
 - `lib/rate-limit.ts` — in-memory fixed-window rate limiter. State is per process, so every limit
   it enforces is per replica; the single-replica deployment is what makes that correct
@@ -163,8 +165,10 @@ field in `lib/authentik/*` has to be mirrored into the contract check, or it goe
 4. Removing a call means removing its `CONTRACT` entry too, otherwise the check guards a field
    nobody reads
 
-**Add an API route** — keep it a thin adapter: `requireAuth()`/`requireRole()` from
-`lib/session.ts`, call the service, wrap failures in `mapServiceError`. No business logic.
+**Add an API route** — keep it a thin adapter: `requireAuth()` or
+`requirePermission(<predicate>)` from `lib/session.ts`, call the service, wrap failures in
+`mapServiceError`. No business logic, and no role list of its own — the predicate comes from
+`lib/permissions.ts` and the service guards itself regardless.
 
 **Add a portal page** — `app/(portal)/…/page.tsx` exporting `metadata`, a Hungarian label in
 `lib/nav-labels.ts` (used by both sidebar and breadcrumbs), and a sidebar entry in
@@ -285,7 +289,13 @@ auth. `/api/usernames` is public to the proxy because it carries a bearer token 
 cookie; the route itself does the authenticating.
 
 Session helpers in `lib/session.ts` return `Session | NextResponse`, so routes early-return the
-response: `requireAuth()` (401) and `requireRole(...roles)` (401/403).
+response: `requireAuth()` (401) and `requirePermission(allows)` (401/403), which takes a predicate
+from `lib/permissions.ts` rather than a role list.
+
+**Every rule lives in `lib/permissions.ts`.** Nothing else compares a role to a literal — the
+predicates (`canManageMembers`, `canViewAdminArea`, `canAdminister`, `canModifyMember`) drive the
+UI, and the `ensureCan*` guards enforce it in the services. A route's `requirePermission` only
+fails the request earlier, before a body is parsed; it is not what makes the call safe.
 
 | Role | Derived from | Can |
 | --- | --- | --- |
@@ -686,6 +696,11 @@ Why things are the way they are. The *what* is in the code.
 **Service layer.** Business logic lives in `lib/services/`. Routes and Server Actions are both thin
 adapters over the same service, so behaviour cannot drift between the HTTP and RSC paths. Typed
 errors (`NotFoundError`, `ForbiddenError`, `ValidationError`) flow through `mapServiceError`.
+
+**Authorisation is the service's job, not the caller's.** A service function that takes an `Actor`
+guards on it. The alternative — checking in the route and the action and trusting the service —
+held for a while and left six mutations whose `actor` was only ever written to the audit row,
+looking like a guard from the outside. Callers may still refuse early, but nothing depends on it.
 
 **Authentik attributes are replaced, not merged.** `PATCH /core/users/{pk}/` overwrites the whole
 `attributes` object, so `buildAuthentikAttributes(member)` always sends the full managed set

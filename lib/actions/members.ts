@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { MembershipStatus } from "@/app/generated/prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import { type Actor, canManageMembers } from "@/lib/permissions";
+import type { Actor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import {
   type ArchiveOptions,
@@ -50,10 +50,6 @@ export async function createMemberAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  if (!canManageMembers(session.user.role as UserRole)) {
-    return { success: false, error: "Hozzáférés megtagadva" };
-  }
-
   try {
     const { member, syncErrors } = await createMember(
       prisma,
@@ -96,10 +92,6 @@ export async function archiveMemberAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  if (!canManageMembers(session.user.role as UserRole)) {
-    return { success: false, error: "Hozzáférés megtagadva" };
-  }
-
   try {
     const { syncErrors } = await archiveMember(
       prisma,
@@ -121,18 +113,18 @@ export async function batchArchiveAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  if (!canManageMembers(session.user.role as UserRole)) {
-    return { success: false, error: "Hozzáférés megtagadva" };
+  try {
+    const { count, syncErrors } = await batchArchive(
+      prisma,
+      ids,
+      actorFromSession(session),
+      options,
+    );
+    revalidatePath("/members");
+    return { success: true, data: { count }, syncErrors };
+  } catch (error) {
+    return mapError(error);
   }
-
-  const { count, syncErrors } = await batchArchive(
-    prisma,
-    ids,
-    actorFromSession(session),
-    options,
-  );
-  revalidatePath("/members");
-  return { success: true, data: { count }, syncErrors };
 }
 
 export async function batchUpdateStatusAction(
@@ -142,18 +134,18 @@ export async function batchUpdateStatusAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  if (!canManageMembers(session.user.role as UserRole)) {
-    return { success: false, error: "Hozzáférés megtagadva" };
+  try {
+    const { count, syncErrors } = await batchUpdateStatus(
+      prisma,
+      ids,
+      status,
+      actorFromSession(session),
+    );
+    revalidatePath("/members");
+    return { success: true, data: { count }, syncErrors };
+  } catch (error) {
+    return mapError(error);
   }
-
-  const { count, syncErrors } = await batchUpdateStatus(
-    prisma,
-    ids,
-    status,
-    actorFromSession(session),
-  );
-  revalidatePath("/members");
-  return { success: true, data: { count }, syncErrors };
 }
 
 export async function assignRoleAction(
@@ -163,10 +155,6 @@ export async function assignRoleAction(
 ): Promise<ActionResult> {
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
-
-  if (!canManageMembers(session.user.role as UserRole)) {
-    return { success: false, error: "Hozzáférés megtagadva" };
-  }
 
   try {
     const { syncErrors } = await assignRole(
@@ -189,10 +177,6 @@ export async function removeRoleAction(
 ): Promise<ActionResult> {
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
-
-  if (!canManageMembers(session.user.role as UserRole)) {
-    return { success: false, error: "Hozzáférés megtagadva" };
-  }
 
   try {
     const { syncErrors } = await removeRole(

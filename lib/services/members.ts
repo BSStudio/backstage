@@ -8,6 +8,7 @@ import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import {
   type Actor,
   canManageMembers,
+  ensureCanManageMembers,
   ensureCanModifyMember,
 } from "@/lib/permissions";
 import {
@@ -99,6 +100,8 @@ export async function createMember(
   input: unknown,
   actor: Actor,
 ) {
+  ensureCanManageMembers(actor);
+
   const parsed = CreateMemberSchema.safeParse(input);
   if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
 
@@ -459,6 +462,8 @@ export async function archiveMember(
   actor: Actor,
   options: ArchiveOptions = {},
 ) {
+  ensureCanManageMembers(actor);
+
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) throw new NotFoundError();
 
@@ -508,6 +513,8 @@ export async function batchArchive(
   actor: Actor,
   options: ArchiveOptions = {},
 ) {
+  ensureCanManageMembers(actor);
+
   const members = await prisma.member.findMany({
     where: { id: { in: ids }, archived: false },
   });
@@ -558,6 +565,8 @@ export async function batchUpdateStatus(
   status: MembershipStatus,
   actor: Actor,
 ) {
+  ensureCanManageMembers(actor);
+
   // Only update members whose status actually differs
   const members = await prisma.member.findMany({
     where: { id: { in: ids }, archived: false, status: { not: status } },
@@ -620,6 +629,8 @@ export async function assignRole(
   authentikGroupIds: string[],
   actor: Actor,
 ) {
+  ensureCanManageMembers(actor);
+
   const member = await prisma.member.findUnique({
     where: { id: memberId },
     include: { leadershipRole: true },
@@ -715,6 +726,8 @@ export async function removeRole(
   memberId: string,
   actor: Actor,
 ) {
+  ensureCanManageMembers(actor);
+
   const member = await prisma.member.findUnique({
     where: { id: memberId },
     include: { leadershipRole: true },
