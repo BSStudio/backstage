@@ -53,6 +53,7 @@ enum AuditAction {
   ROLE_REMOVED
   AVATAR_UPLOADED
   AVATAR_REMOVED
+  GOOGLE_GROUP_SYNCED
 }
 
 enum GoogleGroupMatchStatus {
@@ -143,8 +144,9 @@ model AuditLog {
   id         String      @id @default(cuid())
   actorId    String?
   actor      Member?     @relation("AuditActor", fields: [actorId], references: [id])
-  targetId   String
-  target     Member      @relation("AuditTarget", fields: [targetId], references: [id])
+  // Null for entries about no single member, like a Google Group read
+  targetId   String?
+  target     Member?     @relation("AuditTarget", fields: [targetId], references: [id])
   action     AuditAction
   diff       Json        // { field: { old, new } }
   createdAt  DateTime    @default(now())

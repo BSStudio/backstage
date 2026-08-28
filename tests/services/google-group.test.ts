@@ -46,6 +46,13 @@ beforeEach(async () => {
   await prisma.member.createMany({
     data: [
       {
+        id: ADMIN.id,
+        firstName: "Admin",
+        lastName: "Tag",
+        email: "admin@example.com",
+        joinedSemester: "2025/2026/1",
+      },
+      {
         id: ACTIVE_ID,
         firstName: "Aktív",
         lastName: "Tag",
@@ -111,6 +118,28 @@ describe("refreshGoogleGroupEntries", () => {
         memberId: ARCHIVED_ID,
       }),
     ]);
+  });
+
+  it("records the read in the audit log as a before/after count", async () => {
+    const prisma = getTestPrisma();
+    await prisma.googleGroupEntry.create({
+      data: { email: "lelepett@example.com", matchStatus: "UNKNOWN" },
+    });
+    mockListGroupMembers.mockResolvedValue([
+      member("aktiv.tag@example.com"),
+      member("ismeretlen@example.com"),
+    ]);
+
+    await refreshGoogleGroupEntries(prisma, ADMIN);
+
+    const logs = await prisma.auditLog.findMany();
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      action: "GOOGLE_GROUP_SYNCED",
+      actorId: ADMIN.id,
+      targetId: null,
+      diff: { addresses: { old: 1, new: 2 } },
+    });
   });
 
   it("keeps a SECONDARY_EMAIL annotation across refreshes", async () => {
@@ -183,6 +212,19 @@ describe("getGoogleGroupReconciliation", () => {
     ).rejects.toThrow(ForbiddenError);
   });
 
+  it("reports when the list was last read", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      getGoogleGroupReconciliation(prisma, ADMIN),
+    ).resolves.toMatchObject({ lastSyncedAt: null });
+
+    mockListGroupMembers.mockResolvedValue([member("aktiv.tag@example.com")]);
+    await refreshGoogleGroupEntries(prisma, ADMIN);
+
+    const { lastSyncedAt } = await getGoogleGroupReconciliation(prisma, ADMIN);
+    expect(lastSyncedAt).toBeInstanceOf(Date);
+  });
+
   it("lets a leader read the reconciliation", async () => {
     await expect(
       getGoogleGroupReconciliation(getTestPrisma(), LEADER),
@@ -199,11 +241,11 @@ describe("getGoogleGroupReconciliation", () => {
     expect(entries).toEqual([]);
     // Archived members are listed too; the page hides them behind a checkbox.
     expect(missing.map((m) => m.id).sort()).toEqual(
-      [ACTIVE_ID, ARCHIVED_ID].sort(),
+      [ADMIN.id, ACTIVE_ID, ARCHIVED_ID].sort(),
     );
     // The picker offers archived members too: an address may still be theirs.
     expect(members.map((m) => m.id).sort()).toEqual(
-      [ACTIVE_ID, ARCHIVED_ID].sort(),
+      [ADMIN.id, ACTIVE_ID, ARCHIVED_ID].sort(),
     );
   });
 
@@ -218,7 +260,9 @@ describe("getGoogleGroupReconciliation", () => {
     });
 
     const { missing } = await getGoogleGroupReconciliation(prisma, ADMIN);
-    expect(missing.map((m) => m.id)).toEqual([ARCHIVED_ID]);
+    expect(missing.map((m) => m.id).sort()).toEqual(
+      [ADMIN.id, ARCHIVED_ID].sort(),
+    );
   });
 });
 

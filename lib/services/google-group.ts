@@ -69,6 +69,13 @@ export async function refreshGoogleGroupEntries(
   });
 
   await prisma.$transaction([
+    prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "GOOGLE_GROUP_SYNCED",
+        diff: { addresses: { old: existing.length, new: rows.length } },
+      },
+    }),
     prisma.googleGroupEntry.deleteMany({
       where: { email: { notIn: addresses } },
     }),
@@ -94,13 +101,18 @@ export async function getGoogleGroupReconciliation(
 ) {
   ensureLeaderOrAdmin(actor);
 
-  const [entries, allMembers] = await Promise.all([
+  const [entries, allMembers, lastSync] = await Promise.all([
     prisma.googleGroupEntry.findMany({
       include: { member: true },
       orderBy: { email: "asc" },
     }),
     prisma.member.findMany({
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    }),
+    // The audit entry doubles as the timestamp; nothing else records when a read happened.
+    prisma.auditLog.findFirst({
+      where: { action: "GOOGLE_GROUP_SYNCED" },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -111,6 +123,7 @@ export async function getGoogleGroupReconciliation(
     entries,
     missing: allMembers.filter((member) => !onList.has(member.id)),
     members: allMembers,
+    lastSyncedAt: lastSync?.createdAt ?? null,
   };
 }
 

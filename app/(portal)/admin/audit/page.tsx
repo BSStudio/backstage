@@ -111,12 +111,16 @@ export default async function AuditPage({
                     </Badge>
                   </TableCell>
                   <TableCell className="font-medium">
-                    <a
-                      href={`/members/${log.targetId}`}
-                      className="hover:underline"
-                    >
-                      {log.target.lastName} {log.target.firstName}
-                    </a>
+                    {log.target ? (
+                      <a
+                        href={`/members/${log.targetId}`}
+                        className="hover:underline"
+                      >
+                        {log.target.lastName} {log.target.firstName}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {log.actor ? (

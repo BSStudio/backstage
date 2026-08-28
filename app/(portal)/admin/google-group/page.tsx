@@ -21,10 +21,8 @@ export default async function GoogleGroupPage() {
   if (role !== "ADMIN" && role !== "LEADER") redirect("/");
   const canManage = role === "ADMIN";
 
-  const { entries, missing, members } = await getGoogleGroupReconciliation(
-    prisma,
-    { id, role: role as UserRole },
-  );
+  const { entries, missing, members, lastSyncedAt } =
+    await getGoogleGroupReconciliation(prisma, { id, role: role as UserRole });
 
   const groupEmail = process.env.GOOGLE_GROUP_EMAIL;
 
@@ -35,6 +33,11 @@ export default async function GoogleGroupPage() {
           <h1 className="text-3xl font-bold tracking-tight">Google Group</h1>
           <p className="text-muted-foreground">
             A levelezőlista címei és a tagnyilvántartás összevetése.
+          </p>
+          <p className="text-muted-foreground text-sm">
+            {lastSyncedAt
+              ? `Utoljára beolvasva: ${lastSyncedAt.toLocaleString("hu-HU")}`
+              : "A lista még nem volt beolvasva."}
           </p>
         </div>
         <div className="flex gap-2">
