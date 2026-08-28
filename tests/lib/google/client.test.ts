@@ -78,6 +78,15 @@ describe("getGroupEmail", () => {
   });
 });
 
+describe("getServiceAccountEmail", () => {
+  it("returns the client_email from the key", async () => {
+    const { getServiceAccountEmail } = await importClient();
+    expect(getServiceAccountEmail()).toBe(
+      "backstage@project.iam.gserviceaccount.com",
+    );
+  });
+});
+
 describe("googleRequest", () => {
   it("throws when the service account key is missing", async () => {
     vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_KEY", "");

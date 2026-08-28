@@ -68,6 +68,10 @@ function getServiceAccountKey(): ServiceAccountKey {
   return key as ServiceAccountKey;
 }
 
+export function getServiceAccountEmail(): string {
+  return getServiceAccountKey().client_email;
+}
+
 // Cached per scope, so a read path never carries a token that could write.
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 const EXPIRY_SKEW_MS = 60_000;

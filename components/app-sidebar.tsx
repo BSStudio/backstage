@@ -91,7 +91,6 @@ const adminNav: NavItem[] = [
     title: NAV_LABELS["google-group"],
     url: "/admin/google-group",
     icon: Mails,
-    disabled: true,
   },
   {
     title: NAV_LABELS.adminApps,
