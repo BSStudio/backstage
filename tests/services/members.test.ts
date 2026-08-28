@@ -73,6 +73,7 @@ import {
   batchUpdateStatus,
   createMember,
   getMember,
+  listAuthentikGroups,
   listMembers,
   removeMemberAvatar,
   removeRole,
@@ -1960,5 +1961,30 @@ describe("member management guards", () => {
 
     const member = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
     expect(member?.archived).toBe(false);
+  });
+});
+
+describe("listAuthentikGroups", () => {
+  it("returns the registry ordered by display name", async () => {
+    const prisma = getTestPrisma();
+    await prisma.authentikGroup.createMany({
+      data: [
+        { authentikGroupId: "uuid-b", displayName: "Vezetőség" },
+        { authentikGroupId: "uuid-a", displayName: "Főszerkesztő" },
+      ],
+    });
+
+    const groups = await listAuthentikGroups(prisma, ACTOR);
+
+    expect(groups.map((g) => g.displayName)).toEqual([
+      "Főszerkesztő",
+      "Vezetőség",
+    ]);
+  });
+
+  it("throws ForbiddenError for a regular member", async () => {
+    await expect(
+      listAuthentikGroups(getTestPrisma(), MEMBER_ACTOR),
+    ).rejects.toThrow(ForbiddenError);
   });
 });

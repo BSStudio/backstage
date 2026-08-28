@@ -83,6 +83,15 @@ export async function listMembers(
   });
 }
 
+export async function listAuthentikGroups(prisma: PrismaClient, actor: Actor) {
+  ensureCanManageMembers(actor);
+
+  return prisma.authentikGroup.findMany({
+    select: { authentikGroupId: true, displayName: true },
+    orderBy: { displayName: "asc" },
+  });
+}
+
 export async function getMember(prisma: PrismaClient, id: string) {
   const member = await prisma.member.findUnique({
     where: { id },

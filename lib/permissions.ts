@@ -26,6 +26,10 @@ export function ensureCanManageMembers(actor: Actor): void {
   if (!canManageMembers(actor.role)) throw new ForbiddenError();
 }
 
+export function ensureCanViewAdminArea(actor: Actor): void {
+  if (!canViewAdminArea(actor.role)) throw new ForbiddenError();
+}
+
 export function ensureCanAdminister(actor: Actor): void {
   if (!canAdminister(actor.role)) throw new ForbiddenError();
 }

@@ -20,14 +20,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
-import { canViewAdminArea } from "@/lib/permissions";
+import { type Actor, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
+import { listAuditLogs } from "@/lib/services/audit";
 import { getSession } from "@/lib/session";
 import type { UserRole } from "@/types";
 
 export const metadata: Metadata = { title: "Audit napló - Backstage" };
-
-const PAGE_SIZE = 50;
 
 /** Generate page numbers with ellipsis for pagination. */
 function pageRange(current: number, total: number): (number | string)[] {
@@ -52,27 +51,19 @@ export default async function AuditPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const session = await getSession();
-  if (!canViewAdminArea(session?.user.role as UserRole | undefined)) {
-    redirect("/");
-  }
+  if (!session) redirect("/");
+  const actor: Actor = {
+    id: session.user.id,
+    role: session.user.role as UserRole,
+  };
+  if (!canViewAdminArea(actor.role)) redirect("/");
 
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
 
-  const [total, logs] = await Promise.all([
-    prisma.auditLog.count(),
-    prisma.auditLog.findMany({
-      include: {
-        actor: { select: { firstName: true, lastName: true } },
-        target: { select: { firstName: true, lastName: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    }),
-  ]);
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const { logs, total, totalPages } = await listAuditLogs(prisma, actor, {
+    page,
+  });
 
   return (
     <div className="flex flex-col gap-6">

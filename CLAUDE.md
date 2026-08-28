@@ -88,7 +88,7 @@ The scripts refuse to run against a database whose host is not local unless pass
   `auth/[...all]`
 - `app/avatars/[...path]/route.ts` — serves avatar bytes from whichever storage backend is active
 - `lib/services/` — business logic (`members.ts`, `sync-jobs.ts`, `usernames.ts`,
-  `google-group.ts`). All real work happens here. `member-schemas.ts` and
+  `google-group.ts`, `audit.ts`). All real work happens here. `member-schemas.ts` and
   `google-group-schemas.ts` hold the Zod schemas, split out so client forms can import them.
 - `lib/actions/` — Server Actions; thin wrappers around services
 - `lib/authentik/` — Authentik REST client (`client`, `users`, `groups`)
@@ -758,8 +758,16 @@ removes both. Updating an existing role keeps the Leadership membership and only
 role-specific groups.
 
 **No REST routes for admin resources.** Sync jobs, the audit log and the Google Group
-reconciliation are read directly via service/Prisma in server components; mutations go through
-Server Actions. No external consumer exists, so an HTTP API would be surface area for nothing.
+reconciliation are read through their services from server components; mutations go through Server
+Actions. No external consumer exists, so an HTTP API would be surface area for nothing.
+
+**Restricted reads go through a guarded service, never Prisma in the page.** Next.js is explicit
+that a layout cannot gate its segments — they render regardless and land in the RSC payload — so
+there is no one place to put a check for a group of pages, and the check belongs next to the data
+instead (`node_modules/next/dist/docs/01-app/02-guides/authentication.md`, *Layouts and auth
+checks*). Every admin page still calls `redirect()` on the way in, but that is the UX; what makes
+the data safe is `listAuditLogs`, `listSyncJobs`, `listAuthentikGroups` and
+`getGoogleGroupReconciliation` refusing an actor who may not see them.
 
 **The mailing list is reconciled, not synced.** Backstage writes to the group in exactly three
 narrow cases (see Sync architecture) and otherwise only reads it. A full two-way sync would have to
