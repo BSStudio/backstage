@@ -177,7 +177,14 @@ function EditForms({
         </profileForm.AppField>
         {canChangeEmail && (
           <profileForm.AppField name="email">
-            {(field) => <field.TextField label="Email" type="email" required />}
+            {(field) => (
+              <field.TextField
+                label="Email"
+                type="email"
+                required
+                hint="A Google Group listát ez nem frissíti, a régi cím marad rajta."
+              />
+            )}
           </profileForm.AppField>
         )}
         <profileForm.AppField name="mobile">

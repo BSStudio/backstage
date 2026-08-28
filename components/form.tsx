@@ -101,16 +101,23 @@ function TextField({
   type = "text",
   placeholder,
   required = false,
+  hint,
 }: {
   label: string;
   type?: string;
   placeholder?: string;
   required?: boolean;
+  hint?: string;
 }) {
   const field = useFieldContext<string>();
   const errors = useFieldErrors();
   const handleBlur = useBlurHandler();
   const errorId = `${field.name}-error`;
+  const hintId = `${field.name}-hint`;
+  const describedBy =
+    [hint ? hintId : null, errors.length > 0 ? errorId : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -127,11 +134,16 @@ function TextField({
         onChange={(e) => field.handleChange(e.target.value)}
         onBlur={handleBlur}
         aria-invalid={errors.length > 0}
-        aria-describedby={errors.length > 0 ? errorId : undefined}
+        aria-describedby={describedBy}
         autoComplete="off"
         data-1p-ignore
         data-lpignore="true"
       />
+      {hint && (
+        <p id={hintId} className="text-muted-foreground text-xs">
+          {hint}
+        </p>
+      )}
       <FieldErrors id={errorId} messages={errors} />
     </div>
   );
