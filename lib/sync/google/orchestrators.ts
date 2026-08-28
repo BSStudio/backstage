@@ -2,9 +2,17 @@ import type {
   PrismaClient,
   SyncOperation,
 } from "@/app/generated/prisma/client";
-import { isGoogleGroupConfigured } from "@/lib/google/client";
+import {
+  getAlumniGroupEmail,
+  getGroupEmail,
+  isGoogleGroupConfigured,
+} from "@/lib/google/client";
 import { NO_GOOGLE_GROUP_CONFIG_REASON } from "@/lib/sync-jobs";
 import { executeSyncJob, type SyncResult } from "../executor";
+
+function mainGroupEmail(): string | null {
+  return isGoogleGroupConfigured() ? getGroupEmail() : null;
+}
 
 // Skipped rather than failed: with no credentials there is nothing to call and no retry that
 // could succeed. The row is still written, so a lost credential does not go unnoticed.
@@ -13,10 +21,11 @@ async function runGoogleGroupJob(
   memberId: string,
   operation: SyncOperation,
   email: string,
+  groupEmail: string | null,
 ): Promise<SyncResult> {
-  const payload = { email };
+  const payload = { email, groupEmail };
 
-  if (!isGoogleGroupConfigured()) {
+  if (!isGoogleGroupConfigured() || !groupEmail) {
     await prisma.syncJob.create({
       data: {
         target: "GOOGLE_GROUP",
@@ -41,7 +50,27 @@ export async function orchestrateAddToGoogleGroup(
   memberId: string,
   email: string,
 ): Promise<SyncResult> {
-  return runGoogleGroupJob(prisma, memberId, "ADD_TO_GROUP", email);
+  return runGoogleGroupJob(
+    prisma,
+    memberId,
+    "ADD_TO_GROUP",
+    email,
+    mainGroupEmail(),
+  );
+}
+
+export async function orchestrateAddToAlumniGroup(
+  prisma: PrismaClient,
+  memberId: string,
+  email: string,
+): Promise<SyncResult> {
+  return runGoogleGroupJob(
+    prisma,
+    memberId,
+    "ADD_TO_GROUP",
+    email,
+    getAlumniGroupEmail(),
+  );
 }
 
 export async function orchestrateRemoveFromGoogleGroup(
@@ -49,5 +78,11 @@ export async function orchestrateRemoveFromGoogleGroup(
   memberId: string,
   email: string,
 ): Promise<SyncResult> {
-  return runGoogleGroupJob(prisma, memberId, "REMOVE_FROM_GROUP", email);
+  return runGoogleGroupJob(
+    prisma,
+    memberId,
+    "REMOVE_FROM_GROUP",
+    email,
+    mainGroupEmail(),
+  );
 }

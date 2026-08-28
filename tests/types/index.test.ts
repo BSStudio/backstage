@@ -4,13 +4,25 @@ import {
   deriveUsername,
   formatSemester,
   hasAuthentikAccount,
+  isAlumniStatus,
   LOCAL_MEMBER_ID_PREFIX,
   localMemberId,
+  MEMBERSHIP_STATUSES,
   parseSemester,
   resolveUserRole,
 } from "@/types";
 
 // ─── parseSemester ───────────────────────────────────────────────────────────
+
+describe("isAlumniStatus", () => {
+  it("covers both alumni statuses and nothing else", () => {
+    for (const status of MEMBERSHIP_STATUSES) {
+      expect(isAlumniStatus(status)).toBe(
+        status === "ALUMNI" || status === "ACTIVE_ALUMNI",
+      );
+    }
+  });
+});
 
 describe("parseSemester", () => {
   it("parses autumn semester", () => {

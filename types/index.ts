@@ -10,6 +10,17 @@ export const MEMBERSHIP_STATUSES = [
   "ALUMNI",
 ] as const satisfies readonly MembershipStatus[];
 
+// The two alumni statuses differ only in the DB and the UI: one Authentik group, one
+// mailing list, no permission difference.
+export const ALUMNI_STATUSES = [
+  "ACTIVE_ALUMNI",
+  "ALUMNI",
+] as const satisfies readonly MembershipStatus[];
+
+export function isAlumniStatus(status: MembershipStatus): boolean {
+  return (ALUMNI_STATUSES as readonly MembershipStatus[]).includes(status);
+}
+
 // ─── Display labels ───────────────────────────────────────────────────────────
 
 export const MEMBERSHIP_STATUS_LABELS: Record<MembershipStatus, string> = {

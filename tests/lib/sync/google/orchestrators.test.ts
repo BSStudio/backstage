@@ -12,6 +12,7 @@ vi.mock("@/lib/google/groups", () => ({
 }));
 
 import {
+  orchestrateAddToAlumniGroup,
   orchestrateAddToGoogleGroup,
   orchestrateRemoveFromGoogleGroup,
 } from "@/lib/sync/google/orchestrators";
@@ -26,6 +27,7 @@ beforeEach(async () => {
   mockRemoveGroupMember.mockResolvedValue({ removed: true });
 
   vi.stubEnv("GOOGLE_GROUP_EMAIL", "members@example.com");
+  vi.stubEnv("GOOGLE_ALUMNI_GROUP_EMAIL", "alumni@example.com");
   vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_KEY", "base64-key");
 
   await getTestPrisma().member.upsert({
@@ -52,7 +54,10 @@ describe("orchestrateAddToGoogleGroup", () => {
     const result = await orchestrateAddToGoogleGroup(prisma, MEMBER_ID, EMAIL);
 
     expect(result).toEqual({ success: true, result: { added: true } });
-    expect(mockAddGroupMember).toHaveBeenCalledWith(EMAIL);
+    expect(mockAddGroupMember).toHaveBeenCalledWith(
+      EMAIL,
+      "members@example.com",
+    );
 
     const job = await prisma.syncJob.findFirst({
       where: { memberId: MEMBER_ID },
@@ -62,7 +67,7 @@ describe("orchestrateAddToGoogleGroup", () => {
       operation: "ADD_TO_GROUP",
       status: "SUCCESS",
       attempts: 1,
-      payload: { email: EMAIL },
+      payload: { email: EMAIL, groupEmail: "members@example.com" },
     });
   });
 
@@ -91,7 +96,10 @@ describe("orchestrateRemoveFromGoogleGroup", () => {
     );
 
     expect(result).toEqual({ success: true, result: { removed: true } });
-    expect(mockRemoveGroupMember).toHaveBeenCalledWith(EMAIL);
+    expect(mockRemoveGroupMember).toHaveBeenCalledWith(
+      EMAIL,
+      "members@example.com",
+    );
 
     const job = await prisma.syncJob.findFirst({
       where: { memberId: MEMBER_ID },
@@ -100,8 +108,45 @@ describe("orchestrateRemoveFromGoogleGroup", () => {
       target: "GOOGLE_GROUP",
       operation: "REMOVE_FROM_GROUP",
       status: "SUCCESS",
-      payload: { email: EMAIL },
+      payload: { email: EMAIL, groupEmail: "members@example.com" },
     });
+  });
+});
+
+describe("orchestrateAddToAlumniGroup", () => {
+  it("targets the alumni list", async () => {
+    const prisma = getTestPrisma();
+
+    const result = await orchestrateAddToAlumniGroup(prisma, MEMBER_ID, EMAIL);
+
+    expect(result).toEqual({ success: true, result: { added: true } });
+    expect(mockAddGroupMember).toHaveBeenCalledWith(
+      EMAIL,
+      "alumni@example.com",
+    );
+
+    const job = await prisma.syncJob.findFirst({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(job).toMatchObject({
+      status: "SUCCESS",
+      payload: { email: EMAIL, groupEmail: "alumni@example.com" },
+    });
+  });
+
+  it("skips when no alumni list is configured", async () => {
+    const prisma = getTestPrisma();
+    vi.stubEnv("GOOGLE_ALUMNI_GROUP_EMAIL", "");
+
+    const result = await orchestrateAddToAlumniGroup(prisma, MEMBER_ID, EMAIL);
+
+    expect(result).toEqual({ success: true, result: null });
+    expect(mockAddGroupMember).not.toHaveBeenCalled();
+
+    const job = await prisma.syncJob.findFirst({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(job).toMatchObject({ status: "SKIPPED", attempts: 0 });
   });
 });
 

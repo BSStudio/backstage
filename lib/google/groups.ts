@@ -21,21 +21,21 @@ interface MembershipsPage {
   nextPageToken?: string;
 }
 
-let cachedGroupName: { groupEmail: string; name: string } | null = null;
+const groupNames = new Map<string, string>();
 
-async function getGroupResourceName(): Promise<string> {
-  const groupEmail = getGroupEmail();
-  if (cachedGroupName?.groupEmail === groupEmail) return cachedGroupName.name;
+async function getGroupResourceName(groupEmail: string): Promise<string> {
+  const cached = groupNames.get(groupEmail);
+  if (cached) return cached;
 
   const { name } = await googleRequest<{ name: string }>(
     `/groups:lookup?groupKey.id=${encodeURIComponent(groupEmail)}`,
   );
-  cachedGroupName = { groupEmail, name };
+  groupNames.set(groupEmail, name);
   return name;
 }
 
-async function fetchMemberships(): Promise<Membership[]> {
-  const parent = await getGroupResourceName();
+async function fetchMemberships(groupEmail: string): Promise<Membership[]> {
+  const parent = await getGroupResourceName(groupEmail);
   const memberships: Membership[] = [];
   let pageToken: string | undefined;
 
@@ -53,10 +53,12 @@ async function fetchMemberships(): Promise<Membership[]> {
   return memberships;
 }
 
-export async function listGroupMembers(): Promise<GoogleGroupMember[]> {
+export async function listGroupMembers(
+  groupEmail: string = getGroupEmail(),
+): Promise<GoogleGroupMember[]> {
   const members: GoogleGroupMember[] = [];
 
-  for (const membership of await fetchMemberships()) {
+  for (const membership of await fetchMemberships(groupEmail)) {
     const email = membership.preferredMemberKey?.id;
     if (!email) continue;
     members.push({
@@ -70,8 +72,9 @@ export async function listGroupMembers(): Promise<GoogleGroupMember[]> {
 
 export async function addGroupMember(
   email: string,
+  groupEmail: string = getGroupEmail(),
 ): Promise<{ added: boolean }> {
-  const parent = await getGroupResourceName();
+  const parent = await getGroupResourceName(groupEmail);
   try {
     await googleRequest(`/${parent}/memberships`, {
       method: "POST",
@@ -93,9 +96,10 @@ export async function addGroupMember(
 
 export async function removeGroupMember(
   email: string,
+  groupEmail: string = getGroupEmail(),
 ): Promise<{ removed: boolean }> {
   const wanted = email.toLowerCase();
-  const membership = (await fetchMemberships()).find(
+  const membership = (await fetchMemberships(groupEmail)).find(
     (entry) => entry.preferredMemberKey?.id?.toLowerCase() === wanted,
   );
 

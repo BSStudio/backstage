@@ -20,6 +20,7 @@ import {
   orchestrateUpdateAttributes,
 } from "@/lib/sync/authentik/orchestrators";
 import {
+  orchestrateAddToAlumniGroup,
   orchestrateAddToGoogleGroup,
   orchestrateRemoveFromGoogleGroup,
 } from "@/lib/sync/google/orchestrators";
@@ -30,7 +31,7 @@ import {
   orchestrateUpdateWebsiteUser,
 } from "@/lib/sync/website/orchestrators";
 import type { UpdateWebsiteUserInput } from "@/lib/website/users";
-import { currentSemester, type UserRole } from "@/types";
+import { currentSemester, isAlumniStatus, type UserRole } from "@/types";
 
 export type {
   AssignRoleInput,
@@ -421,6 +422,15 @@ export async function updateMember(
     for (const r of results) {
       if (!r.success) syncErrors.push(r.error);
     }
+
+    if (becomesAlumni(member.status, data.status)) {
+      const alumniResult = await orchestrateAddToAlumniGroup(
+        prisma,
+        member.id,
+        updated.email,
+      );
+      if (!alumniResult.success) syncErrors.push(alumniResult.error);
+    }
   }
 
   // Sync website if any website-tracked field changed
@@ -446,6 +456,11 @@ export async function updateMember(
   }
 
   return { member: updated, syncErrors };
+}
+
+// Only the move into alumni adds the address; leaving alumni is rare enough to handle by hand.
+function becomesAlumni(from: MembershipStatus, to: MembershipStatus): boolean {
+  return isAlumniStatus(to) && !isAlumniStatus(from);
 }
 
 export interface ArchiveOptions {
@@ -589,6 +604,11 @@ export async function batchUpdateStatus(
   const groupResultsPerMember = await Promise.all(
     members.map((m) => orchestrateStatusChange(prisma, m.id, m.status, status)),
   );
+  const alumniResults = await Promise.all(
+    members
+      .filter((m) => becomesAlumni(m.status, status))
+      .map((m) => orchestrateAddToAlumniGroup(prisma, m.id, m.email)),
+  );
   const websiteResults = await Promise.all(
     members.map((m) =>
       orchestrateUpdateWebsiteUser(prisma, m.id, {
@@ -596,7 +616,11 @@ export async function batchUpdateStatus(
       }),
     ),
   );
-  const syncErrors = [...groupResultsPerMember.flat(), ...websiteResults]
+  const syncErrors = [
+    ...groupResultsPerMember.flat(),
+    ...alumniResults,
+    ...websiteResults,
+  ]
     .filter((r): r is { success: false; error: string } => !r.success)
     .map((r) => r.error);
 

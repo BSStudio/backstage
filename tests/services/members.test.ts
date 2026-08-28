@@ -12,6 +12,7 @@ const {
   mockOrchestrateDeactivateWebsiteUser,
   mockOrchestrateAddToGoogleGroup,
   mockOrchestrateRemoveFromGoogleGroup,
+  mockOrchestrateAddToAlumniGroup,
 } = vi.hoisted(() => ({
   mockCreateAuthentikUser: vi.fn(),
   mockOrchestrateDeactivate: vi.fn(),
@@ -24,6 +25,7 @@ const {
   mockOrchestrateDeactivateWebsiteUser: vi.fn(),
   mockOrchestrateAddToGoogleGroup: vi.fn(),
   mockOrchestrateRemoveFromGoogleGroup: vi.fn(),
+  mockOrchestrateAddToAlumniGroup: vi.fn(),
 }));
 
 vi.mock("@/lib/sync/authentik/orchestrators", () => ({
@@ -59,6 +61,7 @@ vi.mock("@/lib/sync/website/orchestrators", () => ({
 vi.mock("@/lib/sync/google/orchestrators", () => ({
   orchestrateAddToGoogleGroup: mockOrchestrateAddToGoogleGroup,
   orchestrateRemoveFromGoogleGroup: mockOrchestrateRemoveFromGoogleGroup,
+  orchestrateAddToAlumniGroup: mockOrchestrateAddToAlumniGroup,
 }));
 
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -122,6 +125,7 @@ beforeEach(async () => {
   mockOrchestrateDeactivateWebsiteUser.mockResolvedValue(websiteOk);
   mockOrchestrateAddToGoogleGroup.mockResolvedValue(websiteOk);
   mockOrchestrateRemoveFromGoogleGroup.mockResolvedValue(websiteOk);
+  mockOrchestrateAddToAlumniGroup.mockResolvedValue(websiteOk);
 
   const prisma = getTestPrisma();
 
@@ -972,6 +976,84 @@ describe("updateMember", () => {
 });
 
 // ─── archiveMember ───────────────────────────────────────────────────────────
+
+describe("alumni list", () => {
+  it("adds the member when the status becomes alumni", async () => {
+    const prisma = getTestPrisma();
+    await updateMember(prisma, MEMBER_ID, { status: "ALUMNI" }, ACTOR);
+
+    expect(mockOrchestrateAddToAlumniGroup).toHaveBeenCalledTimes(1);
+    const [, memberId, email] = mockOrchestrateAddToAlumniGroup.mock.calls[0];
+    expect(memberId).toBe(MEMBER_ID);
+    expect(email).toBe("target@test.com");
+  });
+
+  it("adds the member for the active alumni status too", async () => {
+    const prisma = getTestPrisma();
+    await updateMember(prisma, MEMBER_ID, { status: "ACTIVE_ALUMNI" }, ACTOR);
+
+    expect(mockOrchestrateAddToAlumniGroup).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not add again when moving between the two alumni statuses", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: { status: "ACTIVE_ALUMNI" },
+    });
+
+    await updateMember(prisma, MEMBER_ID, { status: "ALUMNI" }, ACTOR);
+
+    expect(mockOrchestrateAddToAlumniGroup).not.toHaveBeenCalled();
+  });
+
+  it("leaves the alumni list alone for any other status change", async () => {
+    const prisma = getTestPrisma();
+    await updateMember(prisma, MEMBER_ID, { status: "MEMBER" }, ACTOR);
+
+    expect(mockOrchestrateAddToAlumniGroup).not.toHaveBeenCalled();
+  });
+
+  it("returns a syncError when the alumni add fails", async () => {
+    const prisma = getTestPrisma();
+    mockOrchestrateAddToAlumniGroup.mockResolvedValueOnce({
+      success: false,
+      error: "Google API error: Permission denied",
+    });
+
+    const { syncErrors } = await updateMember(
+      prisma,
+      MEMBER_ID,
+      { status: "ALUMNI" },
+      ACTOR,
+    );
+
+    expect(syncErrors).toContain("Google API error: Permission denied");
+  });
+
+  it("adds every member promoted to alumni in a batch", async () => {
+    const prisma = getTestPrisma();
+    const id2 = crypto.randomUUID();
+    await prisma.member.create({
+      data: {
+        id: id2,
+        firstName: "Second",
+        lastName: "Target",
+        email: "second@test.com",
+        joinedSemester: "2025/2026/1",
+        status: "ALUMNI",
+      },
+    });
+
+    await batchUpdateStatus(prisma, [MEMBER_ID, id2], "ALUMNI", ACTOR);
+
+    // id2 is already an alumnus, so only the promoted member is added
+    expect(mockOrchestrateAddToAlumniGroup).toHaveBeenCalledTimes(1);
+    expect(mockOrchestrateAddToAlumniGroup.mock.calls[0][1]).toBe(MEMBER_ID);
+  });
+});
+
+// ─── archiveMember ──────────────────────────────────────────────────────────
 
 describe("archiveMember", () => {
   it("throws NotFoundError for non-existent member", async () => {

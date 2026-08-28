@@ -46,6 +46,11 @@ export function getGroupEmail(): string {
   return groupEmail;
 }
 
+// Optional: a deployment without an alumni list simply skips those jobs.
+export function getAlumniGroupEmail(): string | null {
+  return process.env.GOOGLE_ALUMNI_GROUP_EMAIL || null;
+}
+
 function getServiceAccountKey(): ServiceAccountKey {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   if (!raw) {

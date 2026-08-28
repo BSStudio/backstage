@@ -100,6 +100,26 @@ describe("listGroupMembers", () => {
   });
 });
 
+describe("a second group", () => {
+  it("looks each group up once and keeps them apart", async () => {
+    googleRequest
+      .mockResolvedValueOnce({ name: "groups/alumni" })
+      .mockResolvedValueOnce({ done: true })
+      .mockResolvedValueOnce({ done: true });
+
+    const { addGroupMember } = await importGroups();
+    await addGroupMember("uj@example.com", "alumni@example.com");
+    await addGroupMember("masik@example.com", "alumni@example.com");
+
+    expect(googleRequest.mock.calls[0][0]).toBe(
+      "/groups:lookup?groupKey.id=alumni%40example.com",
+    );
+    expect(googleRequest.mock.calls[1][0]).toBe("/groups/alumni/memberships");
+    expect(googleRequest.mock.calls[2][0]).toBe("/groups/alumni/memberships");
+    expect(getGroupEmail).not.toHaveBeenCalled();
+  });
+});
+
 describe("addGroupMember", () => {
   it("posts a MEMBER membership with the write scope", async () => {
     googleRequest

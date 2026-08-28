@@ -13,17 +13,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { STATUS_BADGE_CLASS } from "@/lib/members";
-import { MEMBERSHIP_STATUS_LABELS } from "@/types";
+import { isAlumniStatus, MEMBERSHIP_STATUS_LABELS } from "@/types";
 import type { MissingMemberRow } from "./types";
 
 // Alumni and archived members are expected to be off the list, so they would bury the
 // entries a leader is meant to act on.
 function isExpectedAbsence(member: MissingMemberRow): boolean {
-  return (
-    member.archived ||
-    member.status === "ALUMNI" ||
-    member.status === "ACTIVE_ALUMNI"
-  );
+  return member.archived || isAlumniStatus(member.status);
 }
 
 export function MissingTable({ missing }: { missing: MissingMemberRow[] }) {
