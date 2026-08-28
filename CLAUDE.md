@@ -274,8 +274,11 @@ response: `requireAuth()` (401) and `requireRole(...roles)` (401/403).
 | Role | Derived from | Can |
 | --- | --- | --- |
 | `MEMBER` | everyone else | view member list, view/edit own profile |
-| `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive |
-| `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + view audit log, retry failed sync jobs |
+| `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive; read the whole admin area — audit log, sync jobs, Google Group reconciliation |
+| `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + retry failed sync jobs, refresh and annotate the Google Group list |
+
+The admin area splits on read vs write: `LEADER` sees every admin page, `ADMIN` is what the
+mutations on them require.
 
 `resolveUserRole(groups)` in `types/index.ts` implements the mapping.
 
@@ -333,8 +336,8 @@ because every miss fans out to Authentik's user API once per collision candidate
 
 `websiteUserId` is never accepted on any write — it is set by sync and import only.
 
-Admin-only resources (sync jobs, audit log) deliberately have **no** REST routes; see
-Architectural Decisions.
+Admin-area resources (sync jobs, audit log, Google Group) deliberately have **no** REST routes;
+see Architectural Decisions.
 
 ---
 
@@ -639,8 +642,9 @@ routine.
 
 **The Drupal password never leaves `createWebsiteUser`.** Drupal demands a password at account
 creation but nobody uses it — members log in through Authentik. It is minted inside the function,
-is not part of `CreateWebsiteUserInput`, and therefore never reaches a SyncJob payload, which is
-rendered verbatim in the admin UI. A retry mints a fresh one.
+is not part of `CreateWebsiteUserInput`, and therefore never reaches a SyncJob payload at all.
+`/admin/sync-jobs` renders only `result`, but the payload is one column change away from being
+shown and is readable by anyone with database access. A retry mints a fresh one.
 
 **Both systems share one username.** `createMember` reuses `authentikUser.username` — the name
 `createAuthentikUser` settled on after its collision loop — rather than re-deriving. Otherwise a
@@ -661,9 +665,9 @@ is still written — that is what records the replace.
 removes both. Updating an existing role keeps the Leadership membership and only diffs the
 role-specific groups.
 
-**No REST routes for admin resources.** Sync jobs and the audit log are read directly via
-service/Prisma in server components; mutations go through Server Actions. No external consumer
-exists, so an HTTP API would be surface area for nothing.
+**No REST routes for admin resources.** Sync jobs, the audit log and the Google Group
+reconciliation are read directly via service/Prisma in server components; mutations go through
+Server Actions. No external consumer exists, so an HTTP API would be surface area for nothing.
 
 **Avatar storage is backend-agnostic.** `lib/avatar-storage.ts` is the facade: it validates member
 ID shape, 5MB size and WebP magic bytes, then delegates to a backend implementing `AvatarStorage`

@@ -18,6 +18,12 @@ function ensureAdmin(actor: Actor): void {
   if (actor.role !== "ADMIN") throw new ForbiddenError();
 }
 
+function ensureLeaderOrAdmin(actor: Actor): void {
+  if (actor.role !== "ADMIN" && actor.role !== "LEADER") {
+    throw new ForbiddenError();
+  }
+}
+
 function matchStatusFor(member: { archived: boolean }): GoogleGroupMatchStatus {
   return member.archived ? "ARCHIVED_ON_LIST" : "MATCHED";
 }
@@ -86,7 +92,7 @@ export async function getGoogleGroupReconciliation(
   prisma: PrismaClient,
   actor: Actor,
 ) {
-  ensureAdmin(actor);
+  ensureLeaderOrAdmin(actor);
 
   const [entries, allMembers] = await Promise.all([
     prisma.googleGroupEntry.findMany({

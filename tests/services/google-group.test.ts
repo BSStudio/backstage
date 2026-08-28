@@ -27,6 +27,7 @@ import type { Actor } from "@/lib/services/members";
 
 const ADMIN: Actor = { id: "admin-id", role: "ADMIN" };
 const LEADER: Actor = { id: "leader-id", role: "LEADER" };
+const MEMBER: Actor = { id: "member-id", role: "MEMBER" };
 
 const ACTIVE_ID = "active-member-id";
 const ARCHIVED_ID = "archived-member-id";
@@ -176,10 +177,16 @@ describe("refreshGoogleGroupEntries", () => {
 });
 
 describe("getGoogleGroupReconciliation", () => {
-  it("rejects a non-admin actor", async () => {
+  it("rejects a plain member", async () => {
+    await expect(
+      getGoogleGroupReconciliation(getTestPrisma(), MEMBER),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("lets a leader read the reconciliation", async () => {
     await expect(
       getGoogleGroupReconciliation(getTestPrisma(), LEADER),
-    ).rejects.toThrow(ForbiddenError);
+    ).resolves.toMatchObject({ entries: [] });
   });
 
   it("lists every member whose addresses are absent from the group", async () => {

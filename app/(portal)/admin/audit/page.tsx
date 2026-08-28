@@ -50,7 +50,8 @@ export default async function AuditPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const session = await getSession();
-  if (session?.user.role !== "ADMIN") redirect("/");
+  const role = session?.user.role;
+  if (role !== "ADMIN" && role !== "LEADER") redirect("/");
 
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);

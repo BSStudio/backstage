@@ -34,9 +34,11 @@ import type { GoogleGroupEntryRow, MemberPickerOption } from "./types";
 export function EntriesTable({
   entries,
   members,
+  canManage,
 }: {
   entries: GoogleGroupEntryRow[];
   members: MemberPickerOption[];
+  canManage: boolean;
 }) {
   const router = useRouter();
   const [annotating, setAnnotating] = useState<GoogleGroupEntryRow | null>(
@@ -71,14 +73,14 @@ export function EntriesTable({
               <TableHead>Állapot</TableHead>
               <TableHead>Tag</TableHead>
               <TableHead>Megjegyzés</TableHead>
-              <TableHead className="w-44" />
+              {canManage ? <TableHead className="w-44" /> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {entries.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={canManage ? 5 : 4}
                   className="text-center text-muted-foreground"
                 >
                   Még nincs beolvasott lista.
@@ -113,28 +115,30 @@ export function EntriesTable({
                   <TableCell className="text-muted-foreground">
                     {entry.note ?? "—"}
                   </TableCell>
-                  <TableCell>
-                    {/* A matched address needs no decision; only an unrecognised one does. */}
-                    {entry.matchStatus === "SECONDARY_EMAIL" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={isPending && clearing === entry.email}
-                        onClick={() => clearAnnotation(entry.email)}
-                      >
-                        Visszavonás
-                      </Button>
-                    )}
-                    {entry.matchStatus === "UNKNOWN" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setAnnotating(entry)}
-                      >
-                        Másodlagos cím
-                      </Button>
-                    )}
-                  </TableCell>
+                  {canManage ? (
+                    <TableCell>
+                      {/* A matched address needs no decision; only an unrecognised one does. */}
+                      {entry.matchStatus === "SECONDARY_EMAIL" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={isPending && clearing === entry.email}
+                          onClick={() => clearAnnotation(entry.email)}
+                        >
+                          Visszavonás
+                        </Button>
+                      )}
+                      {entry.matchStatus === "UNKNOWN" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setAnnotating(entry)}
+                        >
+                          Másodlagos cím
+                        </Button>
+                      )}
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))
             )}

@@ -62,7 +62,9 @@ export default async function SyncJobsPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const session = await getSession();
-  if (session?.user.role !== "ADMIN") redirect("/");
+  const role = session?.user.role;
+  if (role !== "ADMIN" && role !== "LEADER") redirect("/");
+  const canRetry = role === "ADMIN";
 
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
@@ -138,7 +140,9 @@ export default async function SyncJobsPage({
                     {job.updatedAt.toLocaleString("hu-HU")}
                   </TableCell>
                   <TableCell>
-                    {job.status === "FAILED" && <RetryButton jobId={job.id} />}
+                    {canRetry && job.status === "FAILED" && (
+                      <RetryButton jobId={job.id} />
+                    )}
                   </TableCell>
                 </TableRow>
               ))

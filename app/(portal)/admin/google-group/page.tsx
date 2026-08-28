@@ -15,11 +15,15 @@ export const metadata: Metadata = { title: "Google Group - Backstage" };
 
 export default async function GoogleGroupPage() {
   const session = await getSession();
-  if (session?.user.role !== "ADMIN") redirect("/");
+  if (!session) redirect("/");
+
+  const { id, role } = session.user;
+  if (role !== "ADMIN" && role !== "LEADER") redirect("/");
+  const canManage = role === "ADMIN";
 
   const { entries, missing, members } = await getGoogleGroupReconciliation(
     prisma,
-    { id: session.user.id, role: session.user.role as UserRole },
+    { id, role: role as UserRole },
   );
 
   const groupEmail = process.env.GOOGLE_GROUP_EMAIL;
@@ -46,11 +50,12 @@ export default async function GoogleGroupPage() {
               </a>
             </Button>
           ) : null}
-          <RefreshButton />
+          {canManage ? <RefreshButton /> : null}
         </div>
       </div>
 
       <EntriesTable
+        canManage={canManage}
         entries={entries.map((entry) => ({
           email: entry.email,
           matchStatus: entry.matchStatus,
