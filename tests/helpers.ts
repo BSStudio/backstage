@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { vi } from "vitest";
+import type { SyncResult } from "@/lib/sync/executor";
 import type { UserRole } from "@/types";
 
 export function mockSession(overrides: { id?: string; role?: UserRole } = {}) {
@@ -25,20 +26,42 @@ export function mockSession(overrides: { id?: string; role?: UserRole } = {}) {
   return session;
 }
 
-const ok = { success: true as const, result: null };
+const ok: SyncResult = { success: true, result: null };
 
 export function mockWebsiteOrchestrators() {
+  const orchestrateCreateWebsiteUser = vi.fn(
+    async (): Promise<SyncResult> => ok,
+  );
+  const orchestrateUpdateWebsiteUser = vi.fn(
+    async (): Promise<SyncResult> => ok,
+  );
+  const orchestrateDeactivateWebsiteUser = vi.fn(
+    async (): Promise<SyncResult> => ok,
+  );
+
   vi.doMock("@/lib/sync/website/orchestrators", () => ({
-    orchestrateCreateWebsiteUser: vi.fn(async () => ok),
-    orchestrateUpdateWebsiteUser: vi.fn(async () => ok),
-    orchestrateDeactivateWebsiteUser: vi.fn(async () => ok),
+    orchestrateCreateWebsiteUser,
+    orchestrateUpdateWebsiteUser,
+    orchestrateDeactivateWebsiteUser,
   }));
+
+  return {
+    orchestrateCreateWebsiteUser,
+    orchestrateUpdateWebsiteUser,
+    orchestrateDeactivateWebsiteUser,
+  };
 }
 
 export function mockGoogleGroupOrchestrators() {
-  const orchestrateAddToAlumniGroup = vi.fn(async () => ok);
-  const orchestrateAddToGoogleGroup = vi.fn(async () => ok);
-  const orchestrateRemoveFromGoogleGroup = vi.fn(async () => ok);
+  const orchestrateAddToAlumniGroup = vi.fn(
+    async (): Promise<SyncResult> => ok,
+  );
+  const orchestrateAddToGoogleGroup = vi.fn(
+    async (): Promise<SyncResult> => ok,
+  );
+  const orchestrateRemoveFromGoogleGroup = vi.fn(
+    async (): Promise<SyncResult> => ok,
+  );
 
   vi.doMock("@/lib/sync/google/orchestrators", () => ({
     orchestrateAddToAlumniGroup,

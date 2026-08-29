@@ -26,7 +26,6 @@ export async function POST(req: NextRequest) {
       id: session.user.id,
       role: session.user.role,
     });
-    /* v8 ignore next 3 -- createMember currently throws on Authentik failure (no partial-success path); branch preserved for future orchestrations */
     if (syncErrors.length > 0) {
       return NextResponse.json({ member, syncErrors }, { status: 207 });
     }
