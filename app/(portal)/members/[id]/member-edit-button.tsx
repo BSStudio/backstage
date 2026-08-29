@@ -4,19 +4,8 @@ import { Archive, Loader2, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ArchiveDialog } from "@/components/archive-dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { archiveMemberAction } from "@/lib/actions/members";
 import { toastSync } from "@/lib/toast";
 import { MemberEditSheet } from "./member-edit-sheet";
@@ -42,10 +31,9 @@ export function MemberEditButton({
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const [removeFromGoogleGroup, setRemoveFromGoogleGroup] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  function handleArchive() {
+  function handleArchive(removeFromGoogleGroup: boolean) {
     setArchiveOpen(false);
     startTransition(async () => {
       const result = await archiveMemberAction(member.id, {
@@ -72,10 +60,7 @@ export function MemberEditButton({
             variant="outline"
             size="sm"
             disabled={isPending}
-            onClick={() => {
-              setRemoveFromGoogleGroup(false);
-              setArchiveOpen(true);
-            }}
+            onClick={() => setArchiveOpen(true)}
           >
             {isPending ? (
               <Loader2 className="mr-2 size-4 animate-spin" />
@@ -98,35 +83,12 @@ export function MemberEditButton({
         onOpenChange={setEditOpen}
       />
 
-      <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Archiválás megerősítése</AlertDialogTitle>
-            <AlertDialogDescription>
-              Biztosan archiválod a következő tagot: {member.lastName}{" "}
-              {member.firstName}?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="remove-from-google-group"
-              checked={removeFromGoogleGroup}
-              onCheckedChange={(checked) =>
-                setRemoveFromGoogleGroup(checked === true)
-              }
-            />
-            <Label htmlFor="remove-from-google-group" className="font-normal">
-              Törlés a Google Group levelezőlistáról is
-            </Label>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Mégse</AlertDialogCancel>
-            <AlertDialogAction onClick={handleArchive}>
-              Archiválás
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ArchiveDialog
+        open={archiveOpen}
+        onOpenChange={setArchiveOpen}
+        description={`Biztosan archiválod a következő tagot: ${member.lastName} ${member.firstName}?`}
+        onConfirm={handleArchive}
+      />
     </>
   );
 }
