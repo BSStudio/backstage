@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import prisma from "@/lib/prisma";
+import { pageActor } from "@/lib/session";
 import { ArchivedTable } from "./archived-table";
 
 export const metadata: Metadata = { title: "Archivált tagok - Backstage" };
 
 export default async function ArchivedPage() {
+  await pageActor();
+
   const members = await prisma.member.findMany({
     where: {
       archived: true,

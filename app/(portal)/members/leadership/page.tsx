@@ -5,11 +5,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { getInitials } from "@/lib/members";
 import prisma from "@/lib/prisma";
+import { pageActor } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Vezetőség - Backstage" };
 
 export default async function LeadershipPage() {
+  await pageActor();
+
   const rawMembers = await prisma.member.findMany({
     where: {
       archived: false,
