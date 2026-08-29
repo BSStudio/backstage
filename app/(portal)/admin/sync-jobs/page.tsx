@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { type Actor, canAdminister, canViewAdminArea } from "@/lib/permissions";
+import { canAdminister, canViewAdminArea, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listSyncJobs } from "@/lib/services/sync-jobs";
 import { getSession } from "@/lib/session";
@@ -39,10 +39,7 @@ export default async function SyncJobsPage({
 }) {
   const session = await getSession();
   if (!session) redirect("/");
-  const actor: Actor = {
-    id: session.user.id,
-    role: session.user.role,
-  };
+  const actor = toActor(session);
   if (!canViewAdminArea(actor.role)) redirect("/");
   const canRetry = canAdminister(actor.role);
 

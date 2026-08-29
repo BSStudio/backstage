@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { googleGroupUrl } from "@/lib/google-group";
-import { type Actor, canAdminister, canViewAdminArea } from "@/lib/permissions";
+import { canAdminister, canViewAdminArea, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { getGoogleGroupReconciliation } from "@/lib/services/google-group";
 import { getSession } from "@/lib/session";
@@ -17,10 +17,7 @@ export default async function GoogleGroupPage() {
   const session = await getSession();
   if (!session) redirect("/");
 
-  const actor: Actor = {
-    id: session.user.id,
-    role: session.user.role,
-  };
+  const actor = toActor(session);
   if (!canViewAdminArea(actor.role)) redirect("/");
   const canManage = canAdminister(actor.role);
 

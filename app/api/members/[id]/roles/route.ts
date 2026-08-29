@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { mapServiceError, ValidationError } from "@/lib/errors";
-import { canManageMembers } from "@/lib/permissions";
+import { canManageMembers, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import {
   AssignRoleSchema,
@@ -30,10 +30,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       id,
       parsed.data.label,
       parsed.data.authentikGroupIds,
-      {
-        id: session.user.id,
-        role: session.user.role,
-      },
+      toActor(session),
     );
     if (syncErrors.length > 0) {
       return NextResponse.json({ assigned: true, syncErrors }, { status: 207 });
@@ -50,10 +47,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   try {
     const { id } = await params;
-    const { syncErrors } = await removeRole(prisma, id, {
-      id: session.user.id,
-      role: session.user.role,
-    });
+    const { syncErrors } = await removeRole(prisma, id, toActor(session));
     if (syncErrors.length > 0) {
       return NextResponse.json({ removed: true, syncErrors }, { status: 207 });
     }

@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
-import { type Actor, canViewAdminArea } from "@/lib/permissions";
+import { canViewAdminArea, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listAuditLogs } from "@/lib/services/audit";
 import { getSession } from "@/lib/session";
@@ -26,10 +26,7 @@ export default async function AuditPage({
 }) {
   const session = await getSession();
   if (!session) redirect("/");
-  const actor: Actor = {
-    id: session.user.id,
-    role: session.user.role,
-  };
+  const actor = toActor(session);
   if (!canViewAdminArea(actor.role)) redirect("/");
 
   const { page: pageParam } = await searchParams;

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { mapServiceError } from "@/lib/errors";
-import { canManageMembers } from "@/lib/permissions";
+import { canManageMembers, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { createMember, listMembers } from "@/lib/services/members";
 import { requireAuth, requirePermission } from "@/lib/session";
@@ -22,10 +22,11 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { member, syncErrors } = await createMember(prisma, body, {
-      id: session.user.id,
-      role: session.user.role,
-    });
+    const { member, syncErrors } = await createMember(
+      prisma,
+      body,
+      toActor(session),
+    );
     if (syncErrors.length > 0) {
       return NextResponse.json({ member, syncErrors }, { status: 207 });
     }

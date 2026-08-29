@@ -26,11 +26,7 @@ import {
   AUDIT_ACTION_VARIANT,
   STATUS_BADGE_CLASS,
 } from "@/lib/members";
-import {
-  type Actor,
-  canManageMembers,
-  canViewAdminArea,
-} from "@/lib/permissions";
+import { canManageMembers, canViewAdminArea, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listMemberAuditLogs } from "@/lib/services/audit";
 import { listAuthentikGroups } from "@/lib/services/members";
@@ -68,10 +64,7 @@ export default async function MemberDetailPage({
   const { id } = await params;
   const session = await getSession();
   if (!session) redirect("/");
-  const actor: Actor = {
-    id: session.user.id,
-    role: session.user.role,
-  };
+  const actor = toActor(session);
   const canManage = canManageMembers(actor.role);
   const canSeeAuditLog = canViewAdminArea(actor.role);
   const isSelf = actor.id === id;

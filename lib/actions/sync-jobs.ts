@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { retrySyncJob } from "@/lib/services/sync-jobs";
 import { getSession } from "@/lib/session";
@@ -15,10 +16,7 @@ export async function retrySyncJobAction(jobId: string): Promise<ActionResult> {
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
   try {
-    const result = await retrySyncJob(prisma, jobId, {
-      id: session.user.id,
-      role: session.user.role,
-    });
+    const result = await retrySyncJob(prisma, jobId, toActor(session));
     revalidatePath("/admin/sync-jobs");
     return {
       success: true,

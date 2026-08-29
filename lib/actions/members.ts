@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { MembershipStatus } from "@/app/generated/prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import type { Actor } from "@/lib/permissions";
+import { toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import {
   type ArchiveOptions,
@@ -15,17 +15,13 @@ import {
   removeRole,
   updateMember,
 } from "@/lib/services/members";
-import { getSession, type Session } from "@/lib/session";
+import { getSession } from "@/lib/session";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 type ActionResult<T = unknown> =
   | { success: true; data: T; syncErrors?: string[] }
   | { success: false; error: string };
-
-function actorFromSession(session: Session): Actor {
-  return { id: session.user.id, role: session.user.role };
-}
 
 function mapError(error: unknown): ActionResult<never> {
   if (error instanceof NotFoundError)
@@ -51,7 +47,7 @@ export async function createMemberAction(
     const { member, syncErrors } = await createMember(
       prisma,
       input,
-      actorFromSession(session),
+      toActor(session),
     );
     revalidatePath("/members");
     return { success: true, data: member, syncErrors };
@@ -72,7 +68,7 @@ export async function updateMemberAction(
       prisma,
       id,
       input,
-      actorFromSession(session),
+      toActor(session),
     );
     revalidatePath("/members");
     revalidatePath(`/members/${id}`);
@@ -93,7 +89,7 @@ export async function archiveMemberAction(
     const { syncErrors } = await archiveMember(
       prisma,
       id,
-      actorFromSession(session),
+      toActor(session),
       options,
     );
     revalidatePath("/members");
@@ -114,7 +110,7 @@ export async function batchArchiveAction(
     const { count, syncErrors } = await batchArchive(
       prisma,
       ids,
-      actorFromSession(session),
+      toActor(session),
       options,
     );
     revalidatePath("/members");
@@ -136,7 +132,7 @@ export async function batchUpdateStatusAction(
       prisma,
       ids,
       status,
-      actorFromSession(session),
+      toActor(session),
     );
     revalidatePath("/members");
     return { success: true, data: { count }, syncErrors };
@@ -159,7 +155,7 @@ export async function assignRoleAction(
       memberId,
       label,
       authentikGroupIds,
-      actorFromSession(session),
+      toActor(session),
     );
     revalidatePath("/members");
     revalidatePath(`/members/${memberId}`);
@@ -176,11 +172,7 @@ export async function removeRoleAction(
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
   try {
-    const { syncErrors } = await removeRole(
-      prisma,
-      memberId,
-      actorFromSession(session),
-    );
+    const { syncErrors } = await removeRole(prisma, memberId, toActor(session));
     revalidatePath("/members");
     revalidatePath(`/members/${memberId}`);
     return { success: true, data: null, syncErrors };

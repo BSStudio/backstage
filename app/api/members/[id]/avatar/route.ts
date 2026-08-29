@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { deleteAvatars, saveAvatar } from "@/lib/avatar-storage";
 import { mapServiceError } from "@/lib/errors";
-import { ensureCanModifyMember } from "@/lib/permissions";
+import { ensureCanModifyMember, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { removeMemberAvatar, uploadMemberAvatar } from "@/lib/services/members";
 import { requireAuth } from "@/lib/session";
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (session instanceof NextResponse) return session;
 
   const { id } = await params;
-  const actor = { id: session.user.id, role: session.user.role };
+  const actor = toActor(session);
 
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) {
@@ -78,7 +78,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (session instanceof NextResponse) return session;
 
   const { id } = await params;
-  const actor = { id: session.user.id, role: session.user.role };
+  const actor = toActor(session);
 
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) {

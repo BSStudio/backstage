@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { mapServiceError } from "@/lib/errors";
-import { canManageMembers } from "@/lib/permissions";
+import { canManageMembers, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { archiveMember, getMember, updateMember } from "@/lib/services/members";
 import { requireAuth, requirePermission } from "@/lib/session";
@@ -28,10 +28,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { member, syncErrors } = await updateMember(prisma, id, body, {
-      id: session.user.id,
-      role: session.user.role,
-    });
+    const { member, syncErrors } = await updateMember(
+      prisma,
+      id,
+      body,
+      toActor(session),
+    );
     if (syncErrors.length > 0) {
       return NextResponse.json({ member, syncErrors }, { status: 207 });
     }
@@ -47,18 +49,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   try {
     const { id } = await params;
-    const { syncErrors } = await archiveMember(
-      prisma,
-      id,
-      {
-        id: session.user.id,
-        role: session.user.role,
-      },
-      {
-        removeFromGoogleGroup:
-          req.nextUrl.searchParams.get("removeFromGoogleGroup") === "true",
-      },
-    );
+    const { syncErrors } = await archiveMember(prisma, id, toActor(session), {
+      removeFromGoogleGroup:
+        req.nextUrl.searchParams.get("removeFromGoogleGroup") === "true",
+    });
     if (syncErrors.length > 0) {
       return NextResponse.json({ archived: true, syncErrors }, { status: 207 });
     }

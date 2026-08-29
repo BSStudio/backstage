@@ -6,6 +6,12 @@ export interface Actor {
   role: UserRole;
 }
 
+export function toActor(session: {
+  user: { id: string; role: UserRole };
+}): Actor {
+  return { id: session.user.id, role: session.user.role };
+}
+
 export function canManageMembers(role: UserRole | undefined): boolean {
   return role === "ADMIN" || role === "LEADER";
 }
