@@ -317,7 +317,7 @@ a predicate from `lib/permissions.ts` rather than a role list:
 | `requireAuth()` | `Session` or a 401 `NextResponse` | routes, which early-return the response |
 | `requirePermission(allows)` | `Session` or a 401/403 `NextResponse` | routes |
 | `sessionActor()`, `permittedActor(allows)` | `Actor \| null` | Server Actions, which answer with a result object |
-| `pageActor(allows?)` | `Actor`, or `redirect("/")` | pages, which have nowhere to put a status code |
+| `pageActor(allows?)` | `Actor`, or `redirect("/login")` unauthenticated / `redirect("/")` refused | pages, which have nowhere to put a status code |
 
 `toActor(session)` in `lib/permissions.ts` reduces a session to the `{ id, role }` actor services
 take. It is typed structurally rather than on `Session`, so `lib/permissions.ts` pulls in neither

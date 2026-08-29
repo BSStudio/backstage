@@ -147,12 +147,12 @@ describe("pageActor", () => {
     });
   });
 
-  it("sends an unauthenticated visitor home", async () => {
+  it("sends an unauthenticated visitor to the login page the layout uses", async () => {
     mockDeps(null);
     const mod = await import("@/lib/session");
 
-    await expect(mod.pageActor()).rejects.toThrow("redirect:/");
-    expect(mockRedirect).toHaveBeenCalledWith("/");
+    await expect(mod.pageActor()).rejects.toThrow("redirect:/login");
+    expect(mockRedirect).toHaveBeenCalledWith("/login");
   });
 
   it("sends a visitor the predicate rejects home", async () => {
@@ -160,5 +160,6 @@ describe("pageActor", () => {
     const mod = await import("@/lib/session");
 
     await expect(mod.pageActor(canAdminister)).rejects.toThrow("redirect:/");
+    expect(mockRedirect).toHaveBeenCalledWith("/");
   });
 });

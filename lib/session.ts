@@ -51,12 +51,19 @@ export async function permittedActor(
   return actor && allows(actor.role) ? actor : null;
 }
 
-// A page has nowhere to put a 401, so it sends the visitor home instead. This is the UX:
-// what keeps restricted data safe is the service refusing the actor.
+// A page has nowhere to put a 401 or a 403, so it redirects instead. This is the UX: what
+// keeps restricted data safe is the service refusing the actor.
+//
+// The two cases part ways because the portal layout renders alongside the page and redirects
+// an unauthenticated visitor to `/login` itself. Sending them anywhere else here races the
+// layout for the destination, and `/` only bounces off the same check again — this time
+// through a layout that cannot name the page they asked for. A role the predicate rejects is
+// authenticated, so it goes home.
 export async function pageActor(
   allows?: (role: UserRole | undefined) => boolean,
 ): Promise<Actor> {
   const actor = await sessionActor();
-  if (!actor || (allows && !allows(actor.role))) redirect("/");
+  if (!actor) redirect("/login");
+  if (allows && !allows(actor.role)) redirect("/");
   return actor;
 }
