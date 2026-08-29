@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { syncJson } from "@/lib/api-response";
 import { mapServiceError } from "@/lib/errors";
 import { canManageMembers, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
@@ -34,10 +35,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       body,
       toActor(session),
     );
-    if (syncErrors.length > 0) {
-      return NextResponse.json({ member, syncErrors }, { status: 207 });
-    }
-    return NextResponse.json(member);
+    return syncJson(member, syncErrors, { partial: { member } });
   } catch (error) {
     return mapServiceError(error);
   }
@@ -53,10 +51,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       removeFromGoogleGroup:
         req.nextUrl.searchParams.get("removeFromGoogleGroup") === "true",
     });
-    if (syncErrors.length > 0) {
-      return NextResponse.json({ archived: true, syncErrors }, { status: 207 });
-    }
-    return NextResponse.json({ archived: true });
+    return syncJson({ archived: true }, syncErrors);
   } catch (error) {
     return mapServiceError(error);
   }

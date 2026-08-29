@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { syncJson } from "@/lib/api-response";
 import { deleteAvatars, saveAvatar } from "@/lib/avatar-storage";
 import { mapServiceError } from "@/lib/errors";
 import { ensureCanModifyMember, toActor } from "@/lib/permissions";
@@ -61,13 +62,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       { avatarUrl, portraitUrl },
       actor,
     );
-    if (syncErrors.length > 0) {
-      return NextResponse.json(
-        { avatarUrl, portraitUrl, syncErrors },
-        { status: 207 },
-      );
-    }
-    return NextResponse.json({ avatarUrl, portraitUrl });
+    return syncJson({ avatarUrl, portraitUrl }, syncErrors);
   } catch (error) {
     return mapServiceError(error);
   }
@@ -94,13 +89,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   try {
     const { syncErrors } = await removeMemberAvatar(prisma, id, actor);
-    if (syncErrors.length > 0) {
-      return NextResponse.json(
-        { avatarUrl: null, portraitUrl: null, syncErrors },
-        { status: 207 },
-      );
-    }
-    return NextResponse.json({ avatarUrl: null, portraitUrl: null });
+    return syncJson({ avatarUrl: null, portraitUrl: null }, syncErrors);
   } catch (error) {
     return mapServiceError(error);
   }

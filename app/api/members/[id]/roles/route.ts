@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { syncJson } from "@/lib/api-response";
 import { mapServiceError, ValidationError } from "@/lib/errors";
 import { canManageMembers, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
@@ -32,10 +33,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       parsed.data.authentikGroupIds,
       toActor(session),
     );
-    if (syncErrors.length > 0) {
-      return NextResponse.json({ assigned: true, syncErrors }, { status: 207 });
-    }
-    return NextResponse.json({ assigned: true });
+    return syncJson({ assigned: true }, syncErrors);
   } catch (error) {
     return mapServiceError(error);
   }
@@ -48,10 +46,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const { syncErrors } = await removeRole(prisma, id, toActor(session));
-    if (syncErrors.length > 0) {
-      return NextResponse.json({ removed: true, syncErrors }, { status: 207 });
-    }
-    return NextResponse.json({ removed: true });
+    return syncJson({ removed: true }, syncErrors);
   } catch (error) {
     return mapServiceError(error);
   }
