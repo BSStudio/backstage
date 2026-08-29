@@ -2,7 +2,7 @@
 
 import { Check, Copy, Plus, Smartphone, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useAppForm } from "@/components/form";
 import { Button } from "@/components/ui/button";
@@ -45,8 +45,19 @@ function formatDate(value: Date | null): string {
 function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
   async function copy() {
-    await navigator.clipboard.writeText(value);
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      toast.error("Nem sikerült a vágólapra másolni");
+      return;
+    }
     setCopied(true);
     toast.success("Vágólapra másolva");
   }
