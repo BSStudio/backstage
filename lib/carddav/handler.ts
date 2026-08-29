@@ -235,8 +235,8 @@ async function handlePropfind(
     ]);
   }
 
-  const book = await loadAddressBook();
-
+  // The root's own properties are static, and a client asks for them on every sync — so
+  // the book is read below it rather than ahead of it.
   if (target.kind === "root") {
     const resources: DavResource[] = [
       { href: CARDDAV_ROOT_PATH, props: resolveProps(rootTable(), props) },
@@ -244,11 +244,13 @@ async function handlePropfind(
     if (deep) {
       resources.push({
         href: CARDDAV_ADDRESSBOOK_PATH,
-        props: resolveProps(addressBookTable(book), props),
+        props: resolveProps(addressBookTable(await loadAddressBook()), props),
       });
     }
     return multiStatus(resources);
   }
+
+  const book = await loadAddressBook();
 
   if (target.kind === "addressbook") {
     const resources: DavResource[] = [
