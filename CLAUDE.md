@@ -318,13 +318,19 @@ linking and `/update-user` — which without `input: false` would let a member s
 belong to Authentik.
 
 `proxy.ts` lets `/login`, `/api/auth`, `/api/usernames`, `/api/health` and `/monitoring` through,
-and turns everything else away when no session cookie is present: a page request redirects to
-`/login` with the original path as `callbackUrl`, an `/api/` one gets a 401 JSON body instead.
-Redirecting an API call answered it with the login HTML under a 200, which a `fetch` cannot tell
-from a real response. Its matcher
-excludes static assets and image extensions — which is why avatar URLs are readable without auth.
-`/api/usernames` is public to the proxy because it carries a bearer token instead of a session
-cookie; the route itself does the authenticating.
+and turns everything else away when no session cookie is present. Only a `GET` or `HEAD` outside
+`/api/` is redirected to `/login` with the original path as `callbackUrl`; everything else — an API
+call, a Server Action `POST` on an expired session, a phone probing for a collection — gets a 401
+JSON body. The rule is the method rather than the path prefix because only a browser navigation can
+act on a redirect: anything else resolves with the login HTML under a 200 and cannot tell that apart
+from a real answer. Its matcher excludes static assets and image extensions — which is why avatar
+URLs are readable without auth. `/api/usernames` is public to the proxy because it carries a bearer
+token instead of a session cookie; the route itself does the authenticating.
+
+CardDAV is checked ahead of all of that, and by method as well as by path: a WebDAV verb reaches
+`handleCardDav` wherever it is aimed, because a client hunting for a collection points them at
+arbitrary paths and cannot read a login page. `OPTIONS` is deliberately not one of them — it is also
+an ordinary CORS preflight.
 
 The proxy only sees whether a cookie *exists*. `requireAuth()` is what rejects one that is expired
 or forged, so it is still the check that matters — the proxy only decides what an anonymous caller
