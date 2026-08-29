@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AuditDiff } from "@/components/audit-diff";
 import { PageNav } from "@/components/page-nav";
 import { Badge } from "@/components/ui/badge";
@@ -73,24 +74,24 @@ export default async function AuditPage({
                   </TableCell>
                   <TableCell className="font-medium">
                     {log.target ? (
-                      <a
+                      <Link
                         href={`/members/${log.targetId}`}
                         className="hover:underline"
                       >
                         {log.target.lastName} {log.target.firstName}
-                      </a>
+                      </Link>
                     ) : (
                       "—"
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {log.actor ? (
-                      <a
+                      <Link
                         href={`/members/${log.actorId}`}
                         className="hover:underline"
                       >
                         {log.actor.lastName} {log.actor.firstName}
-                      </a>
+                      </Link>
                     ) : (
                       (log.actorId ?? "—")
                     )}
