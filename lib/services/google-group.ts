@@ -14,6 +14,7 @@ import {
   ensureCanAdminister,
   ensureCanViewAdminArea,
 } from "@/lib/permissions";
+import { NO_GOOGLE_GROUP_CONFIG_REASON } from "@/lib/sync-jobs";
 import { AnnotateEntrySchema } from "./google-group-schemas";
 
 export { AnnotateEntrySchema } from "./google-group-schemas";
@@ -28,7 +29,7 @@ export async function refreshGoogleGroupEntries(
 ) {
   ensureCanAdminister(actor);
   if (!isGoogleGroupConfigured()) {
-    throw new ValidationError({ config: "Nincs Google Group beállítva" });
+    throw new ValidationError({ config: NO_GOOGLE_GROUP_CONFIG_REASON });
   }
 
   const serviceAccount = getServiceAccountEmail().toLowerCase();
