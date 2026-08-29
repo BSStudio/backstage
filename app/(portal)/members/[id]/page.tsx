@@ -11,6 +11,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { AuditDiff } from "@/components/audit-diff";
 import { BreadcrumbOverride } from "@/components/breadcrumb-context";
+import { ArchivedBadge, StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -21,11 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  AUDIT_ACTION_LABELS,
-  AUDIT_ACTION_VARIANT,
-  STATUS_BADGE_CLASS,
-} from "@/lib/members";
+import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
 import { canManageMembers, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listMemberAuditLogs } from "@/lib/services/audit";
@@ -109,25 +106,13 @@ export default async function MemberDetailPage({
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                variant="outline"
-                className={STATUS_BADGE_CLASS[member.status]}
-              >
-                {MEMBERSHIP_STATUS_LABELS[member.status]}
-              </Badge>
+              <StatusBadge status={member.status} />
               {member.leadershipRole && (
                 <Badge variant="outline" className="bg-primary/10 text-primary">
                   {member.leadershipRole.label}
                 </Badge>
               )}
-              {member.archived && (
-                <Badge
-                  variant="outline"
-                  className="bg-status-archived/15 text-status-archived border-status-archived/40"
-                >
-                  Archivált
-                </Badge>
-              )}
+              {member.archived && <ArchivedBadge />}
             </div>
           </div>
         </div>
