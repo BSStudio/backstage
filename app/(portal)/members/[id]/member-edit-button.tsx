@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { archiveMemberAction } from "@/lib/actions/members";
+import { toastSync } from "@/lib/toast";
 import { MemberEditSheet } from "./member-edit-sheet";
 import type { AuthentikGroupOption, MemberData, RoleData } from "./types";
 
@@ -54,13 +55,7 @@ export function MemberEditButton({
         toast.error(result.error);
         return;
       }
-      if (result.syncErrors && result.syncErrors.length > 0) {
-        toast.warning(
-          `Tag archiválva, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
-        );
-      } else {
-        toast.success("Tag archiválva");
-      }
+      toastSync("Tag archiválva", result.syncErrors);
       router.push("/members");
     });
   }

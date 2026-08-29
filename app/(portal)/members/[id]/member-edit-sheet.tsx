@@ -26,6 +26,7 @@ import {
   EditMemberFormSchema,
   RoleFormSchema,
 } from "@/lib/services/member-schemas";
+import { toastSync } from "@/lib/toast";
 import { MEMBERSHIP_STATUS_LABELS, MEMBERSHIP_STATUSES } from "@/types";
 import type { AuthentikGroupOption, MemberData, RoleData } from "./types";
 
@@ -105,7 +106,7 @@ function EditForms({
         toast.error(result.error);
         return;
       }
-      notifySync(result.syncErrors, "Adatok mentve");
+      toastSync("Adatok mentve", result.syncErrors);
       onClose();
       router.refresh();
     },
@@ -129,7 +130,7 @@ function EditForms({
         toast.error(result.error);
         return;
       }
-      notifySync(result.syncErrors, "Pozíció mentve");
+      toastSync("Pozíció mentve", result.syncErrors);
       onClose();
       router.refresh();
     },
@@ -149,7 +150,7 @@ function EditForms({
         toast.error(result.error);
         return;
       }
-      notifySync(result.syncErrors, "Pozíció elvéve");
+      toastSync("Pozíció elvéve", result.syncErrors);
       onClose();
       router.refresh();
     });
@@ -280,14 +281,4 @@ function EditForms({
       )}
     </>
   );
-}
-
-function notifySync(syncErrors: string[] | undefined, success: string) {
-  if (syncErrors && syncErrors.length > 0) {
-    toast.warning(
-      `${success}, de a szinkronizálás során hiba történt: ${syncErrors.join(", ")}`,
-    );
-  } else {
-    toast.success(success);
-  }
 }

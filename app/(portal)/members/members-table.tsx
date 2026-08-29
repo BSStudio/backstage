@@ -41,6 +41,7 @@ import {
   batchArchiveAction,
   batchUpdateStatusAction,
 } from "@/lib/actions/members";
+import { toastSync } from "@/lib/toast";
 import { MEMBERSHIP_STATUS_LABELS, MEMBERSHIP_STATUSES } from "@/types";
 
 const baseColumns = [
@@ -89,13 +90,10 @@ export function MembersTable({
       try {
         const result = await batchUpdateStatusAction(ids, status);
         if (result.success) {
-          if (result.syncErrors && result.syncErrors.length > 0) {
-            toast.warning(
-              `${result.data.count} tag státusza módosítva, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
-            );
-          } else {
-            toast.success(`${result.data.count} tag státusza módosítva`);
-          }
+          toastSync(
+            `${result.data.count} tag státusza módosítva`,
+            result.syncErrors,
+          );
         } else {
           toast.error(result.error);
         }
@@ -117,13 +115,7 @@ export function MembersTable({
           removeFromGoogleGroup,
         });
         if (result.success) {
-          if (result.syncErrors && result.syncErrors.length > 0) {
-            toast.warning(
-              `${result.data.count} tag archiválva, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
-            );
-          } else {
-            toast.success(`${result.data.count} tag archiválva`);
-          }
+          toastSync(`${result.data.count} tag archiválva`, result.syncErrors);
         } else {
           toast.error(result.error);
         }

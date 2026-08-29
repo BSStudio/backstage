@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { createMemberAction } from "@/lib/actions/members";
 import { NewMemberFormSchema } from "@/lib/services/member-schemas";
+import { toastSync } from "@/lib/toast";
 
 type CreatedMember = {
   id: string;
@@ -40,13 +41,7 @@ export function NewMemberForm() {
         toast.error(result.error);
         return;
       }
-      if (result.syncErrors && result.syncErrors.length > 0) {
-        toast.warning(
-          `Tag hozzáadva, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
-        );
-      } else {
-        toast.success("Tag hozzáadva");
-      }
+      toastSync("Tag hozzáadva", result.syncErrors);
       setCreated(result.data as CreatedMember);
     },
   });
