@@ -32,13 +32,12 @@ export async function createCardDavTokenAction(
 
 export async function revokeCardDavTokenAction(
   tokenId: string,
-  memberId: string,
 ): Promise<ActionResult<null>> {
   const actor = await sessionActor();
   if (!actor) return UNAUTHORIZED;
 
   try {
-    await revokeCardDavToken(prisma, actor, tokenId);
+    const memberId = await revokeCardDavToken(prisma, actor, tokenId);
     revalidatePath(`/members/${memberId}`);
     return { success: true, data: null };
   } catch (error) {

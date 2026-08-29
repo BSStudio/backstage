@@ -78,7 +78,7 @@ export async function revokeCardDavToken(
   prisma: PrismaClient,
   actor: Actor,
   tokenId: string,
-): Promise<void> {
+): Promise<string> {
   const token = await prisma.cardDAVToken.findUnique({
     where: { id: tokenId },
     select: { id: true, memberId: true, label: true },
@@ -98,6 +98,8 @@ export async function revokeCardDavToken(
       },
     }),
   ]);
+
+  return token.memberId;
 }
 
 // ─── The CardDAV endpoint's own reads ────────────────────────────────────────

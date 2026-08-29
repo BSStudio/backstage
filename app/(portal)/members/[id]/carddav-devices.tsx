@@ -120,7 +120,7 @@ export function CardDavDevices({
   function revoke(device: CardDavDevice) {
     setPendingId(device.id);
     startRevoking(async () => {
-      const result = await revokeCardDavTokenAction(device.id, memberId);
+      const result = await revokeCardDavTokenAction(device.id);
       setPendingId(null);
       if (!result.success) {
         toast.error(result.error);

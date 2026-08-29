@@ -96,29 +96,29 @@ describe("revokeCardDavTokenAction", () => {
 
     const { revokeCardDavTokenAction } = await importActions();
 
-    expect(await revokeCardDavTokenAction("token-id", "member-id")).toEqual({
+    expect(await revokeCardDavTokenAction("token-id")).toEqual({
       success: false,
       error: "Jogosulatlan hozzáférés",
     });
     expect(mockRevokeCardDavToken).not.toHaveBeenCalled();
   });
 
-  it("revokes and revalidates the member's page", async () => {
-    mockGetSession.mockResolvedValue(session());
-    mockRevokeCardDavToken.mockResolvedValue(undefined);
+  it("revalidates the page of whoever owned the device, not the caller", async () => {
+    mockGetSession.mockResolvedValue(session("leader-id", "LEADER"));
+    mockRevokeCardDavToken.mockResolvedValue("owner-id");
 
     const { revokeCardDavTokenAction } = await importActions();
 
-    expect(await revokeCardDavTokenAction("token-id", "member-id")).toEqual({
+    expect(await revokeCardDavTokenAction("token-id")).toEqual({
       success: true,
       data: null,
     });
     expect(mockRevokeCardDavToken).toHaveBeenCalledWith(
       {},
-      { id: "member-id", role: "MEMBER" },
+      { id: "leader-id", role: "LEADER" },
       "token-id",
     );
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/members/member-id");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members/owner-id");
   });
 
   it("maps an unknown token", async () => {
@@ -128,7 +128,7 @@ describe("revokeCardDavTokenAction", () => {
 
     const { revokeCardDavTokenAction } = await importActions();
 
-    expect(await revokeCardDavTokenAction("gone", "member-id")).toEqual({
+    expect(await revokeCardDavTokenAction("gone")).toEqual({
       success: false,
       error: "Nem található",
     });

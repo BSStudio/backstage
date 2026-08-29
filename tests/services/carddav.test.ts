@@ -150,8 +150,9 @@ describe("revokeCardDavToken", () => {
       label: "iPhone",
     });
 
-    await revokeCardDavToken(prisma, LEADER, minted.id);
+    const owner = await revokeCardDavToken(prisma, LEADER, minted.id);
 
+    expect(owner).toBe(OWNER.id);
     expect(await prisma.cardDAVToken.count()).toBe(0);
     const log = await prisma.auditLog.findFirstOrThrow({
       where: { action: "CARDDAV_TOKEN_REVOKED" },
