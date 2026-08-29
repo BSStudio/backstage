@@ -489,10 +489,10 @@ export async function archiveMember(
     }),
   ]);
 
-  const results: SyncResult[] = [
-    await orchestrateDeactivate(prisma, member.id),
-    await orchestrateDeactivateWebsiteUser(prisma, member.id),
-  ];
+  const results: SyncResult[] = await Promise.all([
+    orchestrateDeactivate(prisma, member.id),
+    orchestrateDeactivateWebsiteUser(prisma, member.id),
+  ]);
 
   if (options.removeFromGoogleGroup) {
     results.push(
