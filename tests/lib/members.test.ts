@@ -67,10 +67,10 @@ describe("AUDIT_ACTION_LABELS", () => {
       "Google Group beolvasás",
     );
     expect(AUDIT_ACTION_LABELS.CARDDAV_TOKEN_CREATED).toBe(
-      "CardDAV token létrehozás",
+      "CardDAV eszköz hozzáadás",
     );
     expect(AUDIT_ACTION_LABELS.CARDDAV_TOKEN_REVOKED).toBe(
-      "CardDAV token visszavonás",
+      "CardDAV eszköz törlés",
     );
   });
 });

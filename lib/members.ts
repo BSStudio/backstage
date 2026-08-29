@@ -44,8 +44,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   AVATAR_UPLOADED: "Profilkép feltöltés",
   AVATAR_REMOVED: "Profilkép törlés",
   GOOGLE_GROUP_SYNCED: "Google Group beolvasás",
-  CARDDAV_TOKEN_CREATED: "CardDAV token létrehozás",
-  CARDDAV_TOKEN_REVOKED: "CardDAV token visszavonás",
+  CARDDAV_TOKEN_CREATED: "CardDAV eszköz hozzáadás",
+  CARDDAV_TOKEN_REVOKED: "CardDAV eszköz törlés",
 };
 
 /** Tailwind classes for audit action badges. */
