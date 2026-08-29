@@ -25,6 +25,8 @@ function pageRange(current: number, total: number): (number | string)[] {
   return pages;
 }
 
+// Prefetch is off on every link: the portal layout re-renders behind each one, so a nav
+// showing nine page numbers costs nine layout renders nobody asked for.
 export function PageNav({
   basePath,
   page,
@@ -44,6 +46,7 @@ export function PageNav({
         <PaginationItem>
           <PaginationPrevious
             href={`${basePath}?page=${Math.max(1, page - 1)}`}
+            prefetch={false}
             text="Előző"
             aria-disabled={isFirst}
             tabIndex={isFirst ? -1 : undefined}
@@ -59,6 +62,7 @@ export function PageNav({
             <PaginationItem key={p}>
               <PaginationLink
                 href={`${basePath}?page=${p}`}
+                prefetch={false}
                 isActive={p === page}
               >
                 {p}
@@ -69,6 +73,7 @@ export function PageNav({
         <PaginationItem>
           <PaginationNext
             href={`${basePath}?page=${Math.min(totalPages, page + 1)}`}
+            prefetch={false}
             text="Következő"
             aria-disabled={isLast}
             tabIndex={isLast ? -1 : undefined}
