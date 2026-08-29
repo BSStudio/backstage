@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AuditDiff } from "@/components/audit-diff";
 import { PageNav } from "@/components/page-nav";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,8 @@ export default async function AuditPage({
   const { logs, total, totalPages } = await listAuditLogs(prisma, actor, {
     page,
   });
+
+  if (page > totalPages) redirect(`/admin/audit?page=${totalPages}`);
 
   return (
     <div className="flex flex-col gap-6">

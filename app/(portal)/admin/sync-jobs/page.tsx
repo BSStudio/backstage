@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { PageNav } from "@/components/page-nav";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -44,6 +45,8 @@ export default async function SyncJobsPage({
   const page = resolvePage(pageParam);
 
   const { jobs, totalPages } = await listSyncJobs(prisma, actor, { page });
+
+  if (page > totalPages) redirect(`/admin/sync-jobs?page=${totalPages}`);
 
   return (
     <div className="flex flex-col gap-6">
