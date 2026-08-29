@@ -1,3 +1,5 @@
+"use client";
+
 import { toast } from "sonner";
 
 export function toastSync(success: string, syncErrors?: string[]): void {
