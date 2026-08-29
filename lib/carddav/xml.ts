@@ -37,10 +37,8 @@ export function escapeXml(value: string): string {
     .replace(/'/g, "&apos;");
 }
 
-// Clients pick their own namespace prefixes — `D:getetag`, `d:getetag` and a default-
-// namespaced `getetag` are the same property. Nothing in the DAV, CardDAV and
-// calendarserver vocabularies we answer for shares a local name, so matching on that alone
-// is unambiguous and saves resolving every prefix to its URI.
+// Clients pick their own prefixes, and no local name is shared across the three
+// vocabularies answered here — so matching on the local name alone is unambiguous.
 function localName(element: XmlElement): string {
   const { name } = element;
   return name.slice(name.indexOf(":") + 1).toLowerCase();
@@ -54,8 +52,8 @@ function descendants(element: XmlElement): XmlElement[] {
   return [element, ...childElements(element).flatMap(descendants)];
 }
 
-// An empty body is not malformed: RFC 4918 reads it as allprop, so it parses to no root.
-// Anything that fails to parse is the caller's problem to answer with a 400.
+// Empty is not malformed: RFC 4918 reads it as allprop. Unparseable comes back undefined
+// for the caller to answer with a 400.
 function parseRoot(body: string): XmlElement | null | undefined {
   if (body.trim() === "") return null;
   try {

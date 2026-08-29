@@ -43,8 +43,7 @@ function foldLine(line: string): string {
   const parts: string[] = [];
   let offset = 0;
   while (offset < bytes.length) {
-    // Every line after the first carries the space that marks it a continuation, and that
-    // space counts toward the limit.
+    // The space marking a continuation line counts toward the limit.
     const budget = parts.length === 0 ? MAX_OCTETS : MAX_OCTETS - 1;
     let end = Math.min(offset + budget, bytes.length);
     // Never split a character down the middle: back off over continuation bytes.
@@ -82,8 +81,7 @@ export function renderVCard(
     .join(CRLF)}${CRLF}`;
 }
 
-// Derived from the rendered card rather than from updatedAt, so it cannot claim a change
-// the card does not show, or miss one it does.
+// From the rendered card, not updatedAt: it cannot claim a change the card does not show.
 function etagFor(body: string): string {
   return `"${createHash("sha256").update(body).digest("hex")}"`;
 }

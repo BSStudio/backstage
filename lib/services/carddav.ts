@@ -8,7 +8,7 @@ import { CreateCardDavTokenSchema } from "@/lib/services/carddav-schemas";
 export type { CreateCardDavTokenInput } from "@/lib/services/carddav-schemas";
 export { CreateCardDavTokenSchema } from "@/lib/services/carddav-schemas";
 
-// Only the digest is stored, so the token itself exists nowhere but the answer that mints it.
+// The digest is all that is stored, so this is the only place the token exists.
 export interface MintedCardDavToken {
   id: string;
   label: string;
