@@ -19,9 +19,9 @@ vi.mock("@/lib/carddav/handler", () => ({
 
 import { proxy } from "@/proxy";
 
-function request(pathname: string): NextRequest {
+function request(pathname: string, method = "GET"): NextRequest {
   const url = new URL(pathname, "https://backstage.test");
-  return { nextUrl: url, url: url.toString() } as NextRequest;
+  return { nextUrl: url, url: url.toString(), method } as NextRequest;
 }
 
 beforeEach(() => {
@@ -55,6 +55,27 @@ describe("proxy", () => {
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
   });
 
+  it("answers an unauthenticated non-navigation request with 401, not login HTML", async () => {
+    mockGetSessionCookie.mockReturnValue(null);
+
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+      const response = await proxy(request("/members/abc", method));
+
+      expect(response.status).toBe(401);
+      expect(response.headers.get("location")).toBeNull();
+    }
+  });
+
+  it("sends a WebDAV verb to the handler wherever it is aimed", async () => {
+    mockGetSessionCookie.mockReturnValue(null);
+
+    for (const method of ["PROPFIND", "REPORT", "PROPPATCH", "MKCOL"]) {
+      expect((await proxy(request("/", method))).status).toBe(207);
+    }
+
+    expect(mockHandleCardDav).toHaveBeenCalledTimes(4);
+  });
+
   it("redirects an unauthenticated page request, keeping the path", async () => {
     mockGetSessionCookie.mockReturnValue(null);
 
@@ -72,11 +93,13 @@ describe("proxy", () => {
       "/api/carddav/",
       "/api/carddav/addressbook/abc.vcf",
       "/.well-known/carddav",
+      "/principals",
+      "/principals/users/someone/",
     ]) {
       expect((await proxy(request(path))).status).toBe(207);
     }
 
-    expect(mockHandleCardDav).toHaveBeenCalledTimes(4);
+    expect(mockHandleCardDav).toHaveBeenCalledTimes(6);
     expect(mockGetSessionCookie).not.toHaveBeenCalled();
   });
 
@@ -84,6 +107,7 @@ describe("proxy", () => {
     mockGetSessionCookie.mockReturnValue("a-session-token");
 
     await proxy(request("/api/carddavish"));
+    await proxy(request("/principalsomething"));
 
     expect(mockHandleCardDav).not.toHaveBeenCalled();
   });

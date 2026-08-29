@@ -187,6 +187,13 @@ describe("routing", () => {
     expect((await call("/api/carddav/nonsense")).status).toBe(404);
   });
 
+  it("ends a probe aimed elsewhere on the origin with 404, never 401", async () => {
+    // A 401 to a client that already authenticated reads as the password being wrong.
+    for (const path of ["/", "/login", "/carddav"]) {
+      expect((await call(path)).status).toBe(404);
+    }
+  });
+
   it("advertises its capabilities on OPTIONS", async () => {
     const response = await call("/api/carddav/", { method: "OPTIONS" });
 
@@ -256,6 +263,27 @@ describe("PROPFIND", () => {
     expect(xml).toContain("<d:href>/api/carddav/principal/</d:href>");
     expect(xml).toContain("<d:displayname>Kovács János</d:displayname>");
     expect(xml).toContain("<d:principal/>");
+  });
+
+  it("answers Apple's /principals probe as the principal", async () => {
+    const xml = await (
+      await call("/principals", { body: PROPFIND_BODY })
+    ).text();
+
+    expect(xml).toContain("<d:principal/>");
+    expect(xml).toContain("<d:displayname>Kovács János</d:displayname>");
+    // It is an alias, so it still names the canonical principal URL.
+    expect(xml).toContain(
+      "<d:current-user-principal><d:href>/api/carddav/principal/</d:href></d:current-user-principal>",
+    );
+  });
+
+  it("answers a deeper Apple principals path with 404, not the principal", async () => {
+    const response = await call("/principals/users/someone/", {
+      body: PROPFIND_BODY,
+    });
+
+    expect(response.status).toBe(404);
   });
 
   it("lists one card per active member at depth 1, archived excluded", async () => {

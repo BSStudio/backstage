@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import {
   CARDDAV_ADDRESSBOOK_PATH,
+  CARDDAV_APPLE_PRINCIPALS,
   CARDDAV_BASE,
   CARDDAV_PRINCIPAL_PATH,
   CARDDAV_ROOT_PATH,
@@ -42,7 +43,12 @@ type KnownTarget = Exclude<Target, { kind: "unknown" }>;
 function classify(pathname: string): Target {
   const path = pathname.replace(/\/+$/, "");
   if (path === CARDDAV_BASE) return { kind: "root" };
-  if (path === `${CARDDAV_BASE}/principal`) return { kind: "principal" };
+  if (
+    path === `${CARDDAV_BASE}/principal` ||
+    path === CARDDAV_APPLE_PRINCIPALS
+  ) {
+    return { kind: "principal" };
+  }
   if (path === `${CARDDAV_BASE}/addressbook`) return { kind: "addressbook" };
 
   const card = CARD_PATTERN.exec(path);
@@ -63,7 +69,7 @@ function unauthorized(): NextResponse {
   return new NextResponse(null, {
     status: 401,
     headers: davHeaders({
-      "WWW-Authenticate": 'Basic realm="Backstage CardDAV", charset="UTF-8"',
+      "WWW-Authenticate": 'Basic realm="Backstage"',
     }),
   });
 }
@@ -314,8 +320,9 @@ async function handleGet(
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
 function readBasicToken(request: NextRequest): string | null {
-  const header = request.headers.get("authorization");
-  const encoded = header?.match(/^Basic (.+)$/i)?.[1];
+  const encoded = request.headers
+    .get("authorization")
+    ?.match(/^Basic (.+)$/i)?.[1];
   if (!encoded) return null;
 
   const decoded = Buffer.from(encoded, "base64").toString("utf8");
@@ -344,6 +351,7 @@ export async function handleCardDav(
   if (!principal) return unauthorized();
 
   const target = classify(pathname);
+  // A 404 ends a client's hunt for a collection; a 401 reads as the password being wrong.
   if (target.kind === "unknown") return notFound();
 
   switch (request.method) {
