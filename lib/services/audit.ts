@@ -1,7 +1,6 @@
 import type { PrismaClient } from "@/app/generated/prisma/client";
 import { type Actor, ensureCanViewAdminArea } from "@/lib/permissions";
-
-const PAGE_SIZE = 50;
+import { pageSlice, totalPages } from "@/lib/services/pagination";
 
 export async function listAuditLogs(
   prisma: PrismaClient,
@@ -18,12 +17,11 @@ export async function listAuditLogs(
         target: { select: { firstName: true, lastName: true } },
       },
       orderBy: { createdAt: "desc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
+      ...pageSlice(page),
     }),
   ]);
 
-  return { logs, total, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+  return { logs, total, totalPages: totalPages(total) };
 }
 
 export async function listMemberAuditLogs(
