@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { canAdminister, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
+import { resolvePage } from "@/lib/services/pagination";
 import { listSyncJobs } from "@/lib/services/sync-jobs";
 import { pageActor } from "@/lib/session";
 import {
@@ -40,7 +41,7 @@ export default async function SyncJobsPage({
   const canRetry = canAdminister(actor.role);
 
   const { page: pageParam } = await searchParams;
-  const page = Math.max(1, Number(pageParam) || 1);
+  const page = resolvePage(pageParam);
 
   const { jobs, totalPages } = await listSyncJobs(prisma, actor, { page });
 

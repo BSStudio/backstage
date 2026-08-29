@@ -15,6 +15,7 @@ import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
 import { canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listAuditLogs } from "@/lib/services/audit";
+import { resolvePage } from "@/lib/services/pagination";
 import { pageActor } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Audit napló - Backstage" };
@@ -27,7 +28,7 @@ export default async function AuditPage({
   const actor = await pageActor(canViewAdminArea);
 
   const { page: pageParam } = await searchParams;
-  const page = Math.max(1, Number(pageParam) || 1);
+  const page = resolvePage(pageParam);
 
   const { logs, total, totalPages } = await listAuditLogs(prisma, actor, {
     page,
