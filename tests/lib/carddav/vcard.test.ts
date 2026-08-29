@@ -80,7 +80,10 @@ describe("renderVCard", () => {
   });
 
   it("folds a long line without splitting a multi-byte character", () => {
-    const nickname = "ő".repeat(80);
+    // The lone ASCII character is what puts the limit inside a following one:
+    // `NICKNAME:` and two-byte characters divide into 75 exactly, so the back-off
+    // that keeps a character whole would never run.
+    const nickname = `a${"ő".repeat(80)}`;
     const body = renderVCard(member({ nickname }), options);
 
     const physical = body.split("\r\n").filter(Boolean);
