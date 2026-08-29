@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { PrismaClient } from "@/app/generated/prisma/client";
 import { hashCardDavToken, mintCardDavToken } from "@/lib/carddav/tokens";
+import type { VCardMember } from "@/lib/carddav/vcard";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { type Actor, ensureCanModifyMember } from "@/lib/permissions";
 import { CreateCardDavTokenSchema } from "@/lib/services/carddav-schemas";
@@ -97,4 +98,66 @@ export async function revokeCardDavToken(
       },
     }),
   ]);
+}
+
+// ─── The CardDAV endpoint's own reads ────────────────────────────────────────
+
+export interface CardDavPrincipal {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+// A phone re-authenticates on every poll, so only move this once it has gone stale.
+const LAST_USED_STALE_MS = 5 * 60_000;
+
+export async function authenticateCardDavToken(
+  prisma: PrismaClient,
+  token: string,
+): Promise<CardDavPrincipal | null> {
+  const row = await prisma.cardDAVToken.findUnique({
+    where: { tokenHash: hashCardDavToken(token) },
+    select: {
+      id: true,
+      lastUsedAt: true,
+      member: {
+        select: { id: true, firstName: true, lastName: true, archived: true },
+      },
+    },
+  });
+  if (!row || row.member.archived) return null;
+
+  const now = new Date();
+  if (
+    !row.lastUsedAt ||
+    now.getTime() - row.lastUsedAt.getTime() > LAST_USED_STALE_MS
+  ) {
+    await prisma.cardDAVToken.update({
+      where: { id: row.id },
+      data: { lastUsedAt: now },
+    });
+  }
+
+  const { id, firstName, lastName } = row.member;
+  return { id, firstName, lastName };
+}
+
+// No Actor: the token is the guard, and this is the list every member already reads.
+export async function listCardDavMembers(
+  prisma: PrismaClient,
+): Promise<VCardMember[]> {
+  return prisma.member.findMany({
+    where: { archived: false },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      nickname: true,
+      email: true,
+      mobile: true,
+      avatarUrl: true,
+      updatedAt: true,
+    },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+  });
 }

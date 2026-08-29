@@ -30,6 +30,9 @@ const appVersion = (() => {
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // WebDAV collections end in a slash, and Next's redirect fires before the proxy — so
+  // `/api/carddav/` answered 308 instead of reaching it. Reinstated in `proxy.ts`.
+  skipTrailingSlashRedirect: true,
   env: {
     NEXT_PUBLIC_APP_VERSION: appVersion,
     NEXT_PUBLIC_COMMIT_HASH: commitHash,

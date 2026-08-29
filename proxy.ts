@@ -1,6 +1,7 @@
 import { getSessionCookie } from "better-auth/cookies";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { isCardDavPath } from "@/lib/carddav/paths";
 
 const publicPaths = [
   "/api/auth",
@@ -10,8 +11,25 @@ const publicPaths = [
   "/monitoring",
 ];
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Next answers 405 to PROPFIND and REPORT before a route handler runs, so the proxy is
+  // the only place that sees them. The dynamic import keeps Prisma and the vCard layer out
+  // of the module graph every other request pays for.
+  if (isCardDavPath(pathname)) {
+    const { handleCardDav } = await import("@/lib/carddav/handler");
+    return handleCardDav(request);
+  }
+
+  // Reinstates what `skipTrailingSlashRedirect` turned off for CardDAV's sake.
+  if (pathname !== "/" && pathname.endsWith("/")) {
+    // Not `nextUrl.clone()`: NextURL puts the trailing slash back on serialisation, so
+    // the redirect pointed at itself.
+    const url = new URL(request.url);
+    url.pathname = pathname.replace(/\/+$/, "");
+    return NextResponse.redirect(url, 308);
+  }
 
   if (publicPaths.some((path) => pathname.startsWith(path))) {
     return NextResponse.next();
