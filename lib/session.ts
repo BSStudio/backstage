@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { auth, type Session } from "@/lib/auth";
 import { type Actor, toActor } from "@/lib/permissions";
@@ -48,4 +49,14 @@ export async function permittedActor(
 ): Promise<Actor | null> {
   const actor = await sessionActor();
   return actor && allows(actor.role) ? actor : null;
+}
+
+// A page has nowhere to put a 401, so it sends the visitor home instead. This is the UX:
+// what keeps restricted data safe is the service refusing the actor.
+export async function pageActor(
+  allows?: (role: UserRole | undefined) => boolean,
+): Promise<Actor> {
+  const actor = await sessionActor();
+  if (!actor || (allows && !allows(actor.role))) redirect("/");
+  return actor;
 }

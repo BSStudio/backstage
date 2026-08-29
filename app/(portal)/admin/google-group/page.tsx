@@ -1,12 +1,11 @@
 import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { googleGroupUrl } from "@/lib/google-group";
-import { canAdminister, canViewAdminArea, toActor } from "@/lib/permissions";
+import { canAdminister, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { getGoogleGroupReconciliation } from "@/lib/services/google-group";
-import { getSession } from "@/lib/session";
+import { pageActor } from "@/lib/session";
 import { EntriesTable } from "./entries-table";
 import { MissingTable } from "./missing-table";
 import { RefreshButton } from "./refresh-button";
@@ -14,11 +13,7 @@ import { RefreshButton } from "./refresh-button";
 export const metadata: Metadata = { title: "Google Group - Backstage" };
 
 export default async function GoogleGroupPage() {
-  const session = await getSession();
-  if (!session) redirect("/");
-
-  const actor = toActor(session);
-  if (!canViewAdminArea(actor.role)) redirect("/");
+  const actor = await pageActor(canViewAdminArea);
   const canManage = canAdminister(actor.role);
 
   const { entries, missing, members, lastSyncedAt } =

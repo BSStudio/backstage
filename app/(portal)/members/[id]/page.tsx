@@ -7,7 +7,7 @@ import {
   Shield,
 } from "lucide-react";
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { cache } from "react";
 import { AuditDiff } from "@/components/audit-diff";
 import { BreadcrumbOverride } from "@/components/breadcrumb-context";
@@ -26,11 +26,11 @@ import {
   AUDIT_ACTION_VARIANT,
   STATUS_BADGE_CLASS,
 } from "@/lib/members";
-import { canManageMembers, canViewAdminArea, toActor } from "@/lib/permissions";
+import { canManageMembers, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listMemberAuditLogs } from "@/lib/services/audit";
 import { listAuthentikGroups } from "@/lib/services/members";
-import { getSession } from "@/lib/session";
+import { pageActor } from "@/lib/session";
 import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
 import { MemberAvatar } from "./member-avatar";
 import { MemberEditButton } from "./member-edit-button";
@@ -62,9 +62,7 @@ export default async function MemberDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const session = await getSession();
-  if (!session) redirect("/");
-  const actor = toActor(session);
+  const actor = await pageActor();
   const canManage = canManageMembers(actor.role);
   const canSeeAuditLog = canViewAdminArea(actor.role);
   const isSelf = actor.id === id;

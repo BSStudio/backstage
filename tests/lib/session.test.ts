@@ -3,12 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { canAdminister, canManageMembers } from "@/lib/permissions";
 import { mockAuthApi } from "../helpers";
 
+const mockRedirect = vi.fn((path: string) => {
+  throw new Error(`redirect:${path}`);
+});
+
 function mockDeps(session: unknown) {
   mockAuthApi(vi.fn().mockResolvedValue(session));
+  vi.doMock("next/navigation", () => ({ redirect: mockRedirect }));
 }
 
 beforeEach(() => {
   vi.resetModules();
+  mockRedirect.mockClear();
 });
 
 describe("getSession", () => {
@@ -119,5 +125,40 @@ describe("permittedActor", () => {
     const mod = await import("@/lib/session");
 
     expect(await mod.permittedActor(canAdminister)).toBeNull();
+  });
+});
+
+describe("pageActor", () => {
+  it("returns the actor when no predicate is given", async () => {
+    mockDeps({ user: { id: "u1", role: "MEMBER" } });
+    const mod = await import("@/lib/session");
+
+    expect(await mod.pageActor()).toEqual({ id: "u1", role: "MEMBER" });
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("returns the actor when the predicate allows the role", async () => {
+    mockDeps({ user: { id: "u1", role: "ADMIN" } });
+    const mod = await import("@/lib/session");
+
+    expect(await mod.pageActor(canAdminister)).toEqual({
+      id: "u1",
+      role: "ADMIN",
+    });
+  });
+
+  it("sends an unauthenticated visitor home", async () => {
+    mockDeps(null);
+    const mod = await import("@/lib/session");
+
+    await expect(mod.pageActor()).rejects.toThrow("redirect:/");
+    expect(mockRedirect).toHaveBeenCalledWith("/");
+  });
+
+  it("sends a visitor the predicate rejects home", async () => {
+    mockDeps({ user: { id: "u1", role: "LEADER" } });
+    const mod = await import("@/lib/session");
+
+    await expect(mod.pageActor(canAdminister)).rejects.toThrow("redirect:/");
   });
 });

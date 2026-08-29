@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { AuditDiff } from "@/components/audit-diff";
 import { PageNav } from "@/components/page-nav";
 import { Badge } from "@/components/ui/badge";
@@ -12,10 +11,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
-import { canViewAdminArea, toActor } from "@/lib/permissions";
+import { canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listAuditLogs } from "@/lib/services/audit";
-import { getSession } from "@/lib/session";
+import { pageActor } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Audit napló - Backstage" };
 
@@ -24,10 +23,7 @@ export default async function AuditPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  const session = await getSession();
-  if (!session) redirect("/");
-  const actor = toActor(session);
-  if (!canViewAdminArea(actor.role)) redirect("/");
+  const actor = await pageActor(canViewAdminArea);
 
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);

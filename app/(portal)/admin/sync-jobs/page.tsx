@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { PageNav } from "@/components/page-nav";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,10 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { canAdminister, canViewAdminArea, toActor } from "@/lib/permissions";
+import { canAdminister, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listSyncJobs } from "@/lib/services/sync-jobs";
-import { getSession } from "@/lib/session";
+import { pageActor } from "@/lib/session";
 import {
   SYNC_OPERATION_LABELS,
   SYNC_STATUS_LABELS,
@@ -37,10 +36,7 @@ export default async function SyncJobsPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  const session = await getSession();
-  if (!session) redirect("/");
-  const actor = toActor(session);
-  if (!canViewAdminArea(actor.role)) redirect("/");
+  const actor = await pageActor(canViewAdminArea);
   const canRetry = canAdminister(actor.role);
 
   const { page: pageParam } = await searchParams;
