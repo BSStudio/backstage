@@ -9,10 +9,11 @@ import {
 import prisma from "@/lib/prisma";
 import { retrySyncJob } from "@/lib/services/sync-jobs";
 import { sessionActor } from "@/lib/session";
+import { collectSyncErrors } from "@/lib/sync/executor";
 
 export async function retrySyncJobAction(
   jobId: string,
-): Promise<ActionResult<{ syncSuccess: boolean; syncError?: string }>> {
+): Promise<ActionResult<null>> {
   const actor = await sessionActor();
   if (!actor) return UNAUTHORIZED;
 
@@ -21,10 +22,8 @@ export async function retrySyncJobAction(
     revalidatePath("/admin/sync-jobs");
     return {
       success: true,
-      data: {
-        syncSuccess: result.success,
-        syncError: result.success ? undefined : result.error,
-      },
+      data: null,
+      syncErrors: collectSyncErrors([result]),
     };
   } catch (error) {
     return mapActionError(error, {

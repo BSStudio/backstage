@@ -6,6 +6,7 @@ import { useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { retrySyncJobAction } from "@/lib/actions/sync-jobs";
+import { toastSync } from "@/lib/toast";
 
 export function RetryButton({ jobId }: { jobId: string }) {
   const router = useRouter();
@@ -18,11 +19,7 @@ export function RetryButton({ jobId }: { jobId: string }) {
         toast.error(result.error);
         return;
       }
-      if (result.data.syncSuccess) {
-        toast.success("Szinkronizáció sikeres");
-      } else {
-        toast.warning(`Szinkronizáció sikertelen: ${result.data.syncError}`);
-      }
+      toastSync("Feladat újraindítva", result.syncErrors);
       router.refresh();
     });
   }
