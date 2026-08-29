@@ -18,29 +18,19 @@ import {
 } from "@/app/(portal)/members/columns";
 import { DataTable } from "@/app/(portal)/members/data-table";
 import type { MembershipStatus } from "@/app/generated/prisma/client";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ArchiveDialog } from "@/components/archive-dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Label } from "@/components/ui/label";
 import {
   batchArchiveAction,
   batchUpdateStatusAction,
 } from "@/lib/actions/members";
+import { toastSync } from "@/lib/toast";
 import { MEMBERSHIP_STATUS_LABELS, MEMBERSHIP_STATUSES } from "@/types";
 
 const baseColumns = [
@@ -71,7 +61,6 @@ export function MembersTable({
     "status" | "archive" | null
   >(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const [removeFromGoogleGroup, setRemoveFromGoogleGroup] = useState(false);
   const [archiveData, setArchiveData] = useState<{
     ids: string[];
     count: number;
@@ -89,13 +78,10 @@ export function MembersTable({
       try {
         const result = await batchUpdateStatusAction(ids, status);
         if (result.success) {
-          if (result.syncErrors && result.syncErrors.length > 0) {
-            toast.warning(
-              `${result.data.count} tag státusza módosítva, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
-            );
-          } else {
-            toast.success(`${result.data.count} tag státusza módosítva`);
-          }
+          toastSync(
+            `${result.data.count} tag státusza módosítva`,
+            result.syncErrors,
+          );
         } else {
           toast.error(result.error);
         }
@@ -106,7 +92,7 @@ export function MembersTable({
     });
   }
 
-  function handleArchiveConfirm() {
+  function handleArchiveConfirm(removeFromGoogleGroup: boolean) {
     if (!archiveData) return;
     const { ids, reset } = archiveData;
     setArchiveOpen(false);
@@ -117,13 +103,7 @@ export function MembersTable({
           removeFromGoogleGroup,
         });
         if (result.success) {
-          if (result.syncErrors && result.syncErrors.length > 0) {
-            toast.warning(
-              `${result.data.count} tag archiválva, de a szinkronizálás során hiba történt: ${result.syncErrors.join(", ")}`,
-            );
-          } else {
-            toast.success(`${result.data.count} tag archiválva`);
-          }
+          toastSync(`${result.data.count} tag archiválva`, result.syncErrors);
         } else {
           toast.error(result.error);
         }
@@ -193,7 +173,6 @@ export function MembersTable({
                           count: selectedCount,
                           reset: resetSelection,
                         });
-                        setRemoveFromGoogleGroup(false);
                         setArchiveOpen(true);
                       }}
                     >
@@ -209,39 +188,12 @@ export function MembersTable({
         }
       />
 
-      <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Archiválás megerősítése</AlertDialogTitle>
-            <AlertDialogDescription>
-              {/* TODO: update when reactivation flow is implemented */}
-              Biztosan archiválod a kijelölt {archiveData?.count} tagot? Ez a
-              művelet jelenleg NEM visszavonható.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="batch-remove-from-google-group"
-              checked={removeFromGoogleGroup}
-              onCheckedChange={(checked) =>
-                setRemoveFromGoogleGroup(checked === true)
-              }
-            />
-            <Label
-              htmlFor="batch-remove-from-google-group"
-              className="font-normal"
-            >
-              Törlés a Google Group levelezőlistáról is
-            </Label>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Mégse</AlertDialogCancel>
-            <AlertDialogAction onClick={handleArchiveConfirm}>
-              Archiválás
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ArchiveDialog
+        open={archiveOpen}
+        onOpenChange={setArchiveOpen}
+        description={`Biztosan archiválod a kijelölt ${archiveData?.count} tagot?`}
+        onConfirm={handleArchiveConfirm}
+      />
     </>
   );
 }

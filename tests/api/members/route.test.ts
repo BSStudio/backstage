@@ -9,10 +9,12 @@ import { getTestPrisma, mockPrisma } from "../../setup";
 
 const ACTOR_ID = "test-actor-id";
 
+let websiteOrchestrators: ReturnType<typeof mockWebsiteOrchestrators>;
+
 beforeEach(async () => {
   vi.resetModules();
   mockPrisma();
-  mockWebsiteOrchestrators();
+  websiteOrchestrators = mockWebsiteOrchestrators();
 
   vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
     createAuthentikUser: vi.fn(async (data) => ({
@@ -137,5 +139,23 @@ describe("POST /api/members", () => {
       postReq({ firstName: "New", lastName: "Member", email: "new@test.com" }),
     );
     expect(res.status).toBe(201);
+  });
+
+  it("returns 207 when the member was created but a sync step failed", async () => {
+    mockSession({ id: ACTOR_ID, role: "LEADER" });
+    websiteOrchestrators.orchestrateCreateWebsiteUser.mockResolvedValueOnce({
+      success: false,
+      error: "Website API error: HTTP 500",
+    });
+
+    const { POST } = await import("@/app/api/members/route");
+    const res = await POST(
+      postReq({ firstName: "New", lastName: "Member", email: "new@test.com" }),
+    );
+
+    expect(res.status).toBe(207);
+    const body = await res.json();
+    expect(body.member.email).toBe("new@test.com");
+    expect(body.syncErrors).toEqual(["Website API error: HTTP 500"]);
   });
 });

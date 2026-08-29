@@ -1,30 +1,40 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { syncJson } from "@/lib/api-response";
 import { deleteAvatars, saveAvatar } from "@/lib/avatar-storage";
-import { mapServiceError } from "@/lib/errors";
-import { ensureCanModifyMember } from "@/lib/permissions";
+import { mapServiceError, NotFoundError } from "@/lib/errors";
+import { type Actor, ensureCanModifyMember, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { removeMemberAvatar, uploadMemberAvatar } from "@/lib/services/members";
 import { requireAuth } from "@/lib/session";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function POST(req: NextRequest, { params }: Params) {
+// The services guard these mutations too, but both handlers write to storage before calling
+// one, so the check has to happen here as well or an unauthorised caller moves bytes first.
+async function authorizeAvatarChange(
+  id: string,
+): Promise<Actor | NextResponse> {
   const session = await requireAuth();
   if (session instanceof NextResponse) return session;
 
-  const { id } = await params;
-  const actor = { id: session.user.id, role: session.user.role };
-
-  const member = await prisma.member.findUnique({ where: { id } });
-  if (!member) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!(await prisma.member.count({ where: { id } }))) {
+    return mapServiceError(new NotFoundError());
   }
+
+  const actor = toActor(session);
   try {
     ensureCanModifyMember(actor, id);
   } catch (error) {
     return mapServiceError(error);
   }
+  return actor;
+}
+
+export async function POST(req: NextRequest, { params }: Params) {
+  const { id } = await params;
+  const actor = await authorizeAvatarChange(id);
+  if (actor instanceof NextResponse) return actor;
 
   const formData = await req.formData();
   const squareFile = formData.get("square") as File | null;
@@ -61,46 +71,22 @@ export async function POST(req: NextRequest, { params }: Params) {
       { avatarUrl, portraitUrl },
       actor,
     );
-    if (syncErrors.length > 0) {
-      return NextResponse.json(
-        { avatarUrl, portraitUrl, syncErrors },
-        { status: 207 },
-      );
-    }
-    return NextResponse.json({ avatarUrl, portraitUrl });
+    return syncJson({ avatarUrl, portraitUrl }, syncErrors);
   } catch (error) {
     return mapServiceError(error);
   }
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
-  const session = await requireAuth();
-  if (session instanceof NextResponse) return session;
-
   const { id } = await params;
-  const actor = { id: session.user.id, role: session.user.role };
-
-  const member = await prisma.member.findUnique({ where: { id } });
-  if (!member) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  try {
-    ensureCanModifyMember(actor, id);
-  } catch (error) {
-    return mapServiceError(error);
-  }
+  const actor = await authorizeAvatarChange(id);
+  if (actor instanceof NextResponse) return actor;
 
   await deleteAvatars(id);
 
   try {
     const { syncErrors } = await removeMemberAvatar(prisma, id, actor);
-    if (syncErrors.length > 0) {
-      return NextResponse.json(
-        { avatarUrl: null, portraitUrl: null, syncErrors },
-        { status: 207 },
-      );
-    }
-    return NextResponse.json({ avatarUrl: null, portraitUrl: null });
+    return syncJson({ avatarUrl: null, portraitUrl: null }, syncErrors);
   } catch (error) {
     return mapServiceError(error);
   }

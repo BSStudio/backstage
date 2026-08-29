@@ -9,11 +9,21 @@ import {
   ensureCanAdminister,
   ensureCanManageMembers,
   ensureCanModifyMember,
+  toActor,
 } from "@/lib/permissions";
 
 const ADMIN: Actor = { id: "admin-id", role: "ADMIN" };
 const LEADER: Actor = { id: "leader-id", role: "LEADER" };
 const MEMBER: Actor = { id: "member-id", role: "MEMBER" };
+
+describe("toActor", () => {
+  it("reduces a session to the actor the services take", () => {
+    expect(toActor({ user: { id: "user-id", role: "LEADER" } })).toEqual({
+      id: "user-id",
+      role: "LEADER",
+    });
+  });
+});
 
 describe("canManageMembers", () => {
   it("allows admins and leaders", () => {

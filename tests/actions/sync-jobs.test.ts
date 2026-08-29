@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockAuthApi } from "../helpers";
 
 const mockGetSession = vi.fn();
 const mockRetrySyncJob = vi.fn();
@@ -10,7 +11,7 @@ beforeEach(() => {
   mockRetrySyncJob.mockReset();
   mockRevalidatePath.mockReset();
 
-  vi.doMock("@/lib/session", () => ({ getSession: mockGetSession }));
+  mockAuthApi(mockGetSession);
   vi.doMock("@/lib/prisma", () => ({ default: {} }));
   vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
   vi.doMock("@/lib/services/sync-jobs", () => ({
@@ -59,7 +60,7 @@ describe("retrySyncJobAction", () => {
     const result = await retrySyncJobAction("job-id");
     expect(result).toEqual({
       success: false,
-      error: "Csak sikertelen feladatok újraindíthatók",
+      error: "Csak sikertelen feladatok indíthatók újra",
     });
   });
 
@@ -68,16 +69,11 @@ describe("retrySyncJobAction", () => {
     mockRetrySyncJob.mockResolvedValue({ success: true, result: { ok: true } });
     const { retrySyncJobAction } = await import("@/lib/actions/sync-jobs");
     const result = await retrySyncJobAction("job-id");
-    expect(result).toEqual({
-      success: true,
-      retried: true,
-      syncSuccess: true,
-      error: undefined,
-    });
+    expect(result).toEqual({ success: true, data: null, syncErrors: [] });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/admin/sync-jobs");
   });
 
-  it("returns syncSuccess=false with error when sync retry fails", async () => {
+  it("reports a failed retry through syncErrors", async () => {
     mockGetSession.mockResolvedValue(session("ADMIN"));
     mockRetrySyncJob.mockResolvedValue({
       success: false,
@@ -87,9 +83,8 @@ describe("retrySyncJobAction", () => {
     const result = await retrySyncJobAction("job-id");
     expect(result).toEqual({
       success: true,
-      retried: true,
-      syncSuccess: false,
-      error: "Authentik unreachable",
+      data: null,
+      syncErrors: ["Authentik unreachable"],
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/admin/sync-jobs");
   });

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockAuthApi } from "../helpers";
 
 const mockGetSession = vi.fn();
 const mockRefresh = vi.fn();
@@ -14,7 +15,7 @@ beforeEach(() => {
   mockRevalidatePath.mockReset();
   mockCaptureServiceError.mockReset();
 
-  vi.doMock("@/lib/session", () => ({ getSession: mockGetSession }));
+  mockAuthApi(mockGetSession);
   vi.doMock("@/lib/prisma", () => ({ default: {} }));
   vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
   vi.doMock("@/lib/observability/capture", () => ({

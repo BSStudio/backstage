@@ -25,6 +25,7 @@ import {
   orchestrateStatusChange,
   orchestrateUpdateAttributes,
 } from "@/lib/sync/authentik/orchestrators";
+import { collectSyncErrors, type SyncResult } from "@/lib/sync/executor";
 import {
   orchestrateAddToAlumniGroup,
   orchestrateAddToGoogleGroup,
@@ -92,14 +93,18 @@ export async function listAuthentikGroups(prisma: PrismaClient, actor: Actor) {
   });
 }
 
-export async function getMember(prisma: PrismaClient, id: string) {
-  const member = await prisma.member.findUnique({
+export async function findMember(prisma: PrismaClient, id: string) {
+  return prisma.member.findUnique({
     where: { id },
     include: {
       leadershipRole: true,
       timeline: { orderBy: { createdAt: "desc" } },
     },
   });
+}
+
+export async function getMember(prisma: PrismaClient, id: string) {
+  const member = await findMember(prisma, id);
   if (!member) throw new NotFoundError();
   return member;
 }
@@ -176,7 +181,7 @@ export async function createMember(
     }),
   ]);
 
-  const syncErrors: string[] = [];
+  const results: SyncResult[] = [];
   const websiteResult = await orchestrateCreateWebsiteUser(prisma, member.id, {
     username: websiteUsername,
     fullname: `${data.lastName} ${data.firstName}`.trim(),
@@ -196,18 +201,14 @@ export async function createMember(
       });
       member.websiteUserId = userId;
     }
-  } else {
-    syncErrors.push(websiteResult.error);
   }
+  results.push(websiteResult);
 
-  const googleResult = await orchestrateAddToGoogleGroup(
-    prisma,
-    member.id,
-    data.email,
+  results.push(
+    await orchestrateAddToGoogleGroup(prisma, member.id, data.email),
   );
-  if (!googleResult.success) syncErrors.push(googleResult.error);
 
-  return { member, syncErrors };
+  return { member, syncErrors: collectSyncErrors(results) };
 }
 
 async function syncAvatarUrl(
@@ -220,14 +221,14 @@ async function syncAvatarUrl(
     mobile: string | null;
     avatarUrl: string | null;
   },
-  syncErrors: string[],
-): Promise<void> {
-  if (before.avatarUrl === after.avatarUrl) return;
+): Promise<SyncResult[]> {
+  if (before.avatarUrl === after.avatarUrl) return [];
 
-  const result = await orchestrateUpdateAttributes(prisma, memberId, {
-    attributes: buildAuthentikAttributes(after),
-  });
-  if (!result.success) syncErrors.push(result.error);
+  return [
+    await orchestrateUpdateAttributes(prisma, memberId, {
+      attributes: buildAuthentikAttributes(after),
+    }),
+  ];
 }
 
 export async function uploadMemberAvatar(
@@ -253,8 +254,9 @@ export async function uploadMemberAvatar(
     return updated;
   });
 
-  const syncErrors: string[] = [];
-  await syncAvatarUrl(prisma, id, member, updated, syncErrors);
+  const syncErrors = collectSyncErrors(
+    await syncAvatarUrl(prisma, id, member, updated),
+  );
 
   return { member: updated, syncErrors };
 }
@@ -288,8 +290,9 @@ export async function removeMemberAvatar(
     return updated;
   });
 
-  const syncErrors: string[] = [];
-  await syncAvatarUrl(prisma, id, member, updated, syncErrors);
+  const syncErrors = collectSyncErrors(
+    await syncAvatarUrl(prisma, id, member, updated),
+  );
 
   return { member: updated, syncErrors };
 }
@@ -394,40 +397,37 @@ export async function updateMember(
     return updated;
   });
 
-  const syncErrors: string[] = [];
+  const results: SyncResult[] = [];
 
   // Sync Authentik attributes if any synced field changed
   const syncedFieldChanged = Object.keys(diff).some((k) =>
     AUTHENTIK_SYNCED_FIELDS.has(k),
   );
   if (syncedFieldChanged) {
-    const result = await orchestrateUpdateAttributes(prisma, member.id, {
-      name: `${updated.firstName} ${updated.lastName}`.trim(),
-      email: updated.email,
-      attributes: buildAuthentikAttributes(updated),
-    });
-    if (!result.success) syncErrors.push(result.error);
+    results.push(
+      await orchestrateUpdateAttributes(prisma, member.id, {
+        name: `${updated.firstName} ${updated.lastName}`.trim(),
+        email: updated.email,
+        attributes: buildAuthentikAttributes(updated),
+      }),
+    );
   }
 
   // Sync group membership on status change
   if (statusChanging && data.status) {
-    const results = await orchestrateStatusChange(
-      prisma,
-      member.id,
-      member.status,
-      data.status,
-    );
-    for (const r of results) {
-      if (!r.success) syncErrors.push(r.error);
-    }
-
-    if (becomesAlumni(member.status, data.status)) {
-      const alumniResult = await orchestrateAddToAlumniGroup(
+    results.push(
+      ...(await orchestrateStatusChange(
         prisma,
         member.id,
-        updated.email,
+        member.status,
+        data.status,
+      )),
+    );
+
+    if (becomesAlumni(member.status, data.status)) {
+      results.push(
+        await orchestrateAddToAlumniGroup(prisma, member.id, updated.email),
       );
-      if (!alumniResult.success) syncErrors.push(alumniResult.error);
     }
   }
 
@@ -445,15 +445,10 @@ export async function updateMember(
     if (diff.mobile) fields.mobile = updated.mobile ?? "";
     if (diff.status) fields.position = getWebsiteStatusLabel(updated.status);
 
-    const result = await orchestrateUpdateWebsiteUser(
-      prisma,
-      member.id,
-      fields,
-    );
-    if (!result.success) syncErrors.push(result.error);
+    results.push(await orchestrateUpdateWebsiteUser(prisma, member.id, fields));
   }
 
-  return { member: updated, syncErrors };
+  return { member: updated, syncErrors: collectSyncErrors(results) };
 }
 
 // Only the move into alumni adds the address; leaving alumni is rare enough to handle by hand.
@@ -494,26 +489,18 @@ export async function archiveMember(
     }),
   ]);
 
-  const syncErrors: string[] = [];
-  const authentikResult = await orchestrateDeactivate(prisma, member.id);
-  if (!authentikResult.success) syncErrors.push(authentikResult.error);
-
-  const websiteResult = await orchestrateDeactivateWebsiteUser(
-    prisma,
-    member.id,
-  );
-  if (!websiteResult.success) syncErrors.push(websiteResult.error);
+  const results: SyncResult[] = await Promise.all([
+    orchestrateDeactivate(prisma, member.id),
+    orchestrateDeactivateWebsiteUser(prisma, member.id),
+  ]);
 
   if (options.removeFromGoogleGroup) {
-    const googleResult = await orchestrateRemoveFromGoogleGroup(
-      prisma,
-      member.id,
-      member.email,
+    results.push(
+      await orchestrateRemoveFromGoogleGroup(prisma, member.id, member.email),
     );
-    if (!googleResult.success) syncErrors.push(googleResult.error);
   }
 
-  return { syncErrors };
+  return { syncErrors: collectSyncErrors(results) };
 }
 
 export async function batchArchive(
@@ -561,11 +548,7 @@ export async function batchArchive(
         : []),
     ]),
   );
-  const syncErrors = syncResults
-    .filter((r): r is { success: false; error: string } => !r.success)
-    .map((r) => r.error);
-
-  return { count: members.length, syncErrors };
+  return { count: members.length, syncErrors: collectSyncErrors(syncResults) };
 }
 
 export async function batchUpdateStatus(
@@ -620,13 +603,11 @@ export async function batchUpdateStatus(
       }),
     ),
   );
-  const syncErrors = [
+  const syncErrors = collectSyncErrors([
     ...groupResultsPerMember.flat(),
     ...alumniResults,
     ...websiteResults,
-  ]
-    .filter((r): r is { success: false; error: string } => !r.success)
-    .map((r) => r.error);
+  ]);
 
   return { count: members.length, syncErrors };
 }
@@ -723,11 +704,13 @@ export async function assignRole(
     role: label,
   });
 
-  const syncErrors = [...addResults, ...removeResults, websiteResult]
-    .filter((r): r is { success: false; error: string } => !r.success)
-    .map((r) => r.error);
-
-  return { syncErrors };
+  return {
+    syncErrors: collectSyncErrors([
+      ...addResults,
+      ...removeResults,
+      websiteResult,
+    ]),
+  };
 }
 
 export async function removeRole(
@@ -773,9 +756,5 @@ export async function removeRole(
     role: "",
   });
 
-  const syncErrors = [...removeResults, websiteResult]
-    .filter((r): r is { success: false; error: string } => !r.success)
-    .map((r) => r.error);
-
-  return { syncErrors };
+  return { syncErrors: collectSyncErrors([...removeResults, websiteResult]) };
 }

@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import prisma from "@/lib/prisma";
+import { pageActor } from "@/lib/session";
 import { AlumniTable } from "./alumni-table";
 
 export const metadata: Metadata = { title: "Öregtagok - Backstage" };
 
 export default async function AlumniPage() {
+  await pageActor();
+
   const members = await prisma.member.findMany({
     where: {
       archived: false,

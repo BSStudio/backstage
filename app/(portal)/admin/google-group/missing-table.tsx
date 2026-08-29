@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,8 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { STATUS_BADGE_CLASS } from "@/lib/members";
-import { isAlumniStatus, MEMBERSHIP_STATUS_LABELS } from "@/types";
+import { isAlumniStatus } from "@/types";
 import type { MissingMemberRow } from "./types";
 
 // Alumni and archived members are expected to be off the list, so they would bury the
@@ -77,12 +76,7 @@ export function MissingTable({ missing }: { missing: MissingMemberRow[] }) {
                     {member.archived ? " (archivált)" : ""}
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant="secondary"
-                      className={STATUS_BADGE_CLASS[member.status]}
-                    >
-                      {MEMBERSHIP_STATUS_LABELS[member.status]}
-                    </Badge>
+                    <StatusBadge status={member.status} />
                   </TableCell>
                   <TableCell className="font-mono text-xs">
                     {member.email}

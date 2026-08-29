@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { auth, type Session } from "@/lib/auth";
+import { type Actor, toActor } from "@/lib/permissions";
 import type { UserRole } from "@/types";
 
 export type { Session };
@@ -12,9 +14,7 @@ export async function getSession(): Promise<Session | null> {
 }
 
 export async function requireAuth(): Promise<Session | NextResponse> {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -33,4 +33,35 @@ export async function requirePermission(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   return session;
+}
+
+// A Server Action answers with a result object rather than a response, so it takes the
+// actor instead of the session; the predicate comes from `lib/permissions` all the same.
+export async function sessionActor(): Promise<Actor | null> {
+  const session = await getSession();
+  return session ? toActor(session) : null;
+}
+
+export async function permittedActor(
+  allows: (role: UserRole | undefined) => boolean,
+): Promise<Actor | null> {
+  const actor = await sessionActor();
+  return actor && allows(actor.role) ? actor : null;
+}
+
+// A page has nowhere to put a 401 or a 403, so it redirects instead. This is the UX: what
+// keeps restricted data safe is the service refusing the actor.
+//
+// The two cases part ways because the portal layout renders alongside the page and redirects
+// an unauthenticated visitor to `/login` itself. Sending them anywhere else here races the
+// layout for the destination, and `/` only bounces off the same check again — this time
+// through a layout that cannot name the page they asked for. A role the predicate rejects is
+// authenticated, so it goes home.
+export async function pageActor(
+  allows?: (role: UserRole | undefined) => boolean,
+): Promise<Actor> {
+  const actor = await sessionActor();
+  if (!actor) redirect("/login");
+  if (allows && !allows(actor.role)) redirect("/");
+  return actor;
 }

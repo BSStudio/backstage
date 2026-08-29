@@ -7,10 +7,11 @@ import {
   Shield,
 } from "lucide-react";
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { cache } from "react";
 import { AuditDiff } from "@/components/audit-diff";
 import { BreadcrumbOverride } from "@/components/breadcrumb-context";
+import { ArchivedBadge, StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -21,33 +22,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  AUDIT_ACTION_LABELS,
-  AUDIT_ACTION_VARIANT,
-  STATUS_BADGE_CLASS,
-} from "@/lib/members";
-import {
-  type Actor,
-  canManageMembers,
-  canViewAdminArea,
-} from "@/lib/permissions";
+import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
+import { canManageMembers, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listMemberAuditLogs } from "@/lib/services/audit";
-import { listAuthentikGroups } from "@/lib/services/members";
-import { getSession } from "@/lib/session";
+import { findMember, listAuthentikGroups } from "@/lib/services/members";
+import { pageActor } from "@/lib/session";
 import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
 import { MemberAvatar } from "./member-avatar";
 import { MemberEditButton } from "./member-edit-button";
 
-const getMemberById = cache((id: string) =>
-  prisma.member.findUnique({
-    where: { id },
-    include: {
-      leadershipRole: true,
-      timeline: { orderBy: { createdAt: "desc" } },
-    },
-  }),
-);
+const getMemberById = cache((id: string) => findMember(prisma, id));
 
 export async function generateMetadata({
   params,
@@ -66,12 +51,7 @@ export default async function MemberDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const session = await getSession();
-  if (!session) redirect("/");
-  const actor: Actor = {
-    id: session.user.id,
-    role: session.user.role,
-  };
+  const actor = await pageActor();
   const canManage = canManageMembers(actor.role);
   const canSeeAuditLog = canViewAdminArea(actor.role);
   const isSelf = actor.id === id;
@@ -118,25 +98,13 @@ export default async function MemberDetailPage({
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                variant="outline"
-                className={STATUS_BADGE_CLASS[member.status]}
-              >
-                {MEMBERSHIP_STATUS_LABELS[member.status]}
-              </Badge>
+              <StatusBadge status={member.status} />
               {member.leadershipRole && (
                 <Badge variant="outline" className="bg-primary/10 text-primary">
                   {member.leadershipRole.label}
                 </Badge>
               )}
-              {member.archived && (
-                <Badge
-                  variant="outline"
-                  className="bg-status-archived/15 text-status-archived border-status-archived/40"
-                >
-                  Archivált
-                </Badge>
-              )}
+              {member.archived && <ArchivedBadge />}
             </div>
           </div>
         </div>

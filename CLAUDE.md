@@ -89,8 +89,10 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `app/avatars/[...path]/route.ts` — serves avatar bytes from whichever storage backend is active
 - `lib/services/` — business logic (`members.ts`, `sync-jobs.ts`, `usernames.ts`,
   `google-group.ts`, `audit.ts`). All real work happens here. `member-schemas.ts` and
-  `google-group-schemas.ts` hold the Zod schemas, split out so client forms can import them.
-- `lib/actions/` — Server Actions; thin wrappers around services
+  `google-group-schemas.ts` hold the Zod schemas, split out so client forms can import them;
+  `pagination.ts` holds the page size and the skip/take arithmetic the paginated admin lists share
+- `lib/actions/` — Server Actions; thin wrappers around services. `result.ts` owns the
+  `ActionResult` shape they all return, the two failure constants and `mapActionError`
 - `lib/authentik/` — Authentik REST client (`client`, `users`, `groups`)
 - `lib/website/` — legacy Drupal client (`client.ts` transport, `users.ts` operations)
 - `lib/google/` — Cloud Identity client (`client.ts` token minting + transport, `groups.ts`
@@ -99,6 +101,9 @@ The scripts refuse to run against a database whose host is not local unless pass
   and `google/{operations,orchestrators}.ts`
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
 - `lib/errors.ts` — typed error hierarchy + `mapServiceError`
+- `lib/api-response.ts` — `syncJson` / `syncJsonResource`, the answer every mutating route
+  returns
+- `lib/toast.ts` — `toastSync`, the success-or-partial-failure toast every mutation raises
 - `lib/permissions.ts` — every role rule: `can*` predicates for the UI, `ensureCan*` guards that
   throw `ForbiddenError` for services
 - `lib/api-client-auth.ts` — bearer verification for machine-to-machine callers
@@ -110,6 +115,9 @@ The scripts refuse to run against a database whose host is not local unless pass
   helpers + Hungarian labels
 - `components/form.tsx` — TanStack Form `useAppForm` plus the field/submit components every form
   is built from
+- `components/` — shared pieces above the primitives: `page-nav.tsx` (admin list pagination),
+  `status-badge.tsx` (`StatusBadge` / `ArchivedBadge`), `archive-dialog.tsx` (the archive
+  confirmation and its mailing-list checkbox), `portal-shell.tsx` (the authenticated frame)
 - `components/ui/` — shadcn/ui primitives
 - `scripts/` — dev tooling run with `tsx`: `dev-setup.ts`, `seed-dev.ts` (+ `seed-data.ts` roster,
   `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`,
@@ -147,9 +155,10 @@ The scripts refuse to run against a database whose host is not local unless pass
    `lib/google/groups.ts`
 2. Register the handler in `lib/sync/<target>/operations.ts` — it receives
    `(payload, memberId, prisma)` and resolves external IDs itself at execute time
-3. Orchestrator in `lib/sync/<target>/orchestrators.ts`: create the `SyncJob` row, then
-   `executeSyncJob`
-4. Call the orchestrator from `lib/services/`, collect failures into `syncErrors`
+3. Orchestrator in `lib/sync/<target>/orchestrators.ts`: hand `runSyncJob` the row to write, plus
+   a skip reason if the target has a condition no retry could fix
+4. Call the orchestrator from `lib/services/`, and turn the results into `syncErrors` with
+   `collectSyncErrors`
 5. A new operation name also needs a `SyncOperation` enum value + migration
 
 **Add or change an Authentik API call** — any new endpoint, query parameter or request/response
@@ -166,12 +175,15 @@ field in `lib/authentik/*` has to be mirrored into the contract check, or it goe
    nobody reads
 
 **Add an API route** — keep it a thin adapter: `requireAuth()` or
-`requirePermission(<predicate>)` from `lib/session.ts`, call the service, wrap failures in
-`mapServiceError`. No business logic, and no role list of its own — the predicate comes from
-`lib/permissions.ts` and the service guards itself regardless.
+`requirePermission(<predicate>)` from `lib/session.ts`, `toActor(session)` for the service call,
+`syncJson(body, syncErrors)` for the answer — or `syncJsonResource(key, resource, syncErrors)`
+when the body is the resource itself — and `mapServiceError` around failures. No business
+logic, and no role list of its own — the predicate comes from `lib/permissions.ts` and the service
+guards itself regardless.
 
-**Add a portal page** — `app/(portal)/…/page.tsx` exporting `metadata`, a Hungarian label in
-`lib/nav-labels.ts` (used by both sidebar and breadcrumbs), and a sidebar entry in
+**Add a portal page** — `app/(portal)/…/page.tsx` exporting `metadata` and, if it reads data,
+opening with `pageActor()` — or `pageActor(<predicate>)` when a role gates it; a Hungarian label in
+`lib/nav-labels.ts` (used by both sidebar and breadcrumbs); and a sidebar entry in
 `components/app-sidebar.tsx`.
 
 ---
@@ -286,10 +298,11 @@ The handler mounts Better Auth's whole router, so `hooks.before` 404s every path
 linking and `/update-user` — which without `input: false` would let a member set their own `role` —
 belong to Authentik.
 
-`proxy.ts` lets `/login`, `/api/auth` and `/api/usernames` through and turns everything else away
-when no session cookie is present: a page request redirects to `/login` with the original path as
-`callbackUrl`, an `/api/` one gets a 401 JSON body instead. Redirecting an API call answered it
-with the login HTML under a 200, which a `fetch` cannot tell from a real response. Its matcher
+`proxy.ts` lets `/login`, `/api/auth`, `/api/usernames`, `/api/health` and `/monitoring` through,
+and turns everything else away when no session cookie is present: a page request redirects to
+`/login` with the original path as `callbackUrl`, an `/api/` one gets a 401 JSON body instead.
+Redirecting an API call answered it with the login HTML under a 200, which a `fetch` cannot tell
+from a real response. Its matcher
 excludes static assets and image extensions — which is why avatar URLs are readable without auth.
 `/api/usernames` is public to the proxy because it carries a bearer token instead of a session
 cookie; the route itself does the authenticating.
@@ -298,9 +311,20 @@ The proxy only sees whether a cookie *exists*. `requireAuth()` is what rejects o
 or forged, so it is still the check that matters — the proxy only decides what an anonymous caller
 is told.
 
-Session helpers in `lib/session.ts` return `Session | NextResponse`, so routes early-return the
-response: `requireAuth()` (401) and `requirePermission(allows)` (401/403), which takes a predicate
-from `lib/permissions.ts` rather than a role list.
+`lib/session.ts` resolves the caller in the shape each kind of entry point needs. All of them take
+a predicate from `lib/permissions.ts` rather than a role list:
+
+| Helper | Returns | For |
+| --- | --- | --- |
+| `requireAuth()` | `Session` or a 401 `NextResponse` | routes, which early-return the response |
+| `requirePermission(allows)` | `Session` or a 401/403 `NextResponse` | routes |
+| `sessionActor()`, `permittedActor(allows)` | `Actor \| null` | Server Actions, which answer with a result object |
+| `pageActor(allows?)` | `Actor`, or `redirect("/login")` unauthenticated / `redirect("/")` refused | pages, which have nowhere to put a status code |
+
+`toActor(session)` in `lib/permissions.ts` reduces a session to the `{ id, role }` actor services
+take. It is typed structurally rather than on `Session`, so `lib/permissions.ts` pulls in neither
+`next/headers` nor better-auth — `components/app-sidebar.tsx` is a client component that imports
+it, and either would break the browser bundle.
 
 **Every rule lives in `lib/permissions.ts`.** Nothing else compares a role to a literal — the
 predicates (`canManageMembers`, `canViewAdminArea`, `canAdminister`, `canModifyMember`) drive the
@@ -372,6 +396,9 @@ Machine-to-machine access). Returns `{ username }` and nothing else. Read-only: 
 nor reserves, so the name can be taken by the time the caller uses it — callers handle the create
 failure. 30 requests per minute per service account, and a 60-second in-memory cache per name,
 because every miss fans out to Authentik's user API once per collision candidate.
+
+`GET /api/health` — container liveness. Public to the proxy and unauthenticated: it answers
+`{ status: "ok" }`, or 503 once the database round trip fails.
 
 `websiteUserId` is never accepted on any write — it is set by sync and import only.
 
@@ -459,12 +486,15 @@ address out, or it would sit there as a permanent `UNKNOWN`.
 
 ## Sync architecture
 
-Every external mutation creates a `SyncJob` row and executes it **synchronously**
-(`executeSyncJob`, `lib/sync/executor.ts`). Failures persist as `FAILED` rows at
-`/admin/sync-jobs`, retried manually via `retrySyncJobAction`. There is no background worker.
+Every external mutation creates a `SyncJob` row and executes it **synchronously**: `runSyncJob`
+writes the row and hands it to `executeSyncJob` (`lib/sync/executor.ts`). Failures persist as
+`FAILED` rows at `/admin/sync-jobs`, retried manually via `retrySyncJobAction`. There is no
+background worker.
 
-Service code calls **orchestrators**, never handlers directly. An orchestrator creates the job row
-then executes it. `createAuthentikUser` is the one exception: it runs *before* the Member exists
+Service code calls **orchestrators**, never handlers directly. An orchestrator decides only what
+the row says and whether the call should be skipped; `runSyncJob` writes and runs it, so "the row
+exists before anything is attempted" is stated once rather than per target.
+`createAuthentikUser` is the one exception: it runs *before* the Member exists
 (its `sub` becomes the Member `id`), so it bypasses the job row and the service fabricates a
 SUCCESS row afterwards.
 
@@ -476,15 +506,18 @@ so it lands as a visible `FAILED` row instead of being silently skipped.
 
 **Members with no Authentik account are skipped, not failed.** Every Authentik orchestrator goes
 through one choke point (`runAuthentikJob`, `lib/sync/authentik/orchestrators.ts`) that checks
-`hasAuthentikAccount(memberId)` first. A prefixed id has no user to resolve a pk from, so unlike a
-missing `websiteUserId` no admin action could ever make the job succeed. The row is still written,
+`hasAuthentikAccount(memberId)` and passes `runSyncJob` a skip reason when it is false. A prefixed
+id has no user to resolve a pk from, so unlike a missing `websiteUserId` no admin action could ever
+make the job succeed. The row is still written,
 as `SKIPPED` with `result: { reason }` — an id wrongly carrying the prefix would otherwise stop
 syncing silently forever. No handler runs, `attempts` stays 0, nothing reaches Sentry.
 
 Every FAILED job is also reported to Sentry from inside `executeSyncJob` — see Observability.
 
 API routes return HTTP **207** with `{ ..., syncErrors: string[] }` when the DB write succeeded but
-a sync step failed. The UI shows a warning toast, not an error.
+a sync step failed; `syncJson` and `syncJsonResource` (`lib/api-response.ts`) are what choose
+between that and the normal answer, and services build the list with `collectSyncErrors`. The UI
+shows a warning toast, not an error.
 
 Website specifics: `CREATE_USER` / `UPDATE_USER` / `DEACTIVATE_USER` are wired into create, update,
 status change, archive and bulk operations. Status changes flow through `UPDATE_USER` via the
@@ -494,12 +527,12 @@ Google Group specifics: `ADD_TO_GROUP` / `REMOVE_FROM_GROUP` on the `GOOGLE_GROU
 `{ email, groupEmail }` as the payload — the list is in the payload because there are two of them.
 This target deliberately **does not** resolve its identifier at execute time: the address *is* what
 the group holds, so re-deriving it from the member row would let a retry act on an address the job
-was never about. `runGoogleGroupJob` is the choke point and writes `SKIPPED` when credentials or
-the target list are unconfigured, the same shape as the Authentik one.
+was never about. `runGoogleGroupJob` is the choke point and passes the same kind of skip reason
+when credentials or the target list are unconfigured.
 
 Only three things touch the lists automatically: creating a member adds the address to the main
 list; a status change **into** alumni adds it to the alumni list (once — the two alumni statuses
-share one list); archiving offers an optional removal, a checkbox in the confirm dialog that
+share one list); archiving offers an optional removal, a checkbox in `ArchiveDialog` that
 defaults to off and reaches the REST route as `?removeFromGoogleGroup=true`. Everything else is
 manual on purpose — an email change leaves the old address on the list (the edit sheet says so),
 nobody is removed on becoming alumni, and leaving alumni does not undo the membership. The
@@ -683,9 +716,11 @@ container; routes and actions get smoke tests for auth and error mapping only.
 
 - `tests/setup.ts` — starts the container in `beforeAll`, migrates, truncates all tables in
   `afterEach`, stops in `afterAll`. Exports `getTestPrisma()` and `mockPrisma()`.
-- `tests/helpers.ts` — `mockSession(overrides)` / `mockNoSession()` for auth, plus
-  `mockWebsiteOrchestrators()` and `mockGoogleGroupOrchestrators()` to stub the external fan-out in
-  route tests; the Google one returns its mocks so a test can assert on them.
+- `tests/helpers.ts` — `mockSession(overrides)` / `mockNoSession()` replace `@/lib/session` for
+  route tests. `mockAuthApi(getSession)` mocks `next/headers` and `@/lib/auth` *underneath* it
+  instead, so action and session tests run the real helpers and genuinely exercise the role
+  predicates. `mockWebsiteOrchestrators()` and `mockGoogleGroupOrchestrators()` stub the external
+  fan-out; both return their mocks so a test can fail one call and assert on it.
 - Route tests use `vi.resetModules()` + `vi.doMock()` + dynamic `import()` to swap in the test
   database and session before each test.
 - Website client tests stub `fetch` with real `Response`/`Headers` objects so `getSetCookie()`
@@ -711,6 +746,10 @@ errors (`NotFoundError`, `ForbiddenError`, `ValidationError`) flow through `mapS
 guards on it. The alternative — checking in the route and the action and trusting the service —
 held for a while and left six mutations whose `actor` was only ever written to the audit row,
 looking like a guard from the outside. Callers may still refuse early, but nothing depends on it.
+
+One caller has to: `POST`/`DELETE /api/members/[id]/avatar` write to storage *before* calling the
+service, so `authorizeAvatarChange` refuses first. A guard that only fires inside the service would
+let an unauthorised caller move bytes and be told no afterwards.
 
 **Authentik attributes are replaced, not merged.** `PATCH /core/users/{pk}/` overwrites the whole
 `attributes` object, so `buildAuthentikAttributes(member)` always sends the full managed set
@@ -775,8 +814,10 @@ Actions. No external consumer exists, so an HTTP API would be surface area for n
 that a layout cannot gate its segments — they render regardless and land in the RSC payload — so
 there is no one place to put a check for a group of pages, and the check belongs next to the data
 instead (`node_modules/next/dist/docs/01-app/02-guides/authentication.md`, *Layouts and auth
-checks*). Every admin page still calls `redirect()` on the way in, but that is the UX; what makes
-the data safe is `listAuditLogs`, `listSyncJobs`, `listAuthentikGroups` and
+checks*). Every portal page that reads member data still opens with `pageActor()` — the dashboard
+is static copy and does not — but that is authentication rather than the data guard: it validates a
+cookie the proxy only checked the existence of, and sends the wrong role home. What makes
+restricted data safe is `listAuditLogs`, `listSyncJobs`, `listAuthentikGroups` and
 `getGoogleGroupReconciliation` refusing an actor who may not see them.
 
 **The mailing list is reconciled, not synced.** Backstage writes to the group in exactly three
@@ -848,7 +889,9 @@ contact details, and the wiki already provides editing and audit.
 - `archived: false` is the default filter on member queries
 - Leadership roles are deleted when they end — history survives in `TimelineEntry`
 - 207 responses carry `syncErrors`; the UI shows a warning toast, never an error
-- Toasts (sonner) for every mutation — `toast.success()` / `toast.error()`
+- Toasts (sonner) for every mutation — `toast.error()` for a refusal, and
+  `toastSync(message, syncErrors)` (`lib/toast.ts`) for a success, which downgrades itself to a
+  warning naming the failures when a sync step did not land
 - Per-button loading spinners, never one global spinner — pages with several actions must show
   feedback on the button that was clicked. Each form carries its own `isSubmitting`; where several
   actions share one `useTransition` (`members-table.tsx`) a `pendingAction` discriminator says
@@ -870,7 +913,11 @@ contact details, and the wiki already provides editing and audit.
   diffing Biome-formatted output against the repo — files drift from the registry without local
   intent, and only a diff separates those from real modifications
 - `AvatarContext` (`components/avatar-context.tsx`) shares the current avatar URL between the
-  layout-rendered navbar and the member detail page, so an upload does not force a layout re-render
+  layout-rendered navbar and the member detail page, so an upload does not force a layout
+  re-render. `PortalShell` reads the initial URL itself rather than taking it as a prop; after
+  mount the context is the only thing that changes it. That read makes it an async server
+  component importing `lib/prisma`, so unlike its neighbours in `components/` it cannot be
+  imported from a client component
 
 ---
 
@@ -878,7 +925,7 @@ contact details, and the wiki already provides editing and audit.
 
 Light + dark via `next-themes`. Tokens in `app/globals.css` map BSS brand blue (`#005baa`) to the
 shadcn `--primary`. Geist sans + mono. Status badges use `text-status-*` / `bg-status-*` utilities —
-class map in `lib/members.ts`.
+class map in `lib/members.ts`, markup in `components/status-badge.tsx`.
 
 > Spotify has an unrelated open-source project also called Backstage (backstage.io). No shared code
 > and nothing published under `@backstage/*` — anything about plugins, catalogs or software

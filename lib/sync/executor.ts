@@ -29,6 +29,36 @@ export type SyncResult =
   | { success: true; result: unknown }
   | { success: false; error: string };
 
+export function collectSyncErrors(results: SyncResult[]): string[] {
+  return results
+    .filter((r): r is Extract<SyncResult, { success: false }> => !r.success)
+    .map((r) => r.error);
+}
+
+// Every external mutation goes through here: the row is written first, so a call that was
+// never attempted is as visible as one that failed. A skip reason means no handler runs and
+// `attempts` stays 0 — the target decides when that applies.
+export async function runSyncJob(
+  prisma: PrismaClient,
+  job: {
+    target: SyncTarget;
+    operation: SyncOperation;
+    memberId: string;
+    payload: object;
+  },
+  skipReason?: string,
+): Promise<SyncResult> {
+  if (skipReason) {
+    await prisma.syncJob.create({
+      data: { ...job, status: "SKIPPED", result: { reason: skipReason } },
+    });
+    return { success: true, result: null };
+  }
+
+  const created = await prisma.syncJob.create({ data: job });
+  return executeSyncJob(prisma, created.id);
+}
+
 export async function executeSyncJob(
   prisma: PrismaClient,
   jobId: string,

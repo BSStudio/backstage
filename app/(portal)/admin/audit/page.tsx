@@ -1,16 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuditDiff } from "@/components/audit-diff";
+import { PageNav } from "@/components/page-nav";
 import { Badge } from "@/components/ui/badge";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 import {
   Table,
   TableBody,
@@ -20,49 +13,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
-import { type Actor, canViewAdminArea } from "@/lib/permissions";
+import { canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listAuditLogs } from "@/lib/services/audit";
-import { getSession } from "@/lib/session";
+import { resolvePage } from "@/lib/services/pagination";
+import { pageActor } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Audit napló - Backstage" };
-
-/** Generate page numbers with ellipsis for pagination. */
-function pageRange(current: number, total: number): (number | string)[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const pages: (number | string)[] = [1];
-  if (current > 3) pages.push("ellipsis-start");
-  for (
-    let i = Math.max(2, current - 1);
-    i <= Math.min(total - 1, current + 1);
-    i++
-  ) {
-    pages.push(i);
-  }
-  if (current < total - 2) pages.push("ellipsis-end");
-  pages.push(total);
-  return pages;
-}
 
 export default async function AuditPage({
   searchParams,
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  const session = await getSession();
-  if (!session) redirect("/");
-  const actor: Actor = {
-    id: session.user.id,
-    role: session.user.role,
-  };
-  if (!canViewAdminArea(actor.role)) redirect("/");
+  const actor = await pageActor(canViewAdminArea);
 
   const { page: pageParam } = await searchParams;
-  const page = Math.max(1, Number(pageParam) || 1);
+  const page = resolvePage(pageParam);
 
   const { logs, total, totalPages } = await listAuditLogs(prisma, actor, {
     page,
   });
+
+  if (page > totalPages) redirect(`/admin/audit?page=${totalPages}`);
 
   return (
     <div className="flex flex-col gap-6">
@@ -105,24 +78,26 @@ export default async function AuditPage({
                   </TableCell>
                   <TableCell className="font-medium">
                     {log.target ? (
-                      <a
+                      <Link
                         href={`/members/${log.targetId}`}
+                        prefetch={false}
                         className="hover:underline"
                       >
                         {log.target.lastName} {log.target.firstName}
-                      </a>
+                      </Link>
                     ) : (
                       "—"
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {log.actor ? (
-                      <a
+                      <Link
                         href={`/members/${log.actorId}`}
+                        prefetch={false}
                         className="hover:underline"
                       >
                         {log.actor.lastName} {log.actor.firstName}
-                      </a>
+                      </Link>
                     ) : (
                       (log.actorId ?? "—")
                     )}
@@ -137,44 +112,7 @@ export default async function AuditPage({
         </Table>
       </div>
 
-      <Pagination>
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious
-              href={`/admin/audit?page=${Math.max(1, page - 1)}`}
-              text="Előző"
-              aria-disabled={page <= 1}
-              className={page <= 1 ? "pointer-events-none opacity-50" : ""}
-            />
-          </PaginationItem>
-          {pageRange(page, totalPages).map((p) =>
-            p === "ellipsis-start" || p === "ellipsis-end" ? (
-              <PaginationItem key={p}>
-                <PaginationEllipsis />
-              </PaginationItem>
-            ) : (
-              <PaginationItem key={p}>
-                <PaginationLink
-                  href={`/admin/audit?page=${p}`}
-                  isActive={p === page}
-                >
-                  {p}
-                </PaginationLink>
-              </PaginationItem>
-            ),
-          )}
-          <PaginationItem>
-            <PaginationNext
-              href={`/admin/audit?page=${Math.min(totalPages, page + 1)}`}
-              text="Következő"
-              aria-disabled={page >= totalPages}
-              className={
-                page >= totalPages ? "pointer-events-none opacity-50" : ""
-              }
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
+      <PageNav basePath="/admin/audit" page={page} totalPages={totalPages} />
     </div>
   );
 }

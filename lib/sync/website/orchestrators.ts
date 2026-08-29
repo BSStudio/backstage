@@ -3,7 +3,7 @@ import {
   buildJoinYearFromSemester,
   type UpdateWebsiteUserInput,
 } from "@/lib/website/users";
-import { executeSyncJob, type SyncResult } from "../executor";
+import { runSyncJob, type SyncResult } from "../executor";
 
 export interface CreateWebsiteUserOrchestratorInput {
   username: string;
@@ -19,22 +19,19 @@ export async function orchestrateCreateWebsiteUser(
   memberId: string,
   data: CreateWebsiteUserOrchestratorInput,
 ): Promise<SyncResult> {
-  const job = await prisma.syncJob.create({
-    data: {
-      target: "WEBSITE",
-      operation: "CREATE_USER",
-      memberId,
-      payload: {
-        username: data.username,
-        fullname: data.fullname,
-        nickname: data.nickname,
-        email: data.email,
-        mobile: data.mobile,
-        joinYear: buildJoinYearFromSemester(data.joinedSemester),
-      },
+  return runSyncJob(prisma, {
+    target: "WEBSITE",
+    operation: "CREATE_USER",
+    memberId,
+    payload: {
+      username: data.username,
+      fullname: data.fullname,
+      nickname: data.nickname,
+      email: data.email,
+      mobile: data.mobile,
+      joinYear: buildJoinYearFromSemester(data.joinedSemester),
     },
   });
-  return executeSyncJob(prisma, job.id);
 }
 
 export async function orchestrateUpdateWebsiteUser(
@@ -42,28 +39,22 @@ export async function orchestrateUpdateWebsiteUser(
   memberId: string,
   fields: UpdateWebsiteUserInput,
 ): Promise<SyncResult> {
-  const job = await prisma.syncJob.create({
-    data: {
-      target: "WEBSITE",
-      operation: "UPDATE_USER",
-      memberId,
-      payload: { ...fields },
-    },
+  return runSyncJob(prisma, {
+    target: "WEBSITE",
+    operation: "UPDATE_USER",
+    memberId,
+    payload: { ...fields },
   });
-  return executeSyncJob(prisma, job.id);
 }
 
 export async function orchestrateDeactivateWebsiteUser(
   prisma: PrismaClient,
   memberId: string,
 ): Promise<SyncResult> {
-  const job = await prisma.syncJob.create({
-    data: {
-      target: "WEBSITE",
-      operation: "DEACTIVATE_USER",
-      memberId,
-      payload: {},
-    },
+  return runSyncJob(prisma, {
+    target: "WEBSITE",
+    operation: "DEACTIVATE_USER",
+    memberId,
+    payload: {},
   });
-  return executeSyncJob(prisma, job.id);
 }

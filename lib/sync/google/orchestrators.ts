@@ -8,7 +8,7 @@ import {
   isGoogleGroupConfigured,
 } from "@/lib/google/client";
 import { NO_GOOGLE_GROUP_CONFIG_REASON } from "@/lib/sync-jobs";
-import { executeSyncJob, type SyncResult } from "../executor";
+import { runSyncJob, type SyncResult } from "../executor";
 
 function mainGroupEmail(): string | null {
   return isGoogleGroupConfigured() ? getGroupEmail() : null;
@@ -23,26 +23,18 @@ async function runGoogleGroupJob(
   email: string,
   groupEmail: string | null,
 ): Promise<SyncResult> {
-  const payload = { email, groupEmail };
+  const configured = isGoogleGroupConfigured() && groupEmail;
 
-  if (!isGoogleGroupConfigured() || !groupEmail) {
-    await prisma.syncJob.create({
-      data: {
-        target: "GOOGLE_GROUP",
-        operation,
-        memberId,
-        payload,
-        status: "SKIPPED",
-        result: { reason: NO_GOOGLE_GROUP_CONFIG_REASON },
-      },
-    });
-    return { success: true, result: null };
-  }
-
-  const job = await prisma.syncJob.create({
-    data: { target: "GOOGLE_GROUP", operation, memberId, payload },
-  });
-  return executeSyncJob(prisma, job.id);
+  return runSyncJob(
+    prisma,
+    {
+      target: "GOOGLE_GROUP",
+      operation,
+      memberId,
+      payload: { email, groupEmail },
+    },
+    configured ? undefined : NO_GOOGLE_GROUP_CONFIG_REASON,
+  );
 }
 
 export async function orchestrateAddToGoogleGroup(

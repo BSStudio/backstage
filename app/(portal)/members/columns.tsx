@@ -17,12 +17,12 @@ import {
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import type { Member, MembershipStatus } from "@/app/generated/prisma/client";
+import { ArchivedBadge, StatusBadge } from "@/components/status-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { getInitials, STATUS_BADGE_CLASS, STATUS_ORDER } from "@/lib/members";
-import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
+import { getInitials, STATUS_ORDER } from "@/lib/members";
+import { formatSemester } from "@/types";
 
 export type MemberRow = Member & {
   leadershipRole: { label: string } | null;
@@ -156,20 +156,14 @@ export const nameColumn: MemberColumnDef = {
   },
 };
 
-function statusBadge(status: MembershipStatus) {
-  return (
-    <Badge variant="outline" className={STATUS_BADGE_CLASS[status]}>
-      {MEMBERSHIP_STATUS_LABELS[status]}
-    </Badge>
-  );
-}
-
 export const statusColumn: MemberColumnDef = {
   accessorKey: "status",
   header: ({ column }) => (
     <SortableHeader column={column}>Státusz</SortableHeader>
   ),
-  cell: ({ row }) => statusBadge(row.getValue("status") as MembershipStatus),
+  cell: ({ row }) => (
+    <StatusBadge status={row.getValue("status") as MembershipStatus} />
+  ),
   sortFn: (a, b) => {
     const aOrder = STATUS_ORDER[a.getValue("status") as MembershipStatus];
     const bOrder = STATUS_ORDER[b.getValue("status") as MembershipStatus];
@@ -189,13 +183,8 @@ export const statusWithArchivedColumn: MemberColumnDef = {
     const status = row.getValue("status") as MembershipStatus;
     return (
       <div className="flex items-center gap-1">
-        {statusBadge(status)}
-        <Badge
-          variant="outline"
-          className="bg-status-archived/15 text-status-archived border-status-archived/40"
-        >
-          Archivált
-        </Badge>
+        <StatusBadge status={status} />
+        <ArchivedBadge />
       </div>
     );
   },

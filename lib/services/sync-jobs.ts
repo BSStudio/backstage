@@ -5,9 +5,8 @@ import {
   ensureCanAdminister,
   ensureCanViewAdminArea,
 } from "@/lib/permissions";
+import { pageSlice, totalPages } from "@/lib/services/pagination";
 import { executeSyncJob, type SyncResult } from "@/lib/sync/executor";
-
-const PAGE_SIZE = 50;
 
 export async function listSyncJobs(
   prisma: PrismaClient,
@@ -21,12 +20,11 @@ export async function listSyncJobs(
     prisma.syncJob.findMany({
       include: { member: true },
       orderBy: { createdAt: "desc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
+      ...pageSlice(page),
     }),
   ]);
 
-  return { jobs, total, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+  return { jobs, total, totalPages: totalPages(total) };
 }
 
 export async function retrySyncJob(
