@@ -29,6 +29,12 @@ export type SyncResult =
   | { success: true; result: unknown }
   | { success: false; error: string };
 
+export function collectSyncErrors(results: SyncResult[]): string[] {
+  return results
+    .filter((r): r is Extract<SyncResult, { success: false }> => !r.success)
+    .map((r) => r.error);
+}
+
 export async function executeSyncJob(
   prisma: PrismaClient,
   jobId: string,
