@@ -10,21 +10,25 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
+import prisma from "@/lib/prisma";
 import type { Session } from "@/lib/session";
 
-export function PortalShell({
+export async function PortalShell({
   session,
-  avatarUrl,
   children,
 }: {
   session: Session;
-  avatarUrl: string | null;
   children: React.ReactNode;
 }) {
   const role = session.user.role;
 
+  const member = await prisma.member.findUnique({
+    where: { id: session.user.id },
+    select: { avatarUrl: true },
+  });
+
   return (
-    <AvatarProvider initialUrl={avatarUrl}>
+    <AvatarProvider initialUrl={member?.avatarUrl ?? null}>
       <BreadcrumbProvider>
         <SidebarProvider>
           <AppSidebar role={role} />
