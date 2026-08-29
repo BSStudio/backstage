@@ -268,10 +268,12 @@ enum MembershipStatus {
 }
 ```
 
-`ACTIVE_ALUMNI` and `ALUMNI` map to the **same** Authentik group and the **same** mailing list —
-the distinction exists only in the DB and the UI, with no permission difference. `ALUMNI_STATUSES`
-and `isAlumniStatus()` in `types/index.ts` are the shared predicate; the members and alumni pages
-keep their own filters because they enumerate different concepts.
+`ACTIVE_ALUMNI` and `ALUMNI` map to the **same** Authentik group and the **same** mailing list, and
+carry no permission difference. The one place the two part ways is the CardDAV address book, which
+carries `ACTIVE_ALUMNI` and drops `ALUMNI` (see Architectural decisions); everywhere else the
+distinction is a badge. `ALUMNI_STATUSES` and `isAlumniStatus()` in `types/index.ts` are the shared
+predicate; the members and alumni pages keep their own filters because they enumerate different
+concepts.
 
 ### Semester format
 
@@ -431,8 +433,8 @@ because every miss fans out to Authentik's user API once per collision candidate
 `/api/carddav` — read-only CardDAV, and **not a route handler**: PROPFIND and REPORT never reach
 one, so `proxy.ts` serves the whole tree (see Architectural decisions). `/.well-known/carddav` 301s
 to it, `/api/carddav/principal/` is the principal (Apple's `/principals` is an alias for it), and
-`/api/carddav/addressbook/` holds one `<id>.vcf` per non-archived member. Reads `APP_URL` to
-absolutise avatar URLs.
+`/api/carddav/addressbook/` holds one `<id>.vcf` per member still around — archived members and
+plain `ALUMNI` are left out, `ACTIVE_ALUMNI` are not. Reads `APP_URL` to absolutise avatar URLs.
 
 `GET /api/health` — container liveness. Public to the proxy and unauthenticated: it answers
 `{ status: "ok" }`, or 503 once the database round trip fails.
@@ -927,6 +929,12 @@ unique-index hit rather than a scan over the member's tokens.
 joined semester, dorm room, university and leadership role stay out: a phone's address book has no
 use for them, and they would sit unencrypted on every synced device and in whatever backup it feeds.
 A test asserts those properties stay absent.
+
+**The address book drops `ALUMNI` and keeps `ACTIVE_ALUMNI`.** The alumni roster grows by roughly ten
+a semester and never shrinks, so syncing it would bury every member's contacts under people the
+studio has not seen in years. `ACTIVE_ALUMNI` exists to mark an alumnus still around, which is
+exactly who is worth carrying — so this is the one place where the difference between the two
+statuses does something rather than label a badge.
 
 **Apple clients will not send Basic credentials over cleartext HTTP.** Established by testing, not
 from documentation: against `http://<lan-ip>:3000` an iPhone completes discovery, receives a

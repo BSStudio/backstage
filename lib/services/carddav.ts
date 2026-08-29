@@ -147,7 +147,7 @@ export async function listCardDavMembers(
   prisma: PrismaClient,
 ): Promise<VCardMember[]> {
   return prisma.member.findMany({
-    where: { archived: false },
+    where: { archived: false, status: { not: "ALUMNI" } },
     select: {
       id: true,
       firstName: true,

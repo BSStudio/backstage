@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { MembershipStatus } from "@/app/generated/prisma/client";
 import { hashCardDavToken } from "@/lib/carddav/tokens";
 import { getTestPrisma, mockPrisma } from "../../setup";
 
@@ -8,6 +9,7 @@ const TOKEN = "a-device-token";
 const OWNER_ID = "owner-id";
 const OTHER_ID = "other-id";
 const ARCHIVED_ID = "archived-id";
+const ALUMNI_ID = "alumni-id";
 
 const PROPFIND_BODY = `<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/"
                                     xmlns:card="urn:ietf:params:xml:ns:carddav">
@@ -17,14 +19,19 @@ const PROPFIND_BODY = `<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserve
   </d:prop>
 </d:propfind>`;
 
-function member(id: string, lastName: string, archived = false) {
+function member(
+  id: string,
+  lastName: string,
+  overrides: { archived?: boolean; status?: MembershipStatus } = {},
+) {
   return {
     id,
     firstName: "János",
     lastName,
     email: `${id}@example.com`,
     joinedSemester: "2025/2026/1",
-    archived,
+    archived: false,
+    ...overrides,
   };
 }
 
@@ -38,7 +45,8 @@ beforeEach(async () => {
     data: [
       member(OWNER_ID, "Kovács"),
       member(OTHER_ID, "Nagy"),
-      member(ARCHIVED_ID, "Szabó", true),
+      member(ARCHIVED_ID, "Szabó", { archived: true }),
+      member(ALUMNI_ID, "Tóth", { status: "ALUMNI" }),
     ],
   });
   await prisma.cardDAVToken.create({
@@ -286,7 +294,7 @@ describe("PROPFIND", () => {
     expect(response.status).toBe(404);
   });
 
-  it("lists one card per active member at depth 1, archived excluded", async () => {
+  it("lists one card per member still around at depth 1", async () => {
     const xml = await (
       await call("/api/carddav/addressbook/", {
         body: PROPFIND_BODY,
@@ -297,7 +305,25 @@ describe("PROPFIND", () => {
     expect(xml).toContain(`<d:href>/api/carddav/addressbook/${OWNER_ID}.vcf`);
     expect(xml).toContain(`<d:href>/api/carddav/addressbook/${OTHER_ID}.vcf`);
     expect(xml).not.toContain(ARCHIVED_ID);
+    // The alumni list only grows; an active alumnus is still somebody to call.
+    expect(xml).not.toContain(ALUMNI_ID);
     expect(xml.match(/<d:getetag>/g)).toHaveLength(2);
+  });
+
+  it("keeps an active alumnus in the book", async () => {
+    await getTestPrisma().member.update({
+      where: { id: ALUMNI_ID },
+      data: { status: "ACTIVE_ALUMNI" },
+    });
+
+    const xml = await (
+      await call("/api/carddav/addressbook/", {
+        body: PROPFIND_BODY,
+        depth: "1",
+      })
+    ).text();
+
+    expect(xml).toContain(`<d:href>/api/carddav/addressbook/${ALUMNI_ID}.vcf`);
   });
 
   it("answers a single card with its vCard body", async () => {
