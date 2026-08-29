@@ -41,6 +41,7 @@ afterEach(async () => {
   await prisma.leadershipRole.deleteMany();
   await prisma.syncJob.deleteMany();
   await prisma.googleGroupEntry.deleteMany();
+  await prisma.cardDAVToken.deleteMany();
   await prisma.member.deleteMany();
 });
 
