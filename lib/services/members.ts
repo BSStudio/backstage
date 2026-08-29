@@ -93,14 +93,18 @@ export async function listAuthentikGroups(prisma: PrismaClient, actor: Actor) {
   });
 }
 
-export async function getMember(prisma: PrismaClient, id: string) {
-  const member = await prisma.member.findUnique({
+export async function findMember(prisma: PrismaClient, id: string) {
+  return prisma.member.findUnique({
     where: { id },
     include: {
       leadershipRole: true,
       timeline: { orderBy: { createdAt: "desc" } },
     },
   });
+}
+
+export async function getMember(prisma: PrismaClient, id: string) {
+  const member = await findMember(prisma, id);
   if (!member) throw new NotFoundError();
   return member;
 }

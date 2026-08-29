@@ -26,21 +26,13 @@ import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
 import { canManageMembers, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listMemberAuditLogs } from "@/lib/services/audit";
-import { listAuthentikGroups } from "@/lib/services/members";
+import { findMember, listAuthentikGroups } from "@/lib/services/members";
 import { pageActor } from "@/lib/session";
 import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
 import { MemberAvatar } from "./member-avatar";
 import { MemberEditButton } from "./member-edit-button";
 
-const getMemberById = cache((id: string) =>
-  prisma.member.findUnique({
-    where: { id },
-    include: {
-      leadershipRole: true,
-      timeline: { orderBy: { createdAt: "desc" } },
-    },
-  }),
-);
+const getMemberById = cache((id: string) => findMember(prisma, id));
 
 export async function generateMetadata({
   params,
