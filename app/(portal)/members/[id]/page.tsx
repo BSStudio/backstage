@@ -72,19 +72,20 @@ export default async function MemberDetailPage({
     id: session.user.id,
     role: session.user.role,
   };
-  const isLeaderOrAdmin = canManageMembers(actor.role);
+  const canManage = canManageMembers(actor.role);
+  const canSeeAuditLog = canViewAdminArea(actor.role);
   const isSelf = actor.id === id;
-  const canEdit = isSelf || isLeaderOrAdmin;
+  const canEdit = isSelf || canManage;
 
   const member = await getMemberById(id);
 
   if (!member) notFound();
 
-  const authentikGroups = isLeaderOrAdmin
+  const authentikGroups = canManage
     ? await listAuthentikGroups(prisma, actor)
     : [];
 
-  const auditLogs = canViewAdminArea(actor.role)
+  const auditLogs = canSeeAuditLog
     ? await listMemberAuditLogs(prisma, actor, id)
     : [];
 
@@ -151,10 +152,10 @@ export default async function MemberDetailPage({
                 : null
             }
             authentikGroups={authentikGroups}
-            canChangeEmail={isLeaderOrAdmin}
-            canChangeStatus={isLeaderOrAdmin}
-            canManageRole={isLeaderOrAdmin}
-            canArchive={isLeaderOrAdmin}
+            canChangeEmail={canManage}
+            canChangeStatus={canManage}
+            canManageRole={canManage}
+            canArchive={canManage}
           />
         )}
       </div>
@@ -249,7 +250,7 @@ export default async function MemberDetailPage({
       </div>
 
       {/* Audit section (admin only) */}
-      {isLeaderOrAdmin && (
+      {canSeeAuditLog && (
         <div className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">Audit napló</h2>
           {auditLogs.length === 0 ? (

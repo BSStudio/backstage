@@ -12,7 +12,7 @@ import { listGroupMembers } from "@/lib/google/groups";
 import {
   type Actor,
   ensureCanAdminister,
-  ensureCanManageMembers,
+  ensureCanViewAdminArea,
 } from "@/lib/permissions";
 import { AnnotateEntrySchema } from "./google-group-schemas";
 
@@ -97,7 +97,7 @@ export async function getGoogleGroupReconciliation(
   prisma: PrismaClient,
   actor: Actor,
 ) {
-  ensureCanManageMembers(actor);
+  ensureCanViewAdminArea(actor);
 
   const [entries, allMembers, lastSync] = await Promise.all([
     prisma.googleGroupEntry.findMany({
