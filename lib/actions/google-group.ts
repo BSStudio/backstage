@@ -1,26 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import {
+  type ActionResult,
+  FORBIDDEN,
+  mapActionError,
+} from "@/lib/actions/result";
 import { GoogleApiError } from "@/lib/google/client";
 import { captureServiceError } from "@/lib/observability/capture";
-import { type Actor, canAdminister, toActor } from "@/lib/permissions";
+import { canAdminister } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import {
   annotateGoogleGroupEntry,
   refreshGoogleGroupEntries,
 } from "@/lib/services/google-group";
-import { getSession } from "@/lib/session";
-
-type ActionResult<T = unknown> =
-  | { success: true; data: T }
-  | { success: false; error: string };
-
-async function requireAdminActor(): Promise<Actor | null> {
-  const session = await getSession();
-  if (!session || !canAdminister(session.user.role)) return null;
-  return toActor(session);
-}
+import { permittedActor } from "@/lib/session";
 
 // A Google failure is the one error worth showing verbatim: it names what the API refused,
 // which is what an admin needs before touching the group by hand.
@@ -29,22 +23,14 @@ function mapError(error: unknown): ActionResult<never> {
     captureServiceError(error);
     return { success: false, error: error.message };
   }
-  if (error instanceof NotFoundError)
-    return { success: false, error: "Nem található" };
-  if (error instanceof ForbiddenError)
-    return { success: false, error: "Hozzáférés megtagadva" };
-  /* v8 ignore else -- @preserve */
-  if (error instanceof ValidationError)
-    return { success: false, error: "Érvénytelen adatok" };
-  /* v8 ignore next -- @preserve */
-  throw error;
+  return mapActionError(error);
 }
 
 export async function refreshGoogleGroupAction(): Promise<
   ActionResult<{ count: number }>
 > {
-  const actor = await requireAdminActor();
-  if (!actor) return { success: false, error: "Hozzáférés megtagadva" };
+  const actor = await permittedActor(canAdminister);
+  if (!actor) return FORBIDDEN;
 
   try {
     const { count } = await refreshGoogleGroupEntries(prisma, actor);
@@ -59,8 +45,8 @@ export async function annotateGoogleGroupEntryAction(
   email: string,
   input: Record<string, unknown>,
 ): Promise<ActionResult<{ email: string }>> {
-  const actor = await requireAdminActor();
-  if (!actor) return { success: false, error: "Hozzáférés megtagadva" };
+  const actor = await permittedActor(canAdminister);
+  if (!actor) return FORBIDDEN;
 
   try {
     const entry = await annotateGoogleGroupEntry(prisma, email, input, actor);

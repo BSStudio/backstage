@@ -2,8 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import type { MembershipStatus } from "@/app/generated/prisma/client";
-import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import { toActor } from "@/lib/permissions";
+import {
+  type ActionResult,
+  mapActionError,
+  UNAUTHORIZED,
+} from "@/lib/actions/result";
 import prisma from "@/lib/prisma";
 import {
   type ArchiveOptions,
@@ -15,44 +18,22 @@ import {
   removeRole,
   updateMember,
 } from "@/lib/services/members";
-import { getSession } from "@/lib/session";
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-type ActionResult<T = unknown> =
-  | { success: true; data: T; syncErrors?: string[] }
-  | { success: false; error: string };
-
-function mapError(error: unknown): ActionResult<never> {
-  if (error instanceof NotFoundError)
-    return { success: false, error: "Nem található" };
-  if (error instanceof ForbiddenError)
-    return { success: false, error: "Hozzáférés megtagadva" };
-  /* v8 ignore else -- @preserve */
-  if (error instanceof ValidationError)
-    return { success: false, error: "Érvénytelen adatok" };
-  /* v8 ignore next -- @preserve */
-  throw error;
-}
+import { sessionActor } from "@/lib/session";
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
 export async function createMemberAction(
   input: Record<string, unknown>,
 ): Promise<ActionResult> {
-  const session = await getSession();
-  if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
+  const actor = await sessionActor();
+  if (!actor) return UNAUTHORIZED;
 
   try {
-    const { member, syncErrors } = await createMember(
-      prisma,
-      input,
-      toActor(session),
-    );
+    const { member, syncErrors } = await createMember(prisma, input, actor);
     revalidatePath("/members");
     return { success: true, data: member, syncErrors };
   } catch (error) {
-    return mapError(error);
+    return mapActionError(error);
   }
 }
 
@@ -60,21 +41,16 @@ export async function updateMemberAction(
   id: string,
   input: Record<string, unknown>,
 ): Promise<ActionResult> {
-  const session = await getSession();
-  if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
+  const actor = await sessionActor();
+  if (!actor) return UNAUTHORIZED;
 
   try {
-    const { member, syncErrors } = await updateMember(
-      prisma,
-      id,
-      input,
-      toActor(session),
-    );
+    const { member, syncErrors } = await updateMember(prisma, id, input, actor);
     revalidatePath("/members");
     revalidatePath(`/members/${id}`);
     return { success: true, data: member, syncErrors };
   } catch (error) {
-    return mapError(error);
+    return mapActionError(error);
   }
 }
 
@@ -82,20 +58,15 @@ export async function archiveMemberAction(
   id: string,
   options: ArchiveOptions = {},
 ): Promise<ActionResult> {
-  const session = await getSession();
-  if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
+  const actor = await sessionActor();
+  if (!actor) return UNAUTHORIZED;
 
   try {
-    const { syncErrors } = await archiveMember(
-      prisma,
-      id,
-      toActor(session),
-      options,
-    );
+    const { syncErrors } = await archiveMember(prisma, id, actor, options);
     revalidatePath("/members");
     return { success: true, data: { archived: true }, syncErrors };
   } catch (error) {
-    return mapError(error);
+    return mapActionError(error);
   }
 }
 
@@ -103,20 +74,20 @@ export async function batchArchiveAction(
   ids: string[],
   options: ArchiveOptions = {},
 ): Promise<ActionResult<{ count: number }>> {
-  const session = await getSession();
-  if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
+  const actor = await sessionActor();
+  if (!actor) return UNAUTHORIZED;
 
   try {
     const { count, syncErrors } = await batchArchive(
       prisma,
       ids,
-      toActor(session),
+      actor,
       options,
     );
     revalidatePath("/members");
     return { success: true, data: { count }, syncErrors };
   } catch (error) {
-    return mapError(error);
+    return mapActionError(error);
   }
 }
 
@@ -124,20 +95,20 @@ export async function batchUpdateStatusAction(
   ids: string[],
   status: MembershipStatus,
 ): Promise<ActionResult<{ count: number }>> {
-  const session = await getSession();
-  if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
+  const actor = await sessionActor();
+  if (!actor) return UNAUTHORIZED;
 
   try {
     const { count, syncErrors } = await batchUpdateStatus(
       prisma,
       ids,
       status,
-      toActor(session),
+      actor,
     );
     revalidatePath("/members");
     return { success: true, data: { count }, syncErrors };
   } catch (error) {
-    return mapError(error);
+    return mapActionError(error);
   }
 }
 
@@ -146,8 +117,8 @@ export async function assignRoleAction(
   label: string,
   authentikGroupIds: string[],
 ): Promise<ActionResult> {
-  const session = await getSession();
-  if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
+  const actor = await sessionActor();
+  if (!actor) return UNAUTHORIZED;
 
   try {
     const { syncErrors } = await assignRole(
@@ -155,28 +126,28 @@ export async function assignRoleAction(
       memberId,
       label,
       authentikGroupIds,
-      toActor(session),
+      actor,
     );
     revalidatePath("/members");
     revalidatePath(`/members/${memberId}`);
     return { success: true, data: null, syncErrors };
   } catch (error) {
-    return mapError(error);
+    return mapActionError(error);
   }
 }
 
 export async function removeRoleAction(
   memberId: string,
 ): Promise<ActionResult> {
-  const session = await getSession();
-  if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
+  const actor = await sessionActor();
+  if (!actor) return UNAUTHORIZED;
 
   try {
-    const { syncErrors } = await removeRole(prisma, memberId, toActor(session));
+    const { syncErrors } = await removeRole(prisma, memberId, actor);
     revalidatePath("/members");
     revalidatePath(`/members/${memberId}`);
     return { success: true, data: null, syncErrors };
   } catch (error) {
-    return mapError(error);
+    return mapActionError(error);
   }
 }

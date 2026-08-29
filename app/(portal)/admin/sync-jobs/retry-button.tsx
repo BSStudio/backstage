@@ -18,10 +18,10 @@ export function RetryButton({ jobId }: { jobId: string }) {
         toast.error(result.error);
         return;
       }
-      if (result.syncSuccess) {
+      if (result.data.syncSuccess) {
         toast.success("Szinkronizáció sikeres");
       } else {
-        toast.warning(`Szinkronizáció sikertelen: ${result.error}`);
+        toast.warning(`Szinkronizáció sikertelen: ${result.data.syncError}`);
       }
       router.refresh();
     });

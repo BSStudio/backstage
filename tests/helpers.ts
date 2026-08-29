@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { vi } from "vitest";
+import { type Mock, vi } from "vitest";
 import type { SyncResult } from "@/lib/sync/executor";
 import type { UserRole } from "@/types";
 
@@ -74,6 +74,15 @@ export function mockGoogleGroupOrchestrators() {
     orchestrateAddToGoogleGroup,
     orchestrateRemoveFromGoogleGroup,
   };
+}
+
+// Mocks what `@/lib/session` reads rather than the module itself, so the real session
+// helpers — and the actor derivation the actions rely on — stay under test.
+export function mockAuthApi(getSession: Mock) {
+  vi.doMock("next/headers", () => ({
+    headers: vi.fn().mockResolvedValue(new Headers()),
+  }));
+  vi.doMock("@/lib/auth", () => ({ auth: { api: { getSession } } }));
 }
 
 export function mockNoSession() {

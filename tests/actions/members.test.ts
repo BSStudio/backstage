@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockAuthApi } from "../helpers";
 
 const mockGetSession = vi.fn();
 const mockCreateMember = vi.fn();
@@ -22,7 +23,7 @@ beforeEach(() => {
   mockRemoveRole.mockReset();
   mockRevalidatePath.mockReset();
 
-  vi.doMock("@/lib/session", () => ({ getSession: mockGetSession }));
+  mockAuthApi(mockGetSession);
   vi.doMock("@/lib/prisma", () => ({ default: {} }));
   vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
   vi.doMock("@/lib/services/members", () => ({

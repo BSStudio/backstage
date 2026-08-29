@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockAuthApi } from "../helpers";
 
 const mockGetSession = vi.fn();
 const mockRetrySyncJob = vi.fn();
@@ -10,7 +11,7 @@ beforeEach(() => {
   mockRetrySyncJob.mockReset();
   mockRevalidatePath.mockReset();
 
-  vi.doMock("@/lib/session", () => ({ getSession: mockGetSession }));
+  mockAuthApi(mockGetSession);
   vi.doMock("@/lib/prisma", () => ({ default: {} }));
   vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
   vi.doMock("@/lib/services/sync-jobs", () => ({
@@ -59,7 +60,7 @@ describe("retrySyncJobAction", () => {
     const result = await retrySyncJobAction("job-id");
     expect(result).toEqual({
       success: false,
-      error: "Csak sikertelen feladatok újraindíthatók",
+      error: "Csak sikertelen feladatok indíthatók újra",
     });
   });
 
@@ -70,9 +71,7 @@ describe("retrySyncJobAction", () => {
     const result = await retrySyncJobAction("job-id");
     expect(result).toEqual({
       success: true,
-      retried: true,
-      syncSuccess: true,
-      error: undefined,
+      data: { syncSuccess: true, syncError: undefined },
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/admin/sync-jobs");
   });
@@ -87,9 +86,7 @@ describe("retrySyncJobAction", () => {
     const result = await retrySyncJobAction("job-id");
     expect(result).toEqual({
       success: true,
-      retried: true,
-      syncSuccess: false,
-      error: "Authentik unreachable",
+      data: { syncSuccess: false, syncError: "Authentik unreachable" },
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/admin/sync-jobs");
   });

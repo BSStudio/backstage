@@ -1,16 +1,10 @@
 import { NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { canManageMembers } from "@/lib/permissions";
+import { canAdminister, canManageMembers } from "@/lib/permissions";
+import { mockAuthApi } from "../helpers";
 
 function mockDeps(session: unknown) {
-  vi.doMock("next/headers", () => ({
-    headers: vi.fn().mockResolvedValue(new Headers()),
-  }));
-  vi.doMock("@/lib/auth", () => ({
-    auth: {
-      api: { getSession: vi.fn().mockResolvedValue(session) },
-    },
-  }));
+  mockAuthApi(vi.fn().mockResolvedValue(session));
 }
 
 beforeEach(() => {
@@ -83,5 +77,47 @@ describe("requirePermission", () => {
     const result = await mod.requirePermission(canManageMembers);
     expect(result).toBeInstanceOf(NextResponse);
     expect((result as NextResponse).status).toBe(401);
+  });
+});
+
+describe("sessionActor", () => {
+  it("reduces the session to an actor", async () => {
+    mockDeps({ user: { id: "u1", role: "LEADER" } });
+    const mod = await import("@/lib/session");
+
+    expect(await mod.sessionActor()).toEqual({ id: "u1", role: "LEADER" });
+  });
+
+  it("returns null when not authenticated", async () => {
+    mockDeps(null);
+    const mod = await import("@/lib/session");
+
+    expect(await mod.sessionActor()).toBeNull();
+  });
+});
+
+describe("permittedActor", () => {
+  it("returns the actor when the predicate allows the role", async () => {
+    mockDeps({ user: { id: "u1", role: "ADMIN" } });
+    const mod = await import("@/lib/session");
+
+    expect(await mod.permittedActor(canAdminister)).toEqual({
+      id: "u1",
+      role: "ADMIN",
+    });
+  });
+
+  it("returns null when the predicate rejects the role", async () => {
+    mockDeps({ user: { id: "u1", role: "LEADER" } });
+    const mod = await import("@/lib/session");
+
+    expect(await mod.permittedActor(canAdminister)).toBeNull();
+  });
+
+  it("returns null when not authenticated", async () => {
+    mockDeps(null);
+    const mod = await import("@/lib/session");
+
+    expect(await mod.permittedActor(canAdminister)).toBeNull();
   });
 });

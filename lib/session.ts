@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth, type Session } from "@/lib/auth";
+import { type Actor, toActor } from "@/lib/permissions";
 import type { UserRole } from "@/types";
 
 export type { Session };
@@ -33,4 +34,18 @@ export async function requirePermission(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   return session;
+}
+
+// A Server Action answers with a result object rather than a response, so it takes the
+// actor instead of the session; the predicate comes from `lib/permissions` all the same.
+export async function sessionActor(): Promise<Actor | null> {
+  const session = await getSession();
+  return session ? toActor(session) : null;
+}
+
+export async function permittedActor(
+  allows: (role: UserRole | undefined) => boolean,
+): Promise<Actor | null> {
+  const actor = await sessionActor();
+  return actor && allows(actor.role) ? actor : null;
 }
