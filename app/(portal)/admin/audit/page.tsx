@@ -1,16 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AuditDiff } from "@/components/audit-diff";
+import { PageNav } from "@/components/page-nav";
 import { Badge } from "@/components/ui/badge";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 import {
   Table,
   TableBody,
@@ -26,23 +18,6 @@ import { listAuditLogs } from "@/lib/services/audit";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Audit napló - Backstage" };
-
-/** Generate page numbers with ellipsis for pagination. */
-function pageRange(current: number, total: number): (number | string)[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const pages: (number | string)[] = [1];
-  if (current > 3) pages.push("ellipsis-start");
-  for (
-    let i = Math.max(2, current - 1);
-    i <= Math.min(total - 1, current + 1);
-    i++
-  ) {
-    pages.push(i);
-  }
-  if (current < total - 2) pages.push("ellipsis-end");
-  pages.push(total);
-  return pages;
-}
 
 export default async function AuditPage({
   searchParams,
@@ -137,44 +112,7 @@ export default async function AuditPage({
         </Table>
       </div>
 
-      <Pagination>
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious
-              href={`/admin/audit?page=${Math.max(1, page - 1)}`}
-              text="Előző"
-              aria-disabled={page <= 1}
-              className={page <= 1 ? "pointer-events-none opacity-50" : ""}
-            />
-          </PaginationItem>
-          {pageRange(page, totalPages).map((p) =>
-            p === "ellipsis-start" || p === "ellipsis-end" ? (
-              <PaginationItem key={p}>
-                <PaginationEllipsis />
-              </PaginationItem>
-            ) : (
-              <PaginationItem key={p}>
-                <PaginationLink
-                  href={`/admin/audit?page=${p}`}
-                  isActive={p === page}
-                >
-                  {p}
-                </PaginationLink>
-              </PaginationItem>
-            ),
-          )}
-          <PaginationItem>
-            <PaginationNext
-              href={`/admin/audit?page=${Math.min(totalPages, page + 1)}`}
-              text="Következő"
-              aria-disabled={page >= totalPages}
-              className={
-                page >= totalPages ? "pointer-events-none opacity-50" : ""
-              }
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
+      <PageNav basePath="/admin/audit" page={page} totalPages={totalPages} />
     </div>
   );
 }

@@ -1,16 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PageNav } from "@/components/page-nav";
 import { Badge } from "@/components/ui/badge";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 import {
   Table,
   TableBody,
@@ -32,22 +24,6 @@ import {
 import { RetryButton } from "./retry-button";
 
 export const metadata: Metadata = { title: "Szinkronizáció - Backstage" };
-
-function pageRange(current: number, total: number): (number | string)[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const pages: (number | string)[] = [1];
-  if (current > 3) pages.push("ellipsis-start");
-  for (
-    let i = Math.max(2, current - 1);
-    i <= Math.min(total - 1, current + 1);
-    i++
-  ) {
-    pages.push(i);
-  }
-  if (current < total - 2) pages.push("ellipsis-end");
-  pages.push(total);
-  return pages;
-}
 
 function formatResult(result: unknown): string {
   if (!result || typeof result !== "object") return "—";
@@ -145,44 +121,11 @@ export default async function SyncJobsPage({
         </Table>
       </div>
 
-      <Pagination>
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious
-              href={`/admin/sync-jobs?page=${Math.max(1, page - 1)}`}
-              aria-disabled={page === 1}
-              tabIndex={page === 1 ? -1 : undefined}
-              className={page === 1 ? "pointer-events-none opacity-50" : ""}
-            />
-          </PaginationItem>
-          {pageRange(page, totalPages).map((p) =>
-            typeof p === "string" ? (
-              <PaginationItem key={p}>
-                <PaginationEllipsis />
-              </PaginationItem>
-            ) : (
-              <PaginationItem key={p}>
-                <PaginationLink
-                  href={`/admin/sync-jobs?page=${p}`}
-                  isActive={p === page}
-                >
-                  {p}
-                </PaginationLink>
-              </PaginationItem>
-            ),
-          )}
-          <PaginationItem>
-            <PaginationNext
-              href={`/admin/sync-jobs?page=${Math.min(totalPages, page + 1)}`}
-              aria-disabled={page === totalPages}
-              tabIndex={page === totalPages ? -1 : undefined}
-              className={
-                page === totalPages ? "pointer-events-none opacity-50" : ""
-              }
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
+      <PageNav
+        basePath="/admin/sync-jobs"
+        page={page}
+        totalPages={totalPages}
+      />
     </div>
   );
 }
