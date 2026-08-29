@@ -19,7 +19,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { type Actor, canAdminister, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
+import { listSyncJobs } from "@/lib/services/sync-jobs";
 import { getSession } from "@/lib/session";
 import {
   SYNC_OPERATION_LABELS,
@@ -30,8 +32,6 @@ import {
 import { RetryButton } from "./retry-button";
 
 export const metadata: Metadata = { title: "Szinkronizáció - Backstage" };
-
-const PAGE_SIZE = 50;
 
 function pageRange(current: number, total: number): (number | string)[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -62,24 +62,18 @@ export default async function SyncJobsPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const session = await getSession();
-  const role = session?.user.role;
-  if (role !== "ADMIN" && role !== "LEADER") redirect("/");
-  const canRetry = role === "ADMIN";
+  if (!session) redirect("/");
+  const actor: Actor = {
+    id: session.user.id,
+    role: session.user.role,
+  };
+  if (!canViewAdminArea(actor.role)) redirect("/");
+  const canRetry = canAdminister(actor.role);
 
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
 
-  const [total, jobs] = await Promise.all([
-    prisma.syncJob.count(),
-    prisma.syncJob.findMany({
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      include: { member: true },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const { jobs, totalPages } = await listSyncJobs(prisma, actor, { page });
 
   return (
     <div className="flex flex-col gap-6">

@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
-import { resolveUserRole } from "@/types";
+import { resolveUserRole, USER_ROLES } from "@/types";
 
 // Better Auth mounts its whole router, including password, account-linking and
 // profile-mutation routes Authentik owns. Patterns, not resolved URLs.
@@ -16,10 +16,17 @@ const ALLOWED_AUTH_PATHS = new Set([
 export const auth = betterAuth({
   baseURL: process.env.APP_URL,
 
+  session: {
+    expiresIn: 60 * 60 * 8,
+    updateAge: 60 * 60,
+  },
+
   user: {
     additionalFields: {
+      // The literal list, not "string": better-auth infers the field's type from it, so
+      // `session.user.role` lands as UserRole and no caller has to assert it back.
       role: {
-        type: "string",
+        type: [...USER_ROLES],
         required: true,
         defaultValue: "MEMBER",
       },
@@ -74,6 +81,11 @@ export const auth = betterAuth({
           clientId: process.env.AUTHENTIK_CLIENT_ID ?? "",
           clientSecret: process.env.AUTHENTIK_CLIENT_SECRET ?? "",
           scopes: ["openid", "email", "profile"],
+
+          // Without this better-auth writes the mapped fields once, at first sign-in, and
+          // ignores them forever after — so a group change in Authentik would never reach
+          // `role`, and revoking leadership there would leave Backstage access intact.
+          overrideUserInfo: true,
 
           mapProfileToUser: async (profile) => {
             const groups = Array.isArray(profile.groups)

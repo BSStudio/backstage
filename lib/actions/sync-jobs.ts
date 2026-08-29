@@ -5,7 +5,6 @@ import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import prisma from "@/lib/prisma";
 import { retrySyncJob } from "@/lib/services/sync-jobs";
 import { getSession } from "@/lib/session";
-import type { UserRole } from "@/types";
 
 type ActionResult =
   | { success: true; retried: true; syncSuccess: boolean; error?: string }
@@ -18,7 +17,7 @@ export async function retrySyncJobAction(jobId: string): Promise<ActionResult> {
   try {
     const result = await retrySyncJob(prisma, jobId, {
       id: session.user.id,
-      role: session.user.role as UserRole,
+      role: session.user.role,
     });
     revalidatePath("/admin/sync-jobs");
     return {

@@ -2,14 +2,10 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { deleteAvatars, saveAvatar } from "@/lib/avatar-storage";
 import { mapServiceError } from "@/lib/errors";
+import { ensureCanModifyMember } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
-import {
-  ensureCanModifyAvatar,
-  removeMemberAvatar,
-  uploadMemberAvatar,
-} from "@/lib/services/members";
+import { removeMemberAvatar, uploadMemberAvatar } from "@/lib/services/members";
 import { requireAuth } from "@/lib/session";
-import type { UserRole } from "@/types";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -18,14 +14,14 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (session instanceof NextResponse) return session;
 
   const { id } = await params;
-  const actor = { id: session.user.id, role: session.user.role as UserRole };
+  const actor = { id: session.user.id, role: session.user.role };
 
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {
-    ensureCanModifyAvatar(actor, id);
+    ensureCanModifyMember(actor, id);
   } catch (error) {
     return mapServiceError(error);
   }
@@ -82,14 +78,14 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (session instanceof NextResponse) return session;
 
   const { id } = await params;
-  const actor = { id: session.user.id, role: session.user.role as UserRole };
+  const actor = { id: session.user.id, role: session.user.role };
 
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {
-    ensureCanModifyAvatar(actor, id);
+    ensureCanModifyMember(actor, id);
   } catch (error) {
     return mapServiceError(error);
   }

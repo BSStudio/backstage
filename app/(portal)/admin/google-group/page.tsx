@@ -3,10 +3,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { googleGroupUrl } from "@/lib/google-group";
+import { type Actor, canAdminister, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { getGoogleGroupReconciliation } from "@/lib/services/google-group";
 import { getSession } from "@/lib/session";
-import type { UserRole } from "@/types";
 import { EntriesTable } from "./entries-table";
 import { MissingTable } from "./missing-table";
 import { RefreshButton } from "./refresh-button";
@@ -17,12 +17,15 @@ export default async function GoogleGroupPage() {
   const session = await getSession();
   if (!session) redirect("/");
 
-  const { id, role } = session.user;
-  if (role !== "ADMIN" && role !== "LEADER") redirect("/");
-  const canManage = role === "ADMIN";
+  const actor: Actor = {
+    id: session.user.id,
+    role: session.user.role,
+  };
+  if (!canViewAdminArea(actor.role)) redirect("/");
+  const canManage = canAdminister(actor.role);
 
   const { entries, missing, members, lastSyncedAt } =
-    await getGoogleGroupReconciliation(prisma, { id, role: role as UserRole });
+    await getGoogleGroupReconciliation(prisma, actor);
 
   const groupEmail = process.env.GOOGLE_GROUP_EMAIL;
 

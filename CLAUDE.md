@@ -88,7 +88,7 @@ The scripts refuse to run against a database whose host is not local unless pass
   `auth/[...all]`
 - `app/avatars/[...path]/route.ts` — serves avatar bytes from whichever storage backend is active
 - `lib/services/` — business logic (`members.ts`, `sync-jobs.ts`, `usernames.ts`,
-  `google-group.ts`). All real work happens here. `member-schemas.ts` and
+  `google-group.ts`, `audit.ts`). All real work happens here. `member-schemas.ts` and
   `google-group-schemas.ts` hold the Zod schemas, split out so client forms can import them.
 - `lib/actions/` — Server Actions; thin wrappers around services
 - `lib/authentik/` — Authentik REST client (`client`, `users`, `groups`)
@@ -99,6 +99,8 @@ The scripts refuse to run against a database whose host is not local unless pass
   and `google/{operations,orchestrators}.ts`
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
 - `lib/errors.ts` — typed error hierarchy + `mapServiceError`
+- `lib/permissions.ts` — every role rule: `can*` predicates for the UI, `ensureCan*` guards that
+  throw `ForbiddenError` for services
 - `lib/api-client-auth.ts` — bearer verification for machine-to-machine callers
 - `lib/rate-limit.ts` — in-memory fixed-window rate limiter. State is per process, so every limit
   it enforces is per replica; the single-replica deployment is what makes that correct
@@ -163,8 +165,10 @@ field in `lib/authentik/*` has to be mirrored into the contract check, or it goe
 4. Removing a call means removing its `CONTRACT` entry too, otherwise the check guards a field
    nobody reads
 
-**Add an API route** — keep it a thin adapter: `requireAuth()`/`requireRole()` from
-`lib/session.ts`, call the service, wrap failures in `mapServiceError`. No business logic.
+**Add an API route** — keep it a thin adapter: `requireAuth()` or
+`requirePermission(<predicate>)` from `lib/session.ts`, call the service, wrap failures in
+`mapServiceError`. No business logic, and no role list of its own — the predicate comes from
+`lib/permissions.ts` and the service guards itself regardless.
 
 **Add a portal page** — `app/(portal)/…/page.tsx` exporting `metadata`, a Hungarian label in
 `lib/nav-labels.ts` (used by both sidebar and breadcrumbs), and a sidebar entry in
@@ -266,6 +270,10 @@ user row `id`, so it matches the Member `id`. None of these `additionalFields` m
 `input: false` — better-auth strips such fields from the OAuth profile as well, which leaves every
 login unnamed, `MEMBER`, and keyed on a generated id.
 
+`role`'s field `type` is the `USER_ROLES` list rather than `"string"`: better-auth infers the
+field's type from a literal array, so `session.user.role` reads as `UserRole` everywhere and no
+caller asserts it back. Nothing changes at runtime — a literal-array field is still a text column.
+
 **The provider's subject mode must be "Based on the User's UUID"** (Applications → Providers → the
 Backstage provider → Advanced protocol settings). Authentik's default is a *hashed* user id, which
 is not the UUID the REST API filters on — so with the default, `sub` matches no Member row and
@@ -278,14 +286,26 @@ The handler mounts Better Auth's whole router, so `hooks.before` 404s every path
 linking and `/update-user` — which without `input: false` would let a member set their own `role` —
 belong to Authentik.
 
-`proxy.ts` lets `/login`, `/api/auth` and `/api/usernames` through and redirects everything else to
-`/login` when no session cookie is present, preserving the original path as `callbackUrl`. Its
-matcher excludes static assets and image extensions — which is why avatar URLs are readable without
-auth. `/api/usernames` is public to the proxy because it carries a bearer token instead of a session
+`proxy.ts` lets `/login`, `/api/auth` and `/api/usernames` through and turns everything else away
+when no session cookie is present: a page request redirects to `/login` with the original path as
+`callbackUrl`, an `/api/` one gets a 401 JSON body instead. Redirecting an API call answered it
+with the login HTML under a 200, which a `fetch` cannot tell from a real response. Its matcher
+excludes static assets and image extensions — which is why avatar URLs are readable without auth.
+`/api/usernames` is public to the proxy because it carries a bearer token instead of a session
 cookie; the route itself does the authenticating.
 
+The proxy only sees whether a cookie *exists*. `requireAuth()` is what rejects one that is expired
+or forged, so it is still the check that matters — the proxy only decides what an anonymous caller
+is told.
+
 Session helpers in `lib/session.ts` return `Session | NextResponse`, so routes early-return the
-response: `requireAuth()` (401) and `requireRole(...roles)` (401/403).
+response: `requireAuth()` (401) and `requirePermission(allows)` (401/403), which takes a predicate
+from `lib/permissions.ts` rather than a role list.
+
+**Every rule lives in `lib/permissions.ts`.** Nothing else compares a role to a literal — the
+predicates (`canManageMembers`, `canViewAdminArea`, `canAdminister`, `canModifyMember`) drive the
+UI, and the `ensureCan*` guards enforce it in the services. A route's `requirePermission` only
+fails the request earlier, before a body is parsed; it is not what makes the call safe.
 
 | Role | Derived from | Can |
 | --- | --- | --- |
@@ -687,6 +707,11 @@ Why things are the way they are. The *what* is in the code.
 adapters over the same service, so behaviour cannot drift between the HTTP and RSC paths. Typed
 errors (`NotFoundError`, `ForbiddenError`, `ValidationError`) flow through `mapServiceError`.
 
+**Authorisation is the service's job, not the caller's.** A service function that takes an `Actor`
+guards on it. The alternative — checking in the route and the action and trusting the service —
+held for a while and left six mutations whose `actor` was only ever written to the audit row,
+looking like a guard from the outside. Callers may still refuse early, but nothing depends on it.
+
 **Authentik attributes are replaced, not merged.** `PATCH /core/users/{pk}/` overwrites the whole
 `attributes` object, so `buildAuthentikAttributes(member)` always sends the full managed set
 (`first_name`, `last_name`, `mobile`, `avatar_url`). Trade-off: attributes set by hand in the
@@ -743,8 +768,16 @@ removes both. Updating an existing role keeps the Leadership membership and only
 role-specific groups.
 
 **No REST routes for admin resources.** Sync jobs, the audit log and the Google Group
-reconciliation are read directly via service/Prisma in server components; mutations go through
-Server Actions. No external consumer exists, so an HTTP API would be surface area for nothing.
+reconciliation are read through their services from server components; mutations go through Server
+Actions. No external consumer exists, so an HTTP API would be surface area for nothing.
+
+**Restricted reads go through a guarded service, never Prisma in the page.** Next.js is explicit
+that a layout cannot gate its segments — they render regardless and land in the RSC payload — so
+there is no one place to put a check for a group of pages, and the check belongs next to the data
+instead (`node_modules/next/dist/docs/01-app/02-guides/authentication.md`, *Layouts and auth
+checks*). Every admin page still calls `redirect()` on the way in, but that is the UX; what makes
+the data safe is `listAuditLogs`, `listSyncJobs`, `listAuthentikGroups` and
+`getGoogleGroupReconciliation` refusing an actor who may not see them.
 
 **The mailing list is reconciled, not synced.** Backstage writes to the group in exactly three
 narrow cases (see Sync architecture) and otherwise only reads it. A full two-way sync would have to

@@ -4,14 +4,13 @@ import { revalidatePath } from "next/cache";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { GoogleApiError } from "@/lib/google/client";
 import { captureServiceError } from "@/lib/observability/capture";
+import { type Actor, canAdminister } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import {
   annotateGoogleGroupEntry,
   refreshGoogleGroupEntries,
 } from "@/lib/services/google-group";
-import type { Actor } from "@/lib/services/members";
 import { getSession } from "@/lib/session";
-import type { UserRole } from "@/types";
 
 type ActionResult<T = unknown> =
   | { success: true; data: T }
@@ -19,8 +18,8 @@ type ActionResult<T = unknown> =
 
 async function requireAdminActor(): Promise<Actor | null> {
   const session = await getSession();
-  if (session?.user.role !== "ADMIN") return null;
-  return { id: session.user.id, role: session.user.role as UserRole };
+  if (!session || !canAdminister(session.user.role)) return null;
+  return { id: session.user.id, role: session.user.role };
 }
 
 // A Google failure is the one error worth showing verbatim: it names what the API refused,

@@ -7,7 +7,7 @@ import {
   Shield,
 } from "lucide-react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { AuditDiff } from "@/components/audit-diff";
 import { BreadcrumbOverride } from "@/components/breadcrumb-context";
@@ -26,7 +26,14 @@ import {
   AUDIT_ACTION_VARIANT,
   STATUS_BADGE_CLASS,
 } from "@/lib/members";
+import {
+  type Actor,
+  canManageMembers,
+  canViewAdminArea,
+} from "@/lib/permissions";
 import prisma from "@/lib/prisma";
+import { listMemberAuditLogs } from "@/lib/services/audit";
+import { listAuthentikGroups } from "@/lib/services/members";
 import { getSession } from "@/lib/session";
 import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
 import { MemberAvatar } from "./member-avatar";
@@ -60,30 +67,26 @@ export default async function MemberDetailPage({
 }) {
   const { id } = await params;
   const session = await getSession();
-  const role = session?.user.role as string;
-  const isLeaderOrAdmin = ["ADMIN", "LEADER"].includes(role);
-  const isSelf = session?.user.id === id;
-  const canEdit = isSelf || isLeaderOrAdmin;
+  if (!session) redirect("/");
+  const actor: Actor = {
+    id: session.user.id,
+    role: session.user.role,
+  };
+  const canManage = canManageMembers(actor.role);
+  const canSeeAuditLog = canViewAdminArea(actor.role);
+  const isSelf = actor.id === id;
+  const canEdit = isSelf || canManage;
 
   const member = await getMemberById(id);
 
   if (!member) notFound();
 
-  const authentikGroups = isLeaderOrAdmin
-    ? await prisma.authentikGroup.findMany({
-        select: { authentikGroupId: true, displayName: true },
-        orderBy: { displayName: "asc" },
-      })
+  const authentikGroups = canManage
+    ? await listAuthentikGroups(prisma, actor)
     : [];
 
-  const auditLogs = isLeaderOrAdmin
-    ? await prisma.auditLog.findMany({
-        where: { targetId: id },
-        include: {
-          actor: { select: { firstName: true, lastName: true } },
-        },
-        orderBy: { createdAt: "desc" },
-      })
+  const auditLogs = canSeeAuditLog
+    ? await listMemberAuditLogs(prisma, actor, id)
     : [];
 
   return (
@@ -149,10 +152,10 @@ export default async function MemberDetailPage({
                 : null
             }
             authentikGroups={authentikGroups}
-            canChangeEmail={isLeaderOrAdmin}
-            canChangeStatus={isLeaderOrAdmin}
-            canManageRole={isLeaderOrAdmin}
-            canArchive={isLeaderOrAdmin}
+            canChangeEmail={canManage}
+            canChangeStatus={canManage}
+            canManageRole={canManage}
+            canArchive={canManage}
           />
         )}
       </div>
@@ -247,7 +250,7 @@ export default async function MemberDetailPage({
       </div>
 
       {/* Audit section (admin only) */}
-      {isLeaderOrAdmin && (
+      {canSeeAuditLog && (
         <div className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">Audit napló</h2>
           {auditLogs.length === 0 ? (

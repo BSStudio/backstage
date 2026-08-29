@@ -6,6 +6,12 @@ import type {
 } from "@/app/generated/prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import {
+  type Actor,
+  canManageMembers,
+  ensureCanManageMembers,
+  ensureCanModifyMember,
+} from "@/lib/permissions";
+import {
   CreateMemberSchema,
   UpdateMemberSchema,
 } from "@/lib/services/member-schemas";
@@ -31,7 +37,7 @@ import {
   orchestrateUpdateWebsiteUser,
 } from "@/lib/sync/website/orchestrators";
 import type { UpdateWebsiteUserInput } from "@/lib/website/users";
-import { currentSemester, isAlumniStatus, type UserRole } from "@/types";
+import { currentSemester, isAlumniStatus } from "@/types";
 
 export type {
   AssignRoleInput,
@@ -43,13 +49,6 @@ export {
   CreateMemberSchema,
   UpdateMemberSchema,
 } from "@/lib/services/member-schemas";
-
-// ─── Actor context ───────────────────────────────────────────────────────────
-
-export interface Actor {
-  id: string;
-  role: UserRole;
-}
 
 const AUTHENTIK_SYNCED_FIELDS = new Set([
   "firstName",
@@ -84,6 +83,15 @@ export async function listMembers(
   });
 }
 
+export async function listAuthentikGroups(prisma: PrismaClient, actor: Actor) {
+  ensureCanManageMembers(actor);
+
+  return prisma.authentikGroup.findMany({
+    select: { authentikGroupId: true, displayName: true },
+    orderBy: { displayName: "asc" },
+  });
+}
+
 export async function getMember(prisma: PrismaClient, id: string) {
   const member = await prisma.member.findUnique({
     where: { id },
@@ -101,6 +109,8 @@ export async function createMember(
   input: unknown,
   actor: Actor,
 ) {
+  ensureCanManageMembers(actor);
+
   const parsed = CreateMemberSchema.safeParse(input);
   if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
 
@@ -200,14 +210,6 @@ export async function createMember(
   return { member, syncErrors };
 }
 
-export function ensureCanModifyAvatar(actor: Actor, targetId: string): void {
-  const isSelf = actor.id === targetId;
-  const isLeaderOrAdmin = (["ADMIN", "LEADER"] as string[]).includes(
-    actor.role,
-  );
-  if (!isSelf && !isLeaderOrAdmin) throw new ForbiddenError();
-}
-
 async function syncAvatarUrl(
   prisma: PrismaClient,
   memberId: string,
@@ -236,7 +238,7 @@ export async function uploadMemberAvatar(
 ) {
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) throw new NotFoundError();
-  ensureCanModifyAvatar(actor, id);
+  ensureCanModifyMember(actor, id);
 
   const updated = await prisma.$transaction(async (tx) => {
     const updated = await tx.member.update({ where: { id }, data });
@@ -264,7 +266,7 @@ export async function removeMemberAvatar(
 ) {
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) throw new NotFoundError();
-  ensureCanModifyAvatar(actor, id);
+  ensureCanModifyMember(actor, id);
 
   if (!member.avatarUrl && !member.portraitUrl) {
     return { member, syncErrors: [] as string[] };
@@ -301,12 +303,8 @@ export async function updateMember(
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) throw new NotFoundError();
 
-  // Members can only edit themselves; leaders/admins can edit anyone
-  const isSelf = actor.id === member.id;
-  const isLeaderOrAdmin = (["ADMIN", "LEADER"] as string[]).includes(
-    actor.role,
-  );
-  if (!isSelf && !isLeaderOrAdmin) throw new ForbiddenError();
+  ensureCanModifyMember(actor, member.id);
+  const isLeaderOrAdmin = canManageMembers(actor.role);
 
   const parsed = UpdateMemberSchema.safeParse(input);
   if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
@@ -473,6 +471,8 @@ export async function archiveMember(
   actor: Actor,
   options: ArchiveOptions = {},
 ) {
+  ensureCanManageMembers(actor);
+
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) throw new NotFoundError();
 
@@ -522,6 +522,8 @@ export async function batchArchive(
   actor: Actor,
   options: ArchiveOptions = {},
 ) {
+  ensureCanManageMembers(actor);
+
   const members = await prisma.member.findMany({
     where: { id: { in: ids }, archived: false },
   });
@@ -572,6 +574,8 @@ export async function batchUpdateStatus(
   status: MembershipStatus,
   actor: Actor,
 ) {
+  ensureCanManageMembers(actor);
+
   // Only update members whose status actually differs
   const members = await prisma.member.findMany({
     where: { id: { in: ids }, archived: false, status: { not: status } },
@@ -634,6 +638,8 @@ export async function assignRole(
   authentikGroupIds: string[],
   actor: Actor,
 ) {
+  ensureCanManageMembers(actor);
+
   const member = await prisma.member.findUnique({
     where: { id: memberId },
     include: { leadershipRole: true },
@@ -729,6 +735,8 @@ export async function removeRole(
   memberId: string,
   actor: Actor,
 ) {
+  ensureCanManageMembers(actor);
+
   const member = await prisma.member.findUnique({
     where: { id: memberId },
     include: { leadershipRole: true },

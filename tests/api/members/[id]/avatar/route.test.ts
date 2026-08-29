@@ -249,7 +249,6 @@ describe("POST /api/members/[id]/avatar", () => {
     mockSession({ id: MEMBER_ID, role: "MEMBER" });
     const { NotFoundError } = await import("@/lib/errors");
     vi.doMock("@/lib/services/members", () => ({
-      ensureCanModifyAvatar: vi.fn(),
       uploadMemberAvatar: vi.fn(async () => {
         throw new NotFoundError();
       }),
@@ -378,7 +377,6 @@ describe("DELETE /api/members/[id]/avatar", () => {
     mockSession({ id: MEMBER_ID, role: "MEMBER" });
     const { NotFoundError } = await import("@/lib/errors");
     vi.doMock("@/lib/services/members", () => ({
-      ensureCanModifyAvatar: vi.fn(),
       uploadMemberAvatar: vi.fn(),
       removeMemberAvatar: vi.fn(async () => {
         throw new NotFoundError();

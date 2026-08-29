@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { mapServiceError } from "@/lib/errors";
+import { canManageMembers } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { createMember, listMembers } from "@/lib/services/members";
-import { requireAuth, requireRole } from "@/lib/session";
+import { requireAuth, requirePermission } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
   const session = await requireAuth();
@@ -16,14 +17,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await requireRole("ADMIN", "LEADER");
+  const session = await requirePermission(canManageMembers);
   if (session instanceof NextResponse) return session;
 
   try {
     const body = await req.json();
     const { member, syncErrors } = await createMember(prisma, body, {
       id: session.user.id,
-      role: session.user.role as "ADMIN" | "LEADER",
+      role: session.user.role,
     });
     /* v8 ignore next 3 -- createMember currently throws on Authentik failure (no partial-success path); branch preserved for future orchestrations */
     if (syncErrors.length > 0) {

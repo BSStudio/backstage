@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import type { MembershipStatus } from "@/app/generated/prisma/client";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import type { Actor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
-import type { Actor } from "@/lib/services/members";
 import {
   type ArchiveOptions,
   archiveMember,
@@ -15,8 +15,7 @@ import {
   removeRole,
   updateMember,
 } from "@/lib/services/members";
-import { getSession } from "@/lib/session";
-import type { UserRole } from "@/types";
+import { getSession, type Session } from "@/lib/session";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -24,10 +23,8 @@ type ActionResult<T = unknown> =
   | { success: true; data: T; syncErrors?: string[] }
   | { success: false; error: string };
 
-function actorFromSession(session: {
-  user: { id: string; role: string };
-}): Actor {
-  return { id: session.user.id, role: session.user.role as UserRole };
+function actorFromSession(session: Session): Actor {
+  return { id: session.user.id, role: session.user.role };
 }
 
 function mapError(error: unknown): ActionResult<never> {
@@ -49,11 +46,6 @@ export async function createMemberAction(
 ): Promise<ActionResult> {
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
-
-  const role = session.user.role as UserRole;
-  if (!["ADMIN", "LEADER"].includes(role)) {
-    return { success: false, error: "Hozzáférés megtagadva" };
-  }
 
   try {
     const { member, syncErrors } = await createMember(
@@ -97,11 +89,6 @@ export async function archiveMemberAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  const role = session.user.role as UserRole;
-  if (!["ADMIN", "LEADER"].includes(role)) {
-    return { success: false, error: "Hozzáférés megtagadva" };
-  }
-
   try {
     const { syncErrors } = await archiveMember(
       prisma,
@@ -123,19 +110,18 @@ export async function batchArchiveAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  const role = session.user.role as UserRole;
-  if (!["ADMIN", "LEADER"].includes(role)) {
-    return { success: false, error: "Hozzáférés megtagadva" };
+  try {
+    const { count, syncErrors } = await batchArchive(
+      prisma,
+      ids,
+      actorFromSession(session),
+      options,
+    );
+    revalidatePath("/members");
+    return { success: true, data: { count }, syncErrors };
+  } catch (error) {
+    return mapError(error);
   }
-
-  const { count, syncErrors } = await batchArchive(
-    prisma,
-    ids,
-    actorFromSession(session),
-    options,
-  );
-  revalidatePath("/members");
-  return { success: true, data: { count }, syncErrors };
 }
 
 export async function batchUpdateStatusAction(
@@ -145,19 +131,18 @@ export async function batchUpdateStatusAction(
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
 
-  const role = session.user.role as UserRole;
-  if (!["ADMIN", "LEADER"].includes(role)) {
-    return { success: false, error: "Hozzáférés megtagadva" };
+  try {
+    const { count, syncErrors } = await batchUpdateStatus(
+      prisma,
+      ids,
+      status,
+      actorFromSession(session),
+    );
+    revalidatePath("/members");
+    return { success: true, data: { count }, syncErrors };
+  } catch (error) {
+    return mapError(error);
   }
-
-  const { count, syncErrors } = await batchUpdateStatus(
-    prisma,
-    ids,
-    status,
-    actorFromSession(session),
-  );
-  revalidatePath("/members");
-  return { success: true, data: { count }, syncErrors };
 }
 
 export async function assignRoleAction(
@@ -167,11 +152,6 @@ export async function assignRoleAction(
 ): Promise<ActionResult> {
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
-
-  const role = session.user.role as UserRole;
-  if (!["ADMIN", "LEADER"].includes(role)) {
-    return { success: false, error: "Hozzáférés megtagadva" };
-  }
 
   try {
     const { syncErrors } = await assignRole(
@@ -194,11 +174,6 @@ export async function removeRoleAction(
 ): Promise<ActionResult> {
   const session = await getSession();
   if (!session) return { success: false, error: "Jogosulatlan hozzáférés" };
-
-  const role = session.user.role as UserRole;
-  if (!["ADMIN", "LEADER"].includes(role)) {
-    return { success: false, error: "Hozzáférés megtagadva" };
-  }
 
   try {
     const { syncErrors } = await removeRole(

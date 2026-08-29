@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { canManageMembers } from "@/lib/permissions";
 
 function mockDeps(session: unknown) {
   vi.doMock("next/headers", () => ({
@@ -55,22 +56,22 @@ describe("requireAuth", () => {
   });
 });
 
-describe("requireRole", () => {
-  it("returns session when user has required role", async () => {
+describe("requirePermission", () => {
+  it("returns session when the predicate allows the role", async () => {
     const session = { user: { id: "u1", role: "ADMIN" } };
     mockDeps(session);
     const mod = await import("@/lib/session");
 
-    const result = await mod.requireRole("ADMIN", "LEADER");
+    const result = await mod.requirePermission(canManageMembers);
     expect(result).toBe(session);
   });
 
-  it("returns 403 when user lacks required role", async () => {
+  it("returns 403 when the predicate rejects the role", async () => {
     const session = { user: { id: "u1", role: "MEMBER" } };
     mockDeps(session);
     const mod = await import("@/lib/session");
 
-    const result = await mod.requireRole("ADMIN", "LEADER");
+    const result = await mod.requirePermission(canManageMembers);
     expect(result).toBeInstanceOf(NextResponse);
     expect((result as NextResponse).status).toBe(403);
   });
@@ -79,7 +80,7 @@ describe("requireRole", () => {
     mockDeps(null);
     const mod = await import("@/lib/session");
 
-    const result = await mod.requireRole("ADMIN");
+    const result = await mod.requirePermission(canManageMembers);
     expect(result).toBeInstanceOf(NextResponse);
     expect((result as NextResponse).status).toBe(401);
   });

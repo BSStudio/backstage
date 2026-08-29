@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
 import type { Session } from "@/lib/session";
-import type { UserRole } from "@/types";
 
 export function PortalShell({
   session,
@@ -22,7 +21,7 @@ export function PortalShell({
   avatarUrl: string | null;
   children: React.ReactNode;
 }) {
-  const role = session.user.role as UserRole;
+  const role = session.user.role;
 
   return (
     <AvatarProvider initialUrl={avatarUrl}>

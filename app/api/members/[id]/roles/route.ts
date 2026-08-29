@@ -2,18 +2,19 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { mapServiceError, ValidationError } from "@/lib/errors";
+import { canManageMembers } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import {
   AssignRoleSchema,
   assignRole,
   removeRole,
 } from "@/lib/services/members";
-import { requireRole } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PUT(req: NextRequest, { params }: Params) {
-  const session = await requireRole("ADMIN", "LEADER");
+  const session = await requirePermission(canManageMembers);
   if (session instanceof NextResponse) return session;
 
   try {
@@ -31,7 +32,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       parsed.data.authentikGroupIds,
       {
         id: session.user.id,
-        role: session.user.role as "ADMIN" | "LEADER",
+        role: session.user.role,
       },
     );
     if (syncErrors.length > 0) {
@@ -44,14 +45,14 @@ export async function PUT(req: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
-  const session = await requireRole("ADMIN", "LEADER");
+  const session = await requirePermission(canManageMembers);
   if (session instanceof NextResponse) return session;
 
   try {
     const { id } = await params;
     const { syncErrors } = await removeRole(prisma, id, {
       id: session.user.id,
-      role: session.user.role as "ADMIN" | "LEADER",
+      role: session.user.role,
     });
     if (syncErrors.length > 0) {
       return NextResponse.json({ removed: true, syncErrors }, { status: 207 });

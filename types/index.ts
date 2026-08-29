@@ -130,7 +130,9 @@ export function hasAuthentikAccount(memberId: string): boolean {
 
 // ─── Role & permission helpers ────────────────────────────────────────────────
 
-export type UserRole = "ADMIN" | "LEADER" | "MEMBER";
+export const USER_ROLES = ["ADMIN", "LEADER", "MEMBER"] as const;
+
+export type UserRole = (typeof USER_ROLES)[number];
 
 export function resolveUserRole(groups: string[]): UserRole {
   const adminGroup = process.env.AUTHENTIK_GROUP_ADMIN;

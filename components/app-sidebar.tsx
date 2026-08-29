@@ -30,6 +30,7 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import { NAV_LABELS } from "@/lib/nav-labels";
+import { canViewAdminArea } from "@/lib/permissions";
 import type { UserRole } from "@/types";
 
 type NavItem = {
@@ -181,7 +182,7 @@ function NavSection({
 
 export function AppSidebar({ role }: { role: UserRole }) {
   const pathname = usePathname();
-  const canSeeAdminNav = role === "ADMIN" || role === "LEADER";
+  const canSeeAdminNav = canViewAdminArea(role);
 
   return (
     <Sidebar collapsible="icon">
