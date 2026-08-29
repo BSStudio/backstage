@@ -77,6 +77,7 @@ export default async function AuditPage({
                     {log.target ? (
                       <Link
                         href={`/members/${log.targetId}`}
+                        prefetch={false}
                         className="hover:underline"
                       >
                         {log.target.lastName} {log.target.firstName}
@@ -89,6 +90,7 @@ export default async function AuditPage({
                     {log.actor ? (
                       <Link
                         href={`/members/${log.actorId}`}
+                        prefetch={false}
                         className="hover:underline"
                       >
                         {log.actor.lastName} {log.actor.firstName}

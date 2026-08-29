@@ -84,6 +84,7 @@ export default async function SyncJobsPage({
                   <TableCell>
                     <Link
                       href={`/members/${job.memberId}`}
+                      prefetch={false}
                       className="hover:underline"
                     >
                       {job.member.lastName} {job.member.firstName}
