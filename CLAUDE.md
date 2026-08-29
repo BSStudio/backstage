@@ -101,7 +101,8 @@ The scripts refuse to run against a database whose host is not local unless pass
   and `google/{operations,orchestrators}.ts`
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
 - `lib/errors.ts` — typed error hierarchy + `mapServiceError`
-- `lib/api-response.ts` — `syncJson`, the answer every mutating route returns
+- `lib/api-response.ts` — `syncJson` / `syncJsonResource`, the answer every mutating route
+  returns
 - `lib/toast.ts` — `toastSync`, the success-or-partial-failure toast every mutation raises
 - `lib/permissions.ts` — every role rule: `can*` predicates for the UI, `ensureCan*` guards that
   throw `ForbiddenError` for services
@@ -175,7 +176,8 @@ field in `lib/authentik/*` has to be mirrored into the contract check, or it goe
 
 **Add an API route** — keep it a thin adapter: `requireAuth()` or
 `requirePermission(<predicate>)` from `lib/session.ts`, `toActor(session)` for the service call,
-`syncJson(body, syncErrors)` for the answer, and `mapServiceError` around failures. No business
+`syncJson(body, syncErrors)` for the answer — or `syncJsonResource(key, resource, syncErrors)`
+when the body is the resource itself — and `mapServiceError` around failures. No business
 logic, and no role list of its own — the predicate comes from `lib/permissions.ts` and the service
 guards itself regardless.
 
@@ -513,9 +515,9 @@ syncing silently forever. No handler runs, `attempts` stays 0, nothing reaches S
 Every FAILED job is also reported to Sentry from inside `executeSyncJob` — see Observability.
 
 API routes return HTTP **207** with `{ ..., syncErrors: string[] }` when the DB write succeeded but
-a sync step failed; `syncJson` (`lib/api-response.ts`) is what chooses between that and the normal
-answer, and services build the list with `collectSyncErrors`. The UI shows a warning toast, not an
-error.
+a sync step failed; `syncJson` and `syncJsonResource` (`lib/api-response.ts`) are what choose
+between that and the normal answer, and services build the list with `collectSyncErrors`. The UI
+shows a warning toast, not an error.
 
 Website specifics: `CREATE_USER` / `UPDATE_USER` / `DEACTIVATE_USER` are wired into create, update,
 status change, archive and bulk operations. Status changes flow through `UPDATE_USER` via the

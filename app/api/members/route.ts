@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { syncJson } from "@/lib/api-response";
+import { syncJsonResource } from "@/lib/api-response";
 import { mapServiceError } from "@/lib/errors";
 import { canManageMembers, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       body,
       toActor(session),
     );
-    return syncJson(member, syncErrors, { status: 201, partial: { member } });
+    return syncJsonResource("member", member, syncErrors, { status: 201 });
   } catch (error) {
     return mapServiceError(error);
   }

@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { syncJson } from "@/lib/api-response";
+import { syncJson, syncJsonResource } from "@/lib/api-response";
 import { mapServiceError } from "@/lib/errors";
 import { canManageMembers, toActor } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       body,
       toActor(session),
     );
-    return syncJson(member, syncErrors, { partial: { member } });
+    return syncJsonResource("member", member, syncErrors);
   } catch (error) {
     return mapServiceError(error);
   }
