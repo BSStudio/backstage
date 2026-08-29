@@ -401,6 +401,30 @@ describe("REPORT", () => {
     expect(xml).toContain("BEGIN:VCARD");
   });
 
+  it("matches an href a client sent as an absolute URL", async () => {
+    const xml = await (
+      await call("/api/carddav/addressbook/", {
+        method: "REPORT",
+        body: multiget([`${ORIGIN}/api/carddav/addressbook/${OWNER_ID}.vcf`]),
+      })
+    ).text();
+
+    expect(xml).toContain(`${OWNER_ID}.vcf`);
+    expect(xml).toContain("BEGIN:VCARD");
+  });
+
+  it("leaves out an href it cannot read as a reference", async () => {
+    const xml = await (
+      await call("/api/carddav/addressbook/", {
+        method: "REPORT",
+        body: multiget(["http://", `/api/carddav/addressbook/${OWNER_ID}.vcf`]),
+      })
+    ).text();
+
+    expect(xml).toContain(`${OWNER_ID}.vcf`);
+    expect(xml.match(/<d:response>/g)).toHaveLength(1);
+  });
+
   it("leaves out an href naming a card that is gone", async () => {
     const xml = await (
       await call("/api/carddav/addressbook/", {

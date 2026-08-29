@@ -112,6 +112,16 @@ function cardPath(id: string): string {
   return `${CARDDAV_ADDRESSBOOK_PATH}${encodeURIComponent(id)}.vcf`;
 }
 
+// RFC 4918 lets an href be an absolute URI, so a client is free to send back something
+// other than the path we advertised. `null` for one that is not a reference at all.
+function hrefPath(href: string, base: string): string | null {
+  try {
+    return new URL(href, base).pathname;
+  } catch {
+    return null;
+  }
+}
+
 function resolveProps(
   table: PropTable,
   request: PropRequest,
@@ -285,9 +295,8 @@ async function handleReport(request: NextRequest): Promise<NextResponse> {
       ? book.cards
       : // A card that is gone is left out; the next ctag comparison drops it anyway.
         report.hrefs
-          .map((entry) =>
-            book.cards.find((card) => cardPath(card.id) === entry),
-          )
+          .map((entry) => hrefPath(entry, request.url))
+          .map((path) => book.cards.find((card) => cardPath(card.id) === path))
           .filter((card) => card !== undefined);
 
   return multiStatus(
