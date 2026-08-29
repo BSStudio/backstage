@@ -9,12 +9,11 @@ import { NextResponse } from "next/server";
 export function syncJson<T extends object>(
   body: T,
   syncErrors: string[],
-  options: { status?: number } = {},
 ): NextResponse {
   if (syncErrors.length > 0) {
     return NextResponse.json({ ...body, syncErrors }, { status: 207 });
   }
-  return NextResponse.json(body, { status: options.status ?? 200 });
+  return NextResponse.json(body, { status: 200 });
 }
 
 // For a body that is the resource itself, which has nowhere to carry the failures: the
