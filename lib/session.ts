@@ -14,9 +14,7 @@ export async function getSession(): Promise<Session | null> {
 }
 
 export async function requireAuth(): Promise<Session | NextResponse> {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
