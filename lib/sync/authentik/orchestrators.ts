@@ -7,7 +7,7 @@ import { createUser } from "@/lib/authentik/users";
 import { resolveAvailableUsername } from "@/lib/services/usernames";
 import { NO_AUTHENTIK_ACCOUNT_REASON } from "@/lib/sync-jobs";
 import { hasAuthentikAccount } from "@/types";
-import { executeSyncJob, type SyncResult } from "../executor";
+import { runSyncJob, type SyncResult } from "../executor";
 import { getStatusGroupUuid } from "./group-mapping";
 
 // Skipped rather than failed: with no Authentik user there is no pk to resolve and no
@@ -19,24 +19,11 @@ async function runAuthentikJob(
   operation: SyncOperation,
   payload: object,
 ): Promise<SyncResult> {
-  if (!hasAuthentikAccount(memberId)) {
-    await prisma.syncJob.create({
-      data: {
-        target: "AUTHENTIK",
-        operation,
-        memberId,
-        payload,
-        status: "SKIPPED",
-        result: { reason: NO_AUTHENTIK_ACCOUNT_REASON },
-      },
-    });
-    return { success: true, result: null };
-  }
-
-  const job = await prisma.syncJob.create({
-    data: { target: "AUTHENTIK", operation, memberId, payload },
-  });
-  return executeSyncJob(prisma, job.id);
+  return runSyncJob(
+    prisma,
+    { target: "AUTHENTIK", operation, memberId, payload },
+    hasAuthentikAccount(memberId) ? undefined : NO_AUTHENTIK_ACCOUNT_REASON,
+  );
 }
 
 function absoluteAvatarUrl(path: string): string {
