@@ -236,14 +236,7 @@ export function CardDavDevices({
                   töröld az eszközt, és adj hozzá egy újat.
                 </DialogDescription>
               </DialogHeader>
-              <CopyField
-                label="Szerver"
-                value={
-                  typeof window === "undefined"
-                    ? "/api/carddav/"
-                    : `${window.location.origin}/api/carddav/`
-                }
-              />
+              <CopyField label="Szerver" value={window.location.origin} />
               <CopyField label="Felhasználónév" value={email} />
               <CopyField label="Jelszó" value={minted} />
             </div>
