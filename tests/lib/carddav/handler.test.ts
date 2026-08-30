@@ -195,6 +195,10 @@ describe("routing", () => {
     expect((await call("/api/carddav/nonsense")).status).toBe(404);
   });
 
+  it("answers a card path with a malformed escape with 404, not a 500", async () => {
+    expect((await call("/api/carddav/addressbook/%.vcf")).status).toBe(404);
+  });
+
   it("ends a probe aimed elsewhere on the origin with 404, never 401", async () => {
     // A 401 to a client that already authenticated reads as the password being wrong.
     for (const path of ["/", "/login", "/carddav"]) {

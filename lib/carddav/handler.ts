@@ -52,7 +52,15 @@ function classify(pathname: string): Target {
   if (path === `${CARDDAV_BASE}/addressbook`) return { kind: "addressbook" };
 
   const card = CARD_PATTERN.exec(path);
-  if (card) return { kind: "card", id: decodeURIComponent(card[1]) };
+  if (card) {
+    try {
+      return { kind: "card", id: decodeURIComponent(card[1]) };
+    } catch {
+      // A malformed percent-escape names no card, and decoding one throws out of the
+      // proxy as a 500 where every other unrecognised path answers 404.
+      return { kind: "unknown" };
+    }
+  }
 
   return { kind: "unknown" };
 }
