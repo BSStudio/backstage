@@ -28,13 +28,16 @@ export interface DavResource {
   props: Record<string, string | null>;
 }
 
+// The CR is escaped because a parser normalises a literal one away, which would hand a
+// client reading a card out of `address-data` the LF line endings vCard does not use.
 export function escapeXml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+    .replace(/'/g, "&apos;")
+    .replace(/\r/g, "&#13;");
 }
 
 // Clients pick their own prefixes, and no local name is shared across the three

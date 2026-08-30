@@ -12,6 +12,12 @@ describe("escapeXml", () => {
       "Tom &amp; &lt;Jerry&gt; &quot;quoted&quot; &apos;single&apos;",
     );
   });
+
+  it("escapes a carriage return, which a parser would otherwise normalise away", () => {
+    expect(escapeXml("BEGIN:VCARD\r\nEND:VCARD\r\n")).toBe(
+      "BEGIN:VCARD&#13;\nEND:VCARD&#13;\n",
+    );
+  });
 });
 
 describe("parsePropRequest", () => {

@@ -1,3 +1,4 @@
+import { parseXml, XmlElement } from "@rgrove/parse-xml";
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MembershipStatus } from "@/app/generated/prisma/client";
@@ -60,6 +61,21 @@ beforeEach(async () => {
 
 async function importHandler() {
   return import("@/lib/carddav/handler");
+}
+
+function findElement(
+  element: XmlElement | null,
+  name: string,
+): XmlElement | undefined {
+  if (!element) return undefined;
+  if (element.name === name) return element;
+
+  for (const child of element.children) {
+    if (!(child instanceof XmlElement)) continue;
+    const found = findElement(child, name);
+    if (found) return found;
+  }
+  return undefined;
 }
 
 function basic(token: string): string {
@@ -339,6 +355,21 @@ describe("PROPFIND", () => {
 
     expect(xml).toContain("BEGIN:VCARD");
     expect(xml).toContain("FN:Kovács János");
+  });
+
+  // A parser normalises a literal CR away, so the card has to survive one to reach a
+  // client with the line endings vCard actually uses.
+  it("hands the card body through the XML with its CRLF intact", async () => {
+    const xml = await (
+      await call(`/api/carddav/addressbook/${OWNER_ID}.vcf`, {
+        body: PROPFIND_BODY,
+      })
+    ).text();
+
+    const addressData = findElement(parseXml(xml).root, "card:address-data");
+
+    expect(addressData?.text).toContain("BEGIN:VCARD\r\n");
+    expect(addressData?.text.endsWith("END:VCARD\r\n")).toBe(true);
   });
 
   it("answers 404 for a card that is not in the book", async () => {
