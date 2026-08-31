@@ -1,4 +1,7 @@
-import type { MembershipStatus } from "@/app/generated/prisma/client";
+import type {
+  AppLinkAccent,
+  MembershipStatus,
+} from "@/app/generated/prisma/client";
 
 // ─── Zod-compatible enum values ──────────────────────────────────────────────
 
@@ -20,6 +23,56 @@ export const ALUMNI_STATUSES = [
 export function isAlumniStatus(status: MembershipStatus): boolean {
   return (ALUMNI_STATUSES as readonly MembershipStatus[]).includes(status);
 }
+
+export const APP_LINK_ACCENTS = [
+  "BLUE",
+  "TEAL",
+  "GREEN",
+  "AMBER",
+  "ORANGE",
+  "RED",
+  "VIOLET",
+  "PINK",
+] as const satisfies readonly AppLinkAccent[];
+
+// The icons an app link may carry. A closed list rather than all of lucide: the picker has to
+// stay readable, and an icon name that no longer resolves would render nothing at all.
+export const APP_LINK_ICON_NAMES = [
+  "globe",
+  "book-open",
+  "clipboard-list",
+  "file-text",
+  "newspaper",
+  "calendar",
+  "mail",
+  "message-square",
+  "users",
+  "ticket",
+  "key",
+  "shield-check",
+  "settings",
+  "wrench",
+  "link",
+  "cloud",
+  "folder",
+  "hard-drive",
+  "server",
+  "database",
+  "monitor",
+  "tv",
+  "projector",
+  "video",
+  "camera",
+  "film",
+  "clapperboard",
+  "image",
+  "mic",
+  "music",
+  "headphones",
+  "layout-dashboard",
+] as const;
+
+export type AppLinkIconName = (typeof APP_LINK_ICON_NAMES)[number];
 
 // ─── Display labels ───────────────────────────────────────────────────────────
 
