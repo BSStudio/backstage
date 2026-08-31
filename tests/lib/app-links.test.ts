@@ -6,6 +6,7 @@ import {
   APP_LINK_ICONS,
   APP_LINK_TILE_CLASS,
   appLinkHost,
+  appLinkIcon,
 } from "@/lib/app-links";
 import { APP_LINK_ACCENTS, APP_LINK_ICON_NAMES } from "@/types";
 
@@ -23,6 +24,16 @@ describe("APP_LINK_ICONS", () => {
       value: "globe",
       label: "Földgömb",
     });
+  });
+});
+
+describe("appLinkIcon", () => {
+  it("resolves a stored name to its component", () => {
+    expect(appLinkIcon("cloud")).toBe(APP_LINK_ICONS.cloud);
+  });
+
+  it("falls back for a name no longer on the list", () => {
+    expect(appLinkIcon("skull")).toBe(APP_LINK_ICONS.link);
   });
 });
 

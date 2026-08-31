@@ -72,6 +72,14 @@ export const APP_LINK_ICONS: Record<AppLinkIconName, LucideIcon> = {
   "layout-dashboard": LayoutDashboard,
 };
 
+/**
+ * The component for a stored icon name. Falls back rather than throwing: the schema keeps
+ * writes inside the list, but a name dropped from it later would otherwise crash the card.
+ */
+export function appLinkIcon(name: string): LucideIcon {
+  return APP_LINK_ICONS[name as AppLinkIconName] ?? APP_LINK_ICONS.link;
+}
+
 /** Hungarian names for the picker - the lucide identifier means nothing to an admin. */
 export const APP_LINK_ICON_LABELS: Record<AppLinkIconName, string> = {
   globe: "Földgömb",
