@@ -83,19 +83,25 @@ not empty when a leader opens someone else's profile. Your first device's passwo
 `dev-carddav-token`, printed at the end of a seed, so the endpoint can be exercised with `curl`
 without clicking through the UI.
 
+Eight `AppLink` rows are seeded, three of them featured so the dashboard chip row has something
+to show, between them using all eight accents, and one with no description so that branch renders
+too. Each gets an `APP_LINK_CREATED` audit entry, which is what puts the new action badges and
+the `targetLabel` column on `/admin/audit` without having to create an app first.
+
 The scripts refuse to run against a database whose host is not local unless passed `--force`.
 
 ---
 
 ## Repository structure
 
-- `app/(portal)/` — authenticated pages (members, admin, dashboard)
+- `app/(portal)/` — authenticated pages (members, apps, admin, dashboard)
 - `app/api/` — REST routes: `members/`, `members/[id]/{roles,avatar}`, `usernames/suggest`,
   `auth/[...all]`
 - `app/avatars/[...path]/route.ts` — serves avatar bytes from whichever storage backend is active
 - `lib/services/` — business logic (`members.ts`, `sync-jobs.ts`, `usernames.ts`,
-  `google-group.ts`, `audit.ts`). All real work happens here. `member-schemas.ts` and
-  `google-group-schemas.ts` hold the Zod schemas, split out so client forms can import them;
+  `google-group.ts`, `audit.ts`, `app-links.ts`). All real work happens here. `member-schemas.ts`,
+  `google-group-schemas.ts` and `app-link-schemas.ts` hold the Zod schemas, split out so client
+  forms can import them;
   `pagination.ts` holds the page size and the skip/take arithmetic the paginated admin lists share
 - `lib/actions/` — Server Actions; thin wrappers around services. `result.ts` owns the
   `ActionResult` shape they all return, the two failure constants and `mapActionError`
@@ -120,13 +126,16 @@ The scripts refuse to run against a database whose host is not local unless pass
   it enforces is per replica; the single-replica deployment is what makes that correct
 - `lib/observability/` — `sentry.ts` (shared init options), `scrub.ts` (PII redaction),
   `capture.ts` (capture helpers), `logger.ts` (structured logging)
-- `lib/members.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts`, `lib/google-group.ts` — display
-  helpers + Hungarian labels
+- `lib/members.ts`, `lib/audit.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts`,
+  `lib/google-group.ts`, `lib/app-links.ts` — display helpers + Hungarian labels.
+  `lib/app-links.ts` also owns the icon name → lucide component map and the per-accent tile
+  classes
 - `components/form.tsx` — TanStack Form `useAppForm` plus the field/submit components every form
   is built from
 - `components/` — shared pieces above the primitives: `page-nav.tsx` (admin list pagination),
   `status-badge.tsx` (`StatusBadge` / `ArchivedBadge`), `archive-dialog.tsx` (the archive
-  confirmation and its mailing-list checkbox), `portal-shell.tsx` (the authenticated frame)
+  confirmation and its mailing-list checkbox), `app-link-card.tsx` (one row on /apps),
+  `portal-shell.tsx` (the authenticated frame)
 - `components/ui/` — shadcn/ui primitives
 - `scripts/` — dev tooling run with `tsx`: `dev-setup.ts`, `seed-dev.ts` (+ `seed-data.ts` roster,
   `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`,
@@ -237,7 +246,10 @@ Populated manually by admins. The Authentik UUID is the primary key — no separ
 **AuditLog** — field-level diff log, `{ field: { old, new } }` JSON. Written on every mutation.
 A status change and a field update in the same request produce **separate** entries
 (`STATUS_CHANGED` + `MEMBER_UPDATED`). `targetId` is nullable because `GOOGLE_GROUP_SYNCED`
-records a read of the mailing list, which is about no single member.
+records a read of the mailing list, which is about no single member. `targetLabel` names what
+an entry is about when that is not a member either — an app link, say. It is a snapshot rather
+than a relation, so the log still reads correctly after the row it names is renamed or deleted;
+an `APP_LINK_UPDATED` entry stores the name the link goes by *after* the change.
 
 **SyncJob** — one row per external call, against Authentik, the website or a Google Group.
 PENDING → IN_PROGRESS → SUCCESS | FAILED, plus `SKIPPED` for a call that was never attempted
@@ -251,6 +263,12 @@ jobs surface at `/admin/sync-jobs` and are individually retryable; `SKIPPED` is 
 The two hand-set states survive a refresh, everything else is recomputed, and notes survive
 either way. `KNOWN_ADDRESS` requires a note: with no member link it is the only record of what
 the address is.
+
+**AppLink** — one of the studio's other applications, listed on `/apps`. Config rather than
+member data: no relations, and nothing here is derived from anything else. `icon` is a lucide
+name from the curated list in `types/index.ts`, `accent` is an enum of eight presets rather than
+a colour string, `featured` is what the dashboard filters on and `/apps` ignores, and `sortOrder`
+is renumbered contiguously on every move.
 
 **CardDAVToken** — one row per device a member set up for contact sync. `tokenHash` is the SHA-256
 of a 256-bit random token; the token itself is shown once and stored nowhere. `label` names the
@@ -359,8 +377,8 @@ fails the request earlier, before a body is parsed; it is not what makes the cal
 | Role | Derived from | Can |
 | --- | --- | --- |
 | `MEMBER` | everyone else | view member list, view/edit own profile |
-| `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive; read the whole admin area — audit log, sync jobs, Google Group reconciliation |
-| `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + retry failed sync jobs, refresh and annotate the Google Group list |
+| `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive; read the whole admin area — audit log, sync jobs, Google Group reconciliation, app links |
+| `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + retry failed sync jobs, refresh and annotate the Google Group list, create/edit/reorder/delete app links |
 
 The admin area splits on read vs write: `LEADER` sees every admin page, `ADMIN` is what the
 mutations on them require.
@@ -447,8 +465,8 @@ plain `ALUMNI` are left out, `ACTIVE_ALUMNI` are not. Reads `APP_URL` to absolut
 
 `websiteUserId` is never accepted on any write — it is set by sync and import only.
 
-Admin-area resources (sync jobs, audit log, Google Group) deliberately have **no** REST routes;
-see Architectural Decisions.
+Admin-area resources (sync jobs, audit log, Google Group) and app links deliberately have **no**
+REST routes; see Architectural Decisions.
 
 ---
 
@@ -859,15 +877,18 @@ role-specific groups.
 reconciliation are read through their services from server components; mutations go through Server
 Actions. No external consumer exists, so an HTTP API would be surface area for nothing.
 
+App links follow the same rule for a different reason: `/apps` is a page every member reads, not
+an admin resource, but nothing outside Backstage consumes the list either. `GET /api/apps` is the
+one route worth adding the day another studio app wants to render the same launcher.
+
 **Restricted reads go through a guarded service, never Prisma in the page.** Next.js is explicit
 that a layout cannot gate its segments — they render regardless and land in the RSC payload — so
 there is no one place to put a check for a group of pages, and the check belongs next to the data
 instead (`node_modules/next/dist/docs/01-app/02-guides/authentication.md`, *Layouts and auth
-checks*). Every portal page that reads member data still opens with `pageActor()` — the dashboard
-is static copy and does not — but that is authentication rather than the data guard: it validates a
-cookie the proxy only checked the existence of, and sends the wrong role home. What makes
-restricted data safe is `listAuditLogs`, `listSyncJobs`, `listAuthentikGroups` and
-`getGoogleGroupReconciliation` refusing an actor who may not see them.
+checks*). Every portal page opens with `pageActor()`, but that is authentication rather than the
+data guard: it validates a cookie the proxy only checked the existence of, and sends the wrong role
+home. What makes restricted data safe is `listAuditLogs`, `listSyncJobs`, `listAuthentikGroups`
+and `getGoogleGroupReconciliation` refusing an actor who may not see them.
 
 **The mailing list is reconciled, not synced.** Backstage writes to the group in exactly three
 narrow cases (see Sync architecture) and otherwise only reads it. A full two-way sync would have to
@@ -952,6 +973,31 @@ well-formed `WWW-Authenticate: Basic` challenge, sends no `Authorization` header
 the password as incorrect. `curl` authenticates against the same endpoints and gets its 207. CardDAV
 therefore needs a TLS origin the device trusts; there is nothing to fix in the handler.
 
+**An app link's URL is checked for its protocol, not just its shape.** `javascript:alert(1)` is a
+structurally valid URL, and the card renders `url` straight into an `href`. `z.url({ protocol:
+/^https?$/ })` in `app-link-schemas.ts` is the only thing keeping it out; a plain `z.url()` accepts
+it. A test asserts the refusal.
+
+**The accent is an enum of eight presets, not a colour.** An admin picks from a fixed row of
+swatches, so nothing free-text reaches the CSS and no choice can fight the ground — the presets
+share a lightness and chroma, only the hue moves. The class strings are written out per accent in
+`APP_LINK_TILE_CLASS` rather than interpolated, because Tailwind only ships classes it can see in
+the source.
+
+**The icon picker is a grid, the member picker is a combobox.** Searching works when you already
+know the name you want, which is true of a member and false of an icon — choosing one means
+browsing what exists. Thirty-two glyphs fit in one popover grid with nothing to scroll, which also
+sidesteps shadcn's `CommandList` hiding its own scrollbar and reading as a list of eight.
+
+**Ordering is two arrows, not a `sortOrder` field.** The number is an implementation detail; an
+admin thinks in terms of what sits above what. `moveAppLink` renumbers every row from the resulting
+order rather than swapping two values, so a list that arrived with gaps comes out contiguous.
+
+**The dashboard gets chips, `/apps` gets rows.** The home page is a shortcut bar, and a second copy
+of the card grid would compete with the calendar and machine status once those land. The chips are
+monochrome for the same reason — the accent is what identifies an app in the catalogue, and the
+shortcut bar is not the catalogue.
+
 **Studio leaders history lives on the wiki.** Not an in-app page — the sidebar links to
 `https://wiki.bsstudio.hu/doc/studiovezetok-AdWWlRMuAI`. Edits are rare, pre-2010 entries lack
 contact details, and the wiki already provides editing and audit.
@@ -982,7 +1028,8 @@ contact details, and the wiki already provides editing and audit.
 - Forms are TanStack Form via `useAppForm` (`components/form.tsx`) — no raw `FormData` reads.
   Fields are `<form.AppField>` + a field component, submit buttons go inside `<form.AppForm>`.
   `SelectField` for a handful of options, `ComboboxField` (Popover + cmdk) once the list is long
-  enough to need typing — its filter replaces cmdk's default fuzzy scoring, which matches any name
+  enough to need typing — but only when the reader knows what they are looking for, see the icon
+  grid under Architectural decisions — its filter replaces cmdk's default fuzzy scoring, which matches any name
   carrying the query's letters in order, with an accent-insensitive substring match. A field's
   `hint` renders a note under the input and joins `aria-describedby`
 - Every portal page exports `metadata` (or `generateMetadata`) for a descriptive Hungarian title
