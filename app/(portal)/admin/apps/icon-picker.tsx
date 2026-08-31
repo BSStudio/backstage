@@ -13,6 +13,7 @@ import {
   APP_LINK_ICON_LABELS,
   APP_LINK_ICONS,
   appLinkIcon,
+  appLinkIconLabel,
 } from "@/lib/app-links";
 import { cn } from "@/lib/utils";
 import { APP_LINK_ICON_NAMES, type AppLinkIconName } from "@/types";
@@ -45,7 +46,7 @@ export function IconPicker({
           >
             <span className="flex items-center gap-2">
               <Selected className="size-4" />
-              {APP_LINK_ICON_LABELS[value as AppLinkIconName]}
+              {appLinkIconLabel(value)}
             </span>
             <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
           </Button>

@@ -6,6 +6,7 @@ import {
   APP_LINK_TILE_CLASS,
   appLinkHost,
   appLinkIcon,
+  appLinkIconLabel,
 } from "@/lib/app-links";
 import { APP_LINK_ACCENTS, APP_LINK_ICON_NAMES } from "@/types";
 
@@ -25,6 +26,16 @@ describe("appLinkIcon", () => {
 
   it("falls back for a name no longer on the list", () => {
     expect(appLinkIcon("skull")).toBe(APP_LINK_ICONS.link);
+  });
+});
+
+describe("appLinkIconLabel", () => {
+  it("resolves a stored name to its Hungarian label", () => {
+    expect(appLinkIconLabel("cloud")).toBe(APP_LINK_ICON_LABELS.cloud);
+  });
+
+  it("falls back where appLinkIcon does, so glyph and label agree", () => {
+    expect(appLinkIconLabel("skull")).toBe(APP_LINK_ICON_LABELS.link);
   });
 });
 

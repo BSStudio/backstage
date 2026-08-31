@@ -116,6 +116,13 @@ export const APP_LINK_ICON_LABELS: Record<AppLinkIconName, string> = {
   "layout-dashboard": "Irányítópult",
 };
 
+/** The label behind a stored name, falling back exactly where `appLinkIcon` does. */
+export function appLinkIconLabel(name: string): string {
+  return (
+    APP_LINK_ICON_LABELS[name as AppLinkIconName] ?? APP_LINK_ICON_LABELS.link
+  );
+}
+
 /**
  * Tailwind classes for the tile behind the icon. Written out per accent rather than
  * interpolated - Tailwind only ships classes it can see in the source.
