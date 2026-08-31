@@ -29,9 +29,13 @@ export async function createMemberAction(
   if (!actor) return UNAUTHORIZED;
 
   try {
-    const { member, syncErrors } = await createMember(prisma, input, actor);
+    const { member, username, syncErrors } = await createMember(
+      prisma,
+      input,
+      actor,
+    );
     revalidatePath("/members");
-    return { success: true, data: member, syncErrors };
+    return { success: true, data: { ...member, username }, syncErrors };
   } catch (error) {
     return mapActionError(error);
   }

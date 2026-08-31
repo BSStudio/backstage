@@ -4,6 +4,7 @@ import { CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { CopyField } from "@/components/copy-field";
 import { useAppForm } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +16,7 @@ type CreatedMember = {
   id: string;
   firstName: string;
   lastName: string;
+  username: string;
 };
 
 const EMPTY_MEMBER = {
@@ -181,6 +183,16 @@ function SuccessStep({
           </p>
         </div>
       </div>
+
+      <Card className="max-w-md">
+        <CardContent className="flex flex-col gap-3 px-4">
+          <CopyField label="Felhasználónév" value={created.username} />
+          <p className="text-sm text-muted-foreground">
+            Ezzel a névvel tud belépni. A köszöntő e-mailt kézzel küldjük, és a
+            felhasználónév máshol nem jelenik meg — érdemes most kimásolni.
+          </p>
+        </CardContent>
+      </Card>
 
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => router.push(`/members/${created.id}`)}>

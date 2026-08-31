@@ -79,13 +79,14 @@ describe("createMemberAction", () => {
     mockGetSession.mockResolvedValue(session("LEADER"));
     mockCreateMember.mockResolvedValue({
       member: { id: "new-id" },
+      username: "jkovacs",
       syncErrors: [],
     });
     const { createMemberAction } = await import("@/lib/actions/members");
     const result = await createMemberAction({ firstName: "A" });
     expect(result).toEqual({
       success: true,
-      data: { id: "new-id" },
+      data: { id: "new-id", username: "jkovacs" },
       syncErrors: [],
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");

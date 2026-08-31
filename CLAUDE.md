@@ -837,6 +837,10 @@ shown and is readable by anyone with database access. A retry mints a fresh one.
 collision gives Authentik `jkovacs2` and the website `jkovacs`. Drupal has its own namespace, so a
 collision *there* still fails the create and lands as a `FAILED` job.
 
+`createMember` returns that name alongside the member, and the create form shows it on its
+success screen with a copy button. Nothing stores it, so that screen is the only place it is ever
+visible — and the welcome email carrying it is written by hand.
+
 **Avatar upload and removal are separate audit actions.** The avatar URL is deterministic from the
 member UUID, so a replace would be invisible in the diff without dedicated `AVATAR_UPLOADED` /
 `AVATAR_REMOVED` actions. `removeMemberAvatar` no-ops when there is nothing to remove.
