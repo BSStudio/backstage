@@ -305,7 +305,7 @@ describe("moveAppLink", () => {
     const log = await prisma.auditLog.findFirstOrThrow();
     expect(log.action).toBe("APP_LINK_UPDATED");
     expect(log.targetLabel).toBe("Felhő");
-    expect(log.diff).toEqual({ sortOrder: { old: 2, new: 1 } });
+    expect(log.diff).toEqual({ position: { old: 2, new: 1 } });
   });
 
   it("renumbers a list that arrived with gaps", async () => {

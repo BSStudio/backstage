@@ -174,7 +174,7 @@ export async function moveAppLink(
         actorId: actor.id,
         targetLabel: links[index].name,
         action: "APP_LINK_UPDATED",
-        diff: { sortOrder: { old: index, new: target } } as object,
+        diff: { position: { old: index, new: target } } as object,
       },
     }),
   ]);
