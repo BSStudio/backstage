@@ -81,13 +81,13 @@ export async function updateAppLink(
   const parsed = UpdateAppLinkSchema.safeParse(input);
   if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
 
-  // An emptied description clears the field rather than storing "".
-  const data = Object.fromEntries(
-    Object.entries(parsed.data).map(([key, val]) => [
-      key,
-      val === "" ? null : val,
-    ]),
-  ) as typeof parsed.data;
+  // An emptied description clears the field rather than storing "". Nothing else
+  // can arrive blank: the schema rejects an empty name and an empty URL.
+  const { description } = parsed.data;
+  const data = {
+    ...parsed.data,
+    ...(description !== undefined && { description: description || null }),
+  };
 
   const diff: Record<string, { old: unknown; new: unknown }> = {};
   for (const [key, val] of Object.entries(data)) {
