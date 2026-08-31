@@ -1,5 +1,5 @@
 import { CircleSlash } from "lucide-react";
-import { parseAuditDiff } from "@/lib/members";
+import { parseAuditDiff } from "@/lib/audit";
 
 function EmptyValue() {
   return (
