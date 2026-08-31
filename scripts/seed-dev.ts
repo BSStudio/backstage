@@ -13,7 +13,7 @@ import {
 } from "../types";
 import { type ResolvedGroups, resolveAuthentikGroups } from "./dev-groups";
 import { type DevUser, resolveDevUser } from "./dev-user";
-import { SEED_MEMBERS, type SeedMember } from "./seed-data";
+import { SEED_APP_LINKS, SEED_MEMBERS, type SeedMember } from "./seed-data";
 import { assertLocalDatabase, done, hasFlag, info, step } from "./utils";
 
 const NOW = new Date();
@@ -46,6 +46,7 @@ async function seedDev(): Promise<void> {
     prisma.syncJob.deleteMany(),
     prisma.googleGroupEntry.deleteMany(),
     prisma.cardDAVToken.deleteMany(),
+    prisma.appLink.deleteMany(),
     prisma.leadershipRole.deleteMany(),
     prisma.member.deleteMany(),
     prisma.authentikGroup.deleteMany(),
@@ -56,13 +57,18 @@ async function seedDev(): Promise<void> {
   await prisma.member.createMany({ data: members.map((m) => m.row) });
   await prisma.leadershipRole.createMany({ data: buildRoles(members) });
   await prisma.timelineEntry.createMany({ data: buildTimeline(members) });
-  await prisma.auditLog.createMany({ data: buildAuditLog(members, devUser) });
+  await prisma.appLink.createMany({ data: buildAppLinks() });
+  await prisma.auditLog.createMany({
+    data: [...buildAuditLog(members, devUser), ...buildAppLinkAudit(devUser)],
+  });
   await prisma.syncJob.createMany({ data: buildSyncJobs(members, devUser) });
   await prisma.cardDAVToken.createMany({
     data: buildCardDavTokens(members, devUser),
   });
 
-  info(`${members.length} members, ${groups.rows.length} groups`);
+  info(
+    `${members.length} members, ${groups.rows.length} groups, ${SEED_APP_LINKS.length} apps`,
+  );
   info(`you: ${devUser.lastName} ${devUser.firstName} <${devUser.email}>`);
   info(`carddav password: ${DEV_CARDDAV_TOKEN}`);
   done("Dev database seeded.");
@@ -192,6 +198,25 @@ function buildCardDavTokens(
         ]
       : []),
   ];
+}
+
+function buildAppLinks(): Prisma.AppLinkCreateManyInput[] {
+  return SEED_APP_LINKS.map((link, index) => ({
+    ...link,
+    featured: link.featured ?? false,
+    sortOrder: index,
+  }));
+}
+
+// One entry per app so the audit page has the new action types to render.
+function buildAppLinkAudit(devUser: DevUser): Prisma.AuditLogCreateManyInput[] {
+  return SEED_APP_LINKS.map((link, index) => ({
+    actorId: devUser.id,
+    targetLabel: link.name,
+    action: "APP_LINK_CREATED" as const,
+    diff: { created: { name: link.name, url: link.url } },
+    createdAt: daysAgo(60 - index),
+  }));
 }
 
 function buildRoles(
