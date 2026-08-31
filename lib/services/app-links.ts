@@ -58,6 +58,7 @@ export async function createAppLink(
     await tx.auditLog.create({
       data: {
         actorId: actor.id,
+        targetLabel: data.name,
         action: "APP_LINK_CREATED",
         diff: { created: data } as object,
       },
@@ -102,6 +103,7 @@ export async function updateAppLink(
     await tx.auditLog.create({
       data: {
         actorId: actor.id,
+        targetLabel: data.name ?? link.name,
         action: "APP_LINK_UPDATED",
         diff: diff as object,
       },
@@ -125,6 +127,7 @@ export async function deleteAppLink(
     await tx.auditLog.create({
       data: {
         actorId: actor.id,
+        targetLabel: link.name,
         action: "APP_LINK_DELETED",
         diff: { name: { old: link.name, new: null } } as object,
       },
@@ -169,6 +172,7 @@ export async function moveAppLink(
     prisma.auditLog.create({
       data: {
         actorId: actor.id,
+        targetLabel: links[index].name,
         action: "APP_LINK_UPDATED",
         diff: { sortOrder: { old: index, new: target } } as object,
       },

@@ -161,15 +161,17 @@ model TimelineEntry {
 
 // Low-level audit log: every field change
 model AuditLog {
-  id         String      @id @default(cuid())
-  actorId    String?
-  actor      Member?     @relation("AuditActor", fields: [actorId], references: [id])
+  id          String     @id @default(cuid())
+  actorId     String?
+  actor       Member?    @relation("AuditActor", fields: [actorId], references: [id])
   // Null for entries about no single member, like a Google Group read
-  targetId   String?
-  target     Member?     @relation("AuditTarget", fields: [targetId], references: [id])
-  action     AuditAction
-  diff       Json        // { field: { old, new } }
-  createdAt  DateTime    @default(now())
+  targetId    String?
+  target      Member?    @relation("AuditTarget", fields: [targetId], references: [id])
+  // Snapshot, not a relation: what it names may since have been renamed or deleted
+  targetLabel String?
+  action      AuditAction
+  diff        Json       // { field: { old, new } }
+  createdAt   DateTime   @default(now())
 }
 
 // ─── Sync Jobs ────────────────────────────────────────────────────────────────

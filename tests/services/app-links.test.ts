@@ -109,8 +109,9 @@ describe("createAppLink", () => {
     const log = await prisma.auditLog.findFirstOrThrow();
     expect(log.action).toBe("APP_LINK_CREATED");
     expect(log.actorId).toBe(ADMIN.id);
-    // The entry is about no single member.
+    // The entry is about no single member, so the name is what identifies it.
     expect(log.targetId).toBeNull();
+    expect(log.targetLabel).toBe("Wiki");
   });
 
   it("defaults the accent and the featured flag", async () => {
@@ -187,6 +188,8 @@ describe("updateAppLink", () => {
 
     const log = await prisma.auditLog.findFirstOrThrow();
     expect(log.action).toBe("APP_LINK_UPDATED");
+    // The name it goes by now, so the entry is findable after a rename.
+    expect(log.targetLabel).toBe("Stúdió wiki");
     expect(log.diff).toEqual({
       name: { old: "Wiki", new: "Stúdió wiki" },
       featured: { old: false, new: true },
@@ -257,6 +260,7 @@ describe("deleteAppLink", () => {
 
     const log = await prisma.auditLog.findFirstOrThrow();
     expect(log.action).toBe("APP_LINK_DELETED");
+    expect(log.targetLabel).toBe("Wiki");
     expect(log.diff).toEqual({ name: { old: "Wiki", new: null } });
   });
 
@@ -300,6 +304,7 @@ describe("moveAppLink", () => {
 
     const log = await prisma.auditLog.findFirstOrThrow();
     expect(log.action).toBe("APP_LINK_UPDATED");
+    expect(log.targetLabel).toBe("Felhő");
     expect(log.diff).toEqual({ sortOrder: { old: 2, new: 1 } });
   });
 

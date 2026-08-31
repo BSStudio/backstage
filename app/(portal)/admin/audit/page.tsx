@@ -50,7 +50,7 @@ export default async function AuditPage({
             <TableRow>
               <TableHead className="w-[160px]">Időpont</TableHead>
               <TableHead>Művelet</TableHead>
-              <TableHead>Tag</TableHead>
+              <TableHead>Érintett</TableHead>
               <TableHead>Módosító</TableHead>
               <TableHead>Változás</TableHead>
             </TableRow>
@@ -86,7 +86,7 @@ export default async function AuditPage({
                         {log.target.lastName} {log.target.firstName}
                       </Link>
                     ) : (
-                      "—"
+                      (log.targetLabel ?? "—")
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">

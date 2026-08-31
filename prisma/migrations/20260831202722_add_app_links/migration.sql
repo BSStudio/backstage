@@ -13,6 +13,9 @@ ALTER TYPE "AuditAction" ADD VALUE 'APP_LINK_CREATED';
 ALTER TYPE "AuditAction" ADD VALUE 'APP_LINK_UPDATED';
 ALTER TYPE "AuditAction" ADD VALUE 'APP_LINK_DELETED';
 
+-- AlterTable
+ALTER TABLE "AuditLog" ADD COLUMN     "targetLabel" TEXT;
+
 -- DropForeignKey
 ALTER TABLE "AuditLog" DROP CONSTRAINT "AuditLog_targetId_fkey";
 
