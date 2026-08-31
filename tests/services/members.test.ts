@@ -364,7 +364,7 @@ describe("createMember", () => {
       groups: [],
     });
 
-    await createMember(
+    const { username } = await createMember(
       prisma,
       { firstName: "János", lastName: "Kovács", email: "janos@test.com" },
       ACTOR,
@@ -373,6 +373,7 @@ describe("createMember", () => {
     expect(mockOrchestrateCreateWebsiteUser.mock.calls[0][2]).toMatchObject({
       username: "jkovacs2",
     });
+    expect(username).toBe("jkovacs2");
   });
 
   it("reports a syncError but still creates the member when the website create fails", async () => {

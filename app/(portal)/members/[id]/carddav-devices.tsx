@@ -1,9 +1,10 @@
 "use client";
 
-import { Check, Copy, Plus, Smartphone, Trash2 } from "lucide-react";
+import { Plus, Smartphone, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { CopyField } from "@/components/copy-field";
 import { useAppForm } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,42 +41,6 @@ function formatDate(value: Date | null): string {
   return value
     ? new Date(value).toLocaleString("hu-HU")
     : "Még nem volt használva";
-}
-
-function CopyField({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      toast.error("Nem sikerült a vágólapra másolni");
-      return;
-    }
-    setCopied(true);
-    toast.success("Vágólapra másolva");
-  }
-
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <div className="flex min-w-0 items-center gap-2">
-        <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1.5 font-mono text-sm">
-          {value}
-        </code>
-        <Button type="button" variant="outline" size="icon" onClick={copy}>
-          {copied ? <Check /> : <Copy />}
-          <span className="sr-only">Másolás</span>
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 export function CardDavDevices({

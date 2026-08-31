@@ -208,7 +208,11 @@ export async function createMember(
     await orchestrateAddToGoogleGroup(prisma, member.id, data.email),
   );
 
-  return { member, syncErrors: collectSyncErrors(results) };
+  return {
+    member,
+    username: authentikUser.username,
+    syncErrors: collectSyncErrors(results),
+  };
 }
 
 async function syncAvatarUrl(
