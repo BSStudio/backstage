@@ -56,6 +56,9 @@ enum AuditAction {
   GOOGLE_GROUP_SYNCED
   CARDDAV_TOKEN_CREATED
   CARDDAV_TOKEN_REVOKED
+  APP_LINK_CREATED
+  APP_LINK_UPDATED
+  APP_LINK_DELETED
 }
 
 enum GoogleGroupMatchStatus {
@@ -64,6 +67,19 @@ enum GoogleGroupMatchStatus {
   SECONDARY_EMAIL  // known to be a secondary address
   KNOWN_ADDRESS    // no member behind it, but recognised and accepted
   UNKNOWN          // no match found
+}
+
+// Fixed tile palette for app links. An enum rather than a colour string so nothing
+// free-text can reach the CSS.
+enum AppLinkAccent {
+  BLUE
+  TEAL
+  GREEN
+  AMBER
+  ORANGE
+  RED
+  VIOLET
+  PINK
 }
 
 // ─── Core Models ──────────────────────────────────────────────────────────────
@@ -198,4 +214,22 @@ model CardDAVToken {
   lastUsedAt  DateTime?
 
   @@index([memberId])
+}
+
+// ─── App Links ────────────────────────────────────────────────────────────────
+
+// The studio's other applications, listed on /apps. Config rather than member data:
+// no relations, and nothing here is derived from anything else.
+model AppLink {
+  id           String         @id @default(cuid())
+  name         String
+  description  String?
+  url          String
+  icon         String         // lucide icon name, from the curated list in lib/app-links.ts
+  accent       AppLinkAccent  @default(BLUE)
+  // What the dashboard shows; /apps ignores it and lists everything.
+  featured     Boolean        @default(false)
+  sortOrder    Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 }

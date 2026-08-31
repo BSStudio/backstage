@@ -46,6 +46,9 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   GOOGLE_GROUP_SYNCED: "Google Group beolvasás",
   CARDDAV_TOKEN_CREATED: "CardDAV eszköz hozzáadás",
   CARDDAV_TOKEN_REVOKED: "CardDAV eszköz törlés",
+  APP_LINK_CREATED: "Alkalmazás létrehozás",
+  APP_LINK_UPDATED: "Alkalmazás módosítás",
+  APP_LINK_DELETED: "Alkalmazás törlés",
 };
 
 /** Tailwind classes for audit action badges. */
@@ -65,6 +68,9 @@ export const AUDIT_ACTION_VARIANT: Record<AuditAction, string> = {
   CARDDAV_TOKEN_CREATED: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   CARDDAV_TOKEN_REVOKED:
     "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  APP_LINK_CREATED: "bg-green-500/15 text-green-600 dark:text-green-400",
+  APP_LINK_UPDATED: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  APP_LINK_DELETED: "bg-red-500/15 text-red-600 dark:text-red-400",
 };
 
 /** Parse an audit log diff into structured entries. Returns null for non-diff objects. */
