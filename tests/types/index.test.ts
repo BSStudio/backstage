@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  civilDate,
   currentSemester,
   deriveUsername,
   formatSemester,
@@ -90,6 +91,32 @@ describe("currentSemester", () => {
     vi.setSystemTime(new Date(2026, 7, 31)); // Aug 31, 2026
     expect(currentSemester()).toBe("2025/2026/2");
     vi.useRealTimers();
+  });
+});
+
+// ─── civilDate ───────────────────────────────────────────────────────────────
+
+describe("civilDate", () => {
+  it("resolves the date in the studio zone by default", () => {
+    // 00:30 in Budapest on the 5th is still the 4th in UTC.
+    expect(civilDate(new Date("2026-09-04T22:30:00Z"))).toBe("2026-09-05");
+  });
+
+  it("stays on the previous date before local midnight", () => {
+    expect(civilDate(new Date("2026-09-04T21:30:00Z"))).toBe("2026-09-04");
+  });
+
+  it("pads month and day to two digits", () => {
+    expect(civilDate(new Date("2026-01-02T12:00:00Z"))).toBe("2026-01-02");
+  });
+
+  it("honours an explicit zone, reusing the cached formatter", () => {
+    expect(civilDate(new Date("2026-09-04T22:30:00Z"), "Asia/Tokyo")).toBe(
+      "2026-09-05",
+    );
+    expect(civilDate(new Date("2026-09-04T12:00:00Z"), "Asia/Tokyo")).toBe(
+      "2026-09-04",
+    );
   });
 });
 

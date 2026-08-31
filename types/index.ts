@@ -118,6 +118,38 @@ export function currentSemester(): string {
   return `${year - 1}/${year}/2`;
 }
 
+// ─── Studio time zone ────────────────────────────────────────────────────────
+
+// Every calendar date a member reads is a date at the studio, so grouping and day labels
+// resolve against this zone rather than the server's. The container runs on UTC, where a
+// Monday all-day event lands two hours earlier and falls into the previous week.
+export const STUDIO_TIME_ZONE = "Europe/Budapest";
+
+const civilDateFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/** The calendar date an instant falls on in the given zone, as "YYYY-MM-DD". */
+export function civilDate(
+  instant: Date,
+  timeZone: string = STUDIO_TIME_ZONE,
+): string {
+  let formatter = civilDateFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    civilDateFormatters.set(timeZone, formatter);
+  }
+
+  const parts: Record<string, string> = {};
+  for (const { type, value } of formatter.formatToParts(instant)) {
+    parts[type] = value;
+  }
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
 // ─── Username derivation ─────────────────────────────────────────────────────
 
 // Hungarian digraphs/trigraphs that count as a single "letter"
