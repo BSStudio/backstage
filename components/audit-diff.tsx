@@ -1,5 +1,5 @@
 import { CircleSlash } from "lucide-react";
-import { parseAuditDiff } from "@/lib/members";
+import { parseAuditDiff } from "@/lib/audit";
 
 function EmptyValue() {
   return (
@@ -18,7 +18,7 @@ export function AuditDiff({ diff }: { diff: unknown }) {
   const parsed = parseAuditDiff(diff);
 
   if (parsed === null) return <span className="text-muted-foreground">—</span>;
-  if (parsed === "created") return <span>Új tag</span>;
+  if (parsed === "created") return <span>Létrehozva</span>;
 
   return (
     <div className="flex flex-col gap-0.5">

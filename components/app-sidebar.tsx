@@ -67,7 +67,6 @@ const mainNav: NavItem[] = [
     title: NAV_LABELS.apps,
     url: "/apps",
     icon: LayoutGrid,
-    disabled: true,
   },
   {
     title: NAV_LABELS.computers,
@@ -97,7 +96,6 @@ const adminNav: NavItem[] = [
     title: NAV_LABELS.adminApps,
     url: "/admin/apps",
     icon: Settings,
-    disabled: true,
   },
 ];
 

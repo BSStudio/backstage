@@ -54,6 +54,16 @@
   --color-status-active-alumni: var(--status-active-alumni);
   --color-status-alumni: var(--status-alumni);
   --color-status-archived: var(--status-archived);
+
+  /* App link tile palette */
+  --color-app-blue: var(--app-blue);
+  --color-app-teal: var(--app-teal);
+  --color-app-green: var(--app-green);
+  --color-app-amber: var(--app-amber);
+  --color-app-orange: var(--app-orange);
+  --color-app-red: var(--app-red);
+  --color-app-violet: var(--app-violet);
+  --color-app-pink: var(--app-pink);
 }
 
 :root {
@@ -97,6 +107,16 @@
   --status-active-alumni: oklch(0.65 0.02 250); /* light gray */
   --status-alumni: oklch(0.5 0.02 250); /* gray */
   --status-archived: oklch(0.55 0.24 27); /* red */
+
+  /* App link tile palette (light) */
+  --app-blue: oklch(0.5 0.17 248);
+  --app-teal: oklch(0.52 0.12 195);
+  --app-green: oklch(0.5 0.16 150);
+  --app-amber: oklch(0.55 0.14 75);
+  --app-orange: oklch(0.56 0.16 45);
+  --app-red: oklch(0.55 0.2 25);
+  --app-violet: oklch(0.5 0.19 285);
+  --app-pink: oklch(0.55 0.19 340);
 }
 
 .dark {
@@ -139,6 +159,16 @@
   --status-active-alumni: oklch(0.75 0.02 250); /* light gray */
   --status-alumni: oklch(0.55 0.02 250); /* gray */
   --status-archived: oklch(0.704 0.191 22.216); /* red */
+
+  /* App link tile palette (dark) */
+  --app-blue: oklch(0.7 0.15 248);
+  --app-teal: oklch(0.72 0.11 195);
+  --app-green: oklch(0.72 0.15 150);
+  --app-amber: oklch(0.78 0.13 75);
+  --app-orange: oklch(0.75 0.15 45);
+  --app-red: oklch(0.7 0.17 25);
+  --app-violet: oklch(0.7 0.16 285);
+  --app-pink: oklch(0.72 0.16 340);
 }
 
 @layer base {

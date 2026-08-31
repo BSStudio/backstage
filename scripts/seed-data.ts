@@ -1,4 +1,8 @@
-import type { MembershipStatus } from "../app/generated/prisma/client";
+import type {
+  AppLinkAccent,
+  MembershipStatus,
+} from "../app/generated/prisma/client";
+import type { AppLinkIconName } from "../types";
 
 // The fallback UUIDs are invented, so a default seed never points at a real Authentik instance.
 // Real ones belong in `.dev-authentik-groups.json` (gitignored) — see scripts/dev-groups.ts.
@@ -467,5 +471,77 @@ export const SEED_MEMBERS: SeedMember[] = [
     status: "MEMBER_CANDIDATE",
     joinedSemestersAgo: 6,
     archivedSemestersAgo: 5,
+  },
+];
+
+// Plausible rather than authoritative: dev data, same as the invented members above.
+export interface SeedAppLink {
+  name: string;
+  description: string | null;
+  url: string;
+  icon: AppLinkIconName;
+  accent: AppLinkAccent;
+  featured?: boolean;
+}
+
+export const SEED_APP_LINKS: SeedAppLink[] = [
+  {
+    name: "Weboldal",
+    description: "A stúdió publikus oldala",
+    url: "https://bsstudio.hu",
+    icon: "globe",
+    accent: "BLUE",
+    featured: true,
+  },
+  {
+    name: "Wiki",
+    description: "Dokumentáció és jegyzőkönyvek",
+    url: "https://wiki.bsstudio.hu",
+    icon: "book-open",
+    accent: "TEAL",
+    featured: true,
+  },
+  {
+    name: "Kérelemkezelő",
+    description: "Forgatási kérelmek",
+    url: "https://request.bsstudio.hu",
+    icon: "clipboard-list",
+    accent: "GREEN",
+    featured: true,
+  },
+  {
+    name: "Authentik",
+    description: "Fiók és jelszó",
+    url: "https://auth.bsstudio.hu",
+    icon: "shield-check",
+    accent: "ORANGE",
+  },
+  {
+    name: "Felhő",
+    description: "Közös fájltár",
+    url: "https://cloud.bsstudio.hu",
+    icon: "cloud",
+    accent: "VIOLET",
+  },
+  {
+    name: "Naptár",
+    description: "Forgatások és események",
+    url: "https://calendar.google.com",
+    icon: "calendar",
+    accent: "RED",
+  },
+  {
+    name: "Levelezés",
+    description: "A stúdió postafiókja",
+    url: "https://mail.google.com",
+    icon: "mail",
+    accent: "AMBER",
+  },
+  {
+    name: "Gépfoglalás",
+    description: null,
+    url: "https://foglalas.bsstudio.hu",
+    icon: "monitor",
+    accent: "PINK",
   },
 ];

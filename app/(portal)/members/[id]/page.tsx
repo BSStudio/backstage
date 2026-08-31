@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
+import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/audit";
 import { canManageMembers, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listMemberAuditLogs } from "@/lib/services/audit";
