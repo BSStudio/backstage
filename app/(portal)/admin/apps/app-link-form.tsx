@@ -109,7 +109,10 @@ export function AppLinkForm({
                   title={APP_LINK_ACCENT_LABELS[accent]}
                   aria-label={APP_LINK_ACCENT_LABELS[accent]}
                   aria-pressed={field.state.value === accent}
-                  onClick={() => field.handleChange(accent)}
+                  onClick={() => {
+                    field.handleChange(accent);
+                    field.handleBlur();
+                  }}
                   className={cn(
                     "grid size-9 place-items-center rounded-lg border border-transparent transition-colors",
                     APP_LINK_TILE_CLASS[accent as AppLinkAccent],
