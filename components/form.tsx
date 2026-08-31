@@ -287,6 +287,39 @@ function ComboboxField({
   );
 }
 
+function CheckboxField({ label, hint }: { label: string; hint?: string }) {
+  const field = useFieldContext<boolean>();
+  const errors = useFieldErrors();
+  const errorId = `${field.name}-error`;
+  const hintId = `${field.name}-hint`;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={field.name}
+          checked={field.state.value}
+          onCheckedChange={(checked) => {
+            field.handleChange(checked === true);
+            // A click is a finished interaction; there is no later blur to wait for.
+            field.handleBlur();
+          }}
+          aria-describedby={hint ? hintId : undefined}
+        />
+        <Label htmlFor={field.name} className="font-normal">
+          {label}
+        </Label>
+      </div>
+      {hint && (
+        <p id={hintId} className="text-muted-foreground text-xs">
+          {hint}
+        </p>
+      )}
+      <FieldErrors id={errorId} messages={errors} />
+    </div>
+  );
+}
+
 function CheckboxGroupField({
   label,
   options,
@@ -369,6 +402,7 @@ export const { useAppForm } = createFormHook({
     TextField,
     SelectField,
     ComboboxField,
+    CheckboxField,
     CheckboxGroupField,
   },
   formComponents: { SubmitButton },

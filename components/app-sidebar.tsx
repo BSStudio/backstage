@@ -96,7 +96,6 @@ const adminNav: NavItem[] = [
     title: NAV_LABELS.adminApps,
     url: "/admin/apps",
     icon: Settings,
-    disabled: true,
   },
 ];
 

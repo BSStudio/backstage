@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   APP_LINK_ACCENT_LABELS,
   APP_LINK_ICON_LABELS,
-  APP_LINK_ICON_OPTIONS,
   APP_LINK_ICONS,
   APP_LINK_TILE_CLASS,
   appLinkHost,
@@ -16,14 +15,6 @@ describe("APP_LINK_ICONS", () => {
       expect(APP_LINK_ICONS[name]).toBeDefined();
       expect(APP_LINK_ICON_LABELS[name]).toBeTruthy();
     }
-  });
-
-  it("offers every icon in the picker, in list order", () => {
-    expect(APP_LINK_ICON_OPTIONS).toHaveLength(APP_LINK_ICON_NAMES.length);
-    expect(APP_LINK_ICON_OPTIONS[0]).toEqual({
-      value: "globe",
-      label: "Földgömb",
-    });
   });
 });
 

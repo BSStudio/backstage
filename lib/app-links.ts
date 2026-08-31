@@ -34,7 +34,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { AppLinkAccent } from "@/app/generated/prisma/client";
-import { APP_LINK_ICON_NAMES, type AppLinkIconName } from "@/types";
+import type { AppLinkIconName } from "@/types";
 
 /** The lucide component behind every name the picker offers. */
 export const APP_LINK_ICONS: Record<AppLinkIconName, LucideIcon> = {
@@ -115,11 +115,6 @@ export const APP_LINK_ICON_LABELS: Record<AppLinkIconName, string> = {
   headphones: "Fejhallgató",
   "layout-dashboard": "Irányítópult",
 };
-
-export const APP_LINK_ICON_OPTIONS = APP_LINK_ICON_NAMES.map((name) => ({
-  value: name,
-  label: APP_LINK_ICON_LABELS[name],
-}));
 
 /**
  * Tailwind classes for the tile behind the icon. Written out per accent rather than
