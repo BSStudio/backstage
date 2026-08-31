@@ -1,6 +1,7 @@
 ﻿import "dotenv/config";
 import { createHash } from "node:crypto";
 import type { MembershipStatus, Prisma } from "../app/generated/prisma/client";
+import { hashCardDavToken } from "../lib/carddav/tokens";
 import prisma from "../lib/prisma";
 import { NO_AUTHENTIK_ACCOUNT_REASON } from "../lib/sync-jobs";
 import {
@@ -17,6 +18,9 @@ import { assertLocalDatabase, done, hasFlag, info, step } from "./utils";
 
 const NOW = new Date();
 const DEV_USER_JOINED_SEMESTERS_AGO = 6;
+
+// Fixed so the CardDAV endpoint can be exercised with curl straight after a seed
+const DEV_CARDDAV_TOKEN = "dev-carddav-token";
 
 interface BuiltMember {
   row: Prisma.MemberCreateManyInput;
@@ -41,6 +45,7 @@ async function seedDev(): Promise<void> {
     prisma.timelineEntry.deleteMany(),
     prisma.syncJob.deleteMany(),
     prisma.googleGroupEntry.deleteMany(),
+    prisma.cardDAVToken.deleteMany(),
     prisma.leadershipRole.deleteMany(),
     prisma.member.deleteMany(),
     prisma.authentikGroup.deleteMany(),
@@ -53,9 +58,13 @@ async function seedDev(): Promise<void> {
   await prisma.timelineEntry.createMany({ data: buildTimeline(members) });
   await prisma.auditLog.createMany({ data: buildAuditLog(members, devUser) });
   await prisma.syncJob.createMany({ data: buildSyncJobs(members, devUser) });
+  await prisma.cardDAVToken.createMany({
+    data: buildCardDavTokens(members, devUser),
+  });
 
   info(`${members.length} members, ${groups.rows.length} groups`);
   info(`you: ${devUser.lastName} ${devUser.firstName} <${devUser.email}>`);
+  info(`carddav password: ${DEV_CARDDAV_TOKEN}`);
   done("Dev database seeded.");
 }
 
@@ -141,6 +150,48 @@ function buildDevMember(devUser: DevUser): BuiltMember {
       updatedAt: NOW,
     },
   };
+}
+
+function daysAgo(days: number): Date {
+  return new Date(NOW.getTime() - days * 86_400_000);
+}
+
+// Two for you — one that has synced and one that never has, so both states of the "last
+// used" column render — and one on somebody else, so the table is not empty when a leader
+// opens their profile.
+function buildCardDavTokens(
+  members: BuiltMember[],
+  devUser: DevUser,
+): Prisma.CardDAVTokenCreateManyInput[] {
+  const other = members.find(({ row }) => row.id !== devUser.id);
+
+  return [
+    {
+      memberId: devUser.id,
+      label: "Telefon",
+      tokenHash: hashCardDavToken(DEV_CARDDAV_TOKEN),
+      createdAt: daysAgo(30),
+      lastUsedAt: daysAgo(1),
+    },
+    {
+      memberId: devUser.id,
+      label: "Laptop",
+      tokenHash: hashCardDavToken(`${DEV_CARDDAV_TOKEN}-laptop`),
+      createdAt: daysAgo(3),
+      lastUsedAt: null,
+    },
+    ...(other
+      ? [
+          {
+            memberId: other.row.id,
+            label: "Telefon",
+            tokenHash: hashCardDavToken(`${DEV_CARDDAV_TOKEN}-${other.row.id}`),
+            createdAt: daysAgo(12),
+            lastUsedAt: daysAgo(2),
+          },
+        ]
+      : []),
+  ];
 }
 
 function buildRoles(

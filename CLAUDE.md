@@ -77,6 +77,12 @@ a local-prefixed id, so assigning *them* a role produces `SKIPPED` jobs and neve
 the role to yourself. For the same reason the seeded Authentik `CREATE_USER` and the FAILED
 Authentik job both belong to your row — it is the only one a real retry can reach.
 
+Three `CardDAVToken` rows are seeded: two on your row — one that has synced and one that never
+has, so both states of the "last used" column render — and one on another member, so the table is
+not empty when a leader opens someone else's profile. Your first device's password is the fixed
+`dev-carddav-token`, printed at the end of a seed, so the endpoint can be exercised with `curl`
+without clicking through the UI.
+
 The scripts refuse to run against a database whose host is not local unless passed `--force`.
 
 ---
@@ -107,6 +113,9 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `lib/permissions.ts` — every role rule: `can*` predicates for the UI, `ensureCan*` guards that
   throw `ForbiddenError` for services
 - `lib/api-client-auth.ts` — bearer verification for machine-to-machine callers
+- `lib/carddav/` — the read-only CardDAV endpoint: `paths.ts` (URL shapes, recognised without
+  loading the rest), `handler.ts` (method dispatch + Basic auth), `vcard.ts`, `xml.ts`. Served from
+  `proxy.ts`, not `app/api/` — see Architectural decisions
 - `lib/rate-limit.ts` — in-memory fixed-window rate limiter. State is per process, so every limit
   it enforces is per replica; the single-replica deployment is what makes that correct
 - `lib/observability/` — `sentry.ts` (shared init options), `scrub.ts` (PII redaction),
@@ -124,7 +133,8 @@ The scripts refuse to run against a database whose host is not local unless pass
   `authentik-contract.ts` + its `authentik-contract.json` snapshot, and `google-group-probe.ts`,
   which lists the configured group through the real client to check credentials
 - `tests/` — mirrors the source layout; `setup.ts` spins Testcontainers Postgres
-- `proxy.ts` — route protection (Next.js 16 convention)
+- `proxy.ts` — route protection (Next.js 16 convention), and the CardDAV endpoint, which cannot
+  live in a route handler
 - `instrumentation.ts`, `instrumentation-client.ts`, `sentry.{server,edge}.config.ts` — Sentry
   bootstrap (Next.js 16 conventions)
 - `prisma/schema.prisma` — single schema, client generated to `app/generated/prisma/`
@@ -147,8 +157,11 @@ The scripts refuse to run against a database whose host is not local unless pass
    (`lib/sync/authentik/orchestrators.ts`) — the attribute set is sent wholesale, see below
 4. Should it reach the website? Add to `WEBSITE_SYNCED_FIELDS` *and* the field mapping inside
    `updateMember`, and to `UpdateWebsiteUserInput` (`lib/website/users.ts`)
-5. UI: `members/new/page.tsx`, `members/[id]/member-edit-sheet.tsx`, table `columns.tsx`
-6. Tests: `tests/services/members.test.ts`
+5. Should it reach a synced phone? Almost certainly not — a vCard carries contact details only,
+   see Architectural decisions. If it does, `VCardMember` and `renderVCard`
+   (`lib/carddav/vcard.ts`) *and* the projection in `listCardDavMembers`
+6. UI: `members/new/page.tsx`, `members/[id]/member-edit-sheet.tsx`, table `columns.tsx`
+7. Tests: `tests/services/members.test.ts`
 
 **Add a sync operation**
 1. Low-level call in `lib/authentik/*` (then see below), `lib/website/users.ts` or
@@ -239,6 +252,10 @@ The two hand-set states survive a refresh, everything else is recomputed, and no
 either way. `KNOWN_ADDRESS` requires a note: with no member link it is the only record of what
 the address is.
 
+**CardDAVToken** — one row per device a member set up for contact sync. `tokenHash` is the SHA-256
+of a 256-bit random token; the token itself is shown once and stored nowhere. `label` names the
+device, `lastUsedAt` moves at most once every five minutes. Deleting the row revokes the device.
+
 ### Membership status
 
 ```prisma
@@ -251,10 +268,12 @@ enum MembershipStatus {
 }
 ```
 
-`ACTIVE_ALUMNI` and `ALUMNI` map to the **same** Authentik group and the **same** mailing list —
-the distinction exists only in the DB and the UI, with no permission difference. `ALUMNI_STATUSES`
-and `isAlumniStatus()` in `types/index.ts` are the shared predicate; the members and alumni pages
-keep their own filters because they enumerate different concepts.
+`ACTIVE_ALUMNI` and `ALUMNI` map to the **same** Authentik group and the **same** mailing list, and
+carry no permission difference. The one place the two part ways is the CardDAV address book, which
+carries `ACTIVE_ALUMNI` and drops `ALUMNI` (see Architectural decisions); everywhere else the
+distinction is a badge. `ALUMNI_STATUSES` and `isAlumniStatus()` in `types/index.ts` are the shared
+predicate; the members and alumni pages keep their own filters because they enumerate different
+concepts.
 
 ### Semester format
 
@@ -299,13 +318,19 @@ linking and `/update-user` — which without `input: false` would let a member s
 belong to Authentik.
 
 `proxy.ts` lets `/login`, `/api/auth`, `/api/usernames`, `/api/health` and `/monitoring` through,
-and turns everything else away when no session cookie is present: a page request redirects to
-`/login` with the original path as `callbackUrl`, an `/api/` one gets a 401 JSON body instead.
-Redirecting an API call answered it with the login HTML under a 200, which a `fetch` cannot tell
-from a real response. Its matcher
-excludes static assets and image extensions — which is why avatar URLs are readable without auth.
-`/api/usernames` is public to the proxy because it carries a bearer token instead of a session
-cookie; the route itself does the authenticating.
+and turns everything else away when no session cookie is present. Only a `GET` or `HEAD` outside
+`/api/` is redirected to `/login` with the original path as `callbackUrl`; everything else — an API
+call, a Server Action `POST` on an expired session, a phone probing for a collection — gets a 401
+JSON body. The rule is the method rather than the path prefix because only a browser navigation can
+act on a redirect: anything else resolves with the login HTML under a 200 and cannot tell that apart
+from a real answer. Its matcher excludes static assets and image extensions — which is why avatar
+URLs are readable without auth. `/api/usernames` is public to the proxy because it carries a bearer
+token instead of a session cookie; the route itself does the authenticating.
+
+CardDAV is checked ahead of all of that, and by method as well as by path: a WebDAV verb reaches
+`handleCardDav` wherever it is aimed, because a client hunting for a collection points them at
+arbitrary paths and cannot read a login page. `OPTIONS` is deliberately not one of them — it is also
+an ordinary CORS preflight.
 
 The proxy only sees whether a cookie *exists*. `requireAuth()` is what rejects one that is expired
 or forged, so it is still the check that matters — the proxy only decides what an anonymous caller
@@ -360,6 +385,20 @@ issuer and an audience, so a member's browser access token is a structurally val
 group membership is the only boundary. In the shared helpers it would become a valid credential on
 every route, admin ones included.
 
+### CardDAV access
+
+A phone's CardDAV client cannot fetch an Authentik token, so `/api/carddav` authenticates with HTTP
+Basic against per-device tokens. `authenticateCardDavToken` hashes what arrives and looks the digest
+up on a unique index. The **username is ignored**: the token is the whole credential, and checking
+an address would break every device a member owns the day a leader corrects their email. An
+archived member's tokens stop working.
+
+Like `lib/api-client-auth.ts`, this sits outside `lib/session.ts` — a different credential on a
+different boundary, which in the shared helpers would become a valid credential everywhere.
+
+Minting is self-service only. A leader may list and delete another member's devices, so a lost
+phone can be cut off, but never mint one. Both actions are audited.
+
 ---
 
 ## API endpoints
@@ -396,6 +435,12 @@ Machine-to-machine access). Returns `{ username }` and nothing else. Read-only: 
 nor reserves, so the name can be taken by the time the caller uses it — callers handle the create
 failure. 30 requests per minute per service account, and a 60-second in-memory cache per name,
 because every miss fans out to Authentik's user API once per collision candidate.
+
+`/api/carddav` — read-only CardDAV, and **not a route handler**: PROPFIND and REPORT never reach
+one, so `proxy.ts` serves the whole tree (see Architectural decisions). `/.well-known/carddav` 301s
+to it, `/api/carddav/principal/` is the principal (Apple's `/principals` is an alias for it), and
+`/api/carddav/addressbook/` holds one `<id>.vcf` per member still around — archived members and
+plain `ALUMNI` are left out, `ACTIVE_ALUMNI` are not. Reads `APP_URL` to absolutise avatar URLs.
 
 `GET /api/health` — container liveness. Public to the proxy and unauthenticated: it answers
 `{ status: "ok" }`, or 503 once the database round trip fails.
@@ -868,6 +913,40 @@ field renders two messages at once and keeps the stale one until that cause fire
 **The edit sheet's forms live inside `SheetContent`.** Radix unmounts it on close, so both forms
 remount with the current member data on every open — no reset effect, and a discarded edit cannot
 survive a reopen.
+
+**CardDAV is served from the proxy, not a route handler.** Next answers 405 to any method outside
+its seven known ones before a route handler runs, and CardDAV needs PROPFIND and REPORT — the proxy
+is the only place in the request path that sees them. It defaults to the Node.js runtime in Next 16,
+so Prisma works there; the import is dynamic and `isCardDavPath` lives in its own module, so no
+other request pays for the handler's module graph.
+
+**`skipTrailingSlashRedirect` is on for CardDAV's sake.** WebDAV collection URLs end in a slash, and
+Next's own trailing-slash redirect fires ahead of the proxy — `/api/carddav/` answered 308 and a
+client following the hrefs the server advertises never arrived. Every other path keeps the
+behaviour, reinstated in `proxy.ts` from a plain `URL`: `NextURL` records the trailing slash on
+construction and puts it back on serialisation, which redirected the path to itself.
+
+**Device tokens are SHA-256, not bcrypt.** The token is 256 random bits with no low-entropy
+structure to stretch, so a slow KDF buys nothing against brute force and costs a derivation on every
+sync poll — a phone re-authenticates constantly. A plain digest also makes verification a
+unique-index hit rather than a scan over the member's tokens.
+
+**A vCard carries contact details only.** Name, nickname, email, mobile, avatar. Membership status,
+joined semester, dorm room, university and leadership role stay out: a phone's address book has no
+use for them, and they would sit unencrypted on every synced device and in whatever backup it feeds.
+A test asserts those properties stay absent.
+
+**The address book drops `ALUMNI` and keeps `ACTIVE_ALUMNI`.** The alumni roster grows by roughly ten
+a semester and never shrinks, so syncing it would bury every member's contacts under people the
+studio has not seen in years. `ACTIVE_ALUMNI` exists to mark an alumnus still around, which is
+exactly who is worth carrying — so this is the one place where the difference between the two
+statuses does something rather than label a badge.
+
+**Apple clients will not send Basic credentials over cleartext HTTP.** Established by testing, not
+from documentation: against `http://<lan-ip>:3000` an iPhone completes discovery, receives a
+well-formed `WWW-Authenticate: Basic` challenge, sends no `Authorization` header at all, and reports
+the password as incorrect. `curl` authenticates against the same endpoints and gets its 207. CardDAV
+therefore needs a TLS origin the device trusts; there is nothing to fix in the handler.
 
 **Studio leaders history lives on the wiki.** Not an in-app page — the sidebar links to
 `https://wiki.bsstudio.hu/doc/studiovezetok-AdWWlRMuAI`. Edits are rare, pre-2010 entries lack

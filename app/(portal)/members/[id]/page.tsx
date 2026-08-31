@@ -26,9 +26,11 @@ import { AUDIT_ACTION_LABELS, AUDIT_ACTION_VARIANT } from "@/lib/members";
 import { canManageMembers, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listMemberAuditLogs } from "@/lib/services/audit";
+import { listCardDavTokens } from "@/lib/services/carddav";
 import { findMember, listAuthentikGroups } from "@/lib/services/members";
 import { pageActor } from "@/lib/session";
 import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
+import { CardDavDevices } from "./carddav-devices";
 import { MemberAvatar } from "./member-avatar";
 import { MemberEditButton } from "./member-edit-button";
 
@@ -67,6 +69,10 @@ export default async function MemberDetailPage({
 
   const auditLogs = canSeeAuditLog
     ? await listMemberAuditLogs(prisma, actor, id)
+    : [];
+
+  const cardDavDevices = canEdit
+    ? await listCardDavTokens(prisma, actor, id)
     : [];
 
   return (
@@ -216,6 +222,15 @@ export default async function MemberDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {canEdit && (
+        <CardDavDevices
+          memberId={member.id}
+          email={member.email}
+          canCreate={isSelf}
+          devices={cardDavDevices}
+        />
+      )}
 
       {/* Audit section (admin only) */}
       {canSeeAuditLog && (

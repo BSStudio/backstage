@@ -54,6 +54,8 @@ enum AuditAction {
   AVATAR_UPLOADED
   AVATAR_REMOVED
   GOOGLE_GROUP_SYNCED
+  CARDDAV_TOKEN_CREATED
+  CARDDAV_TOKEN_REVOKED
 }
 
 enum GoogleGroupMatchStatus {
@@ -108,6 +110,7 @@ model Member {
   auditLogsTargeted   AuditLog[]            @relation("AuditTarget")
   syncJobs            SyncJob[]
   googleGroupEntries  GoogleGroupEntry[]
+  cardDavTokens       CardDAVToken[]
 }
 
 // ─── Leadership ───────────────────────────────────────────────────────────────
@@ -177,4 +180,22 @@ model GoogleGroupEntry {
   memberId     String?
   member       Member?                 @relation(fields: [memberId], references: [id])
   note         String?                 // e.g. "xy's secondary email"
+}
+
+// ─── CardDAV ──────────────────────────────────────────────────────────────────
+
+// One row per device. CardDAV sends HTTP Basic on every poll, which no Authentik
+// credential can answer; revoking a lost phone is deleting its row.
+model CardDAVToken {
+  id          String     @id @default(cuid())
+  memberId    String
+  member      Member     @relation(fields: [memberId], references: [id])
+  label       String     // the device it was minted for, e.g. "iPhone"
+  // SHA-256 of 256 random bits: nothing low-entropy to stretch, so bcrypt would only
+  // cost a derivation per poll, and a digest keeps verification an index hit.
+  tokenHash   String     @unique
+  createdAt   DateTime   @default(now())
+  lastUsedAt  DateTime?
+
+  @@index([memberId])
 }
