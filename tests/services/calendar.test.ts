@@ -186,7 +186,7 @@ describe("getDashboardCalendar", () => {
     ]);
   });
 
-  it("clamps a following event that also began before today", async () => {
+  it("ranks two overlapping stretches by length, shortest first", async () => {
     listCalendarEvents.mockResolvedValue([
       allDay("hosszú tábor", "2026-09-13", "2026-09-18"),
       allDay("rövid tábor", "2026-09-14", "2026-09-17"),
@@ -195,13 +195,11 @@ describe("getDashboardCalendar", () => {
     const result = await getCalendar();
     if (result.status !== "ok") throw new Error(result.status);
 
-    // The second one is grouped too, and lands in the current week rather than in the
-    // Monday bucket its own start date would point at.
-    // Both are running, so both belong to the hero and neither reaches the list.
     expect(result.running.map((event) => event.id)).toEqual([
       "rövid tábor",
       "hosszú tábor",
     ]);
+    // Both belong to the hero, which renders them in full, so neither repeats below it.
     expect(result.weeks[0].events).toEqual([]);
   });
 
