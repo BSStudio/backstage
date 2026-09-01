@@ -157,6 +157,12 @@ export function addDays(date: string, days: number): string {
   return shifted.toISOString().slice(0, 10);
 }
 
+/** The Monday of the week a date falls in — the week a Hungarian calendar starts on. */
+export function startOfWeek(date: string): string {
+  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return addDays(date, -((weekday + 6) % 7));
+}
+
 // ─── Username derivation ─────────────────────────────────────────────────────
 
 // Hungarian digraphs/trigraphs that count as a single "letter"

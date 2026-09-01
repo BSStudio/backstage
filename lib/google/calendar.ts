@@ -9,19 +9,26 @@ export const GOOGLE_SCOPE_CALENDAR_READONLY =
 const MAX_PAGES = 5;
 const PAGE_SIZE = 250;
 
-export interface CalendarEvent {
+interface CalendarEventBase {
   id: string;
   title: string;
   location: string | null;
-  allDay: boolean;
   /** First calendar date at the studio, "YYYY-MM-DD". Grouping and day labels compare this. */
   date: string;
   /** Last date the event covers, inclusive. Equal to `date` for anything single-day. */
   endDate: string;
-  /** Absolute instants, null on an all-day event — it has no time to show. */
-  startsAt: Date | null;
-  endsAt: Date | null;
 }
+
+// A union rather than nullable instants on one shape: an all-day event has no time at all,
+// and a timed one always has a start. Callers narrow on `allDay` to render either, which is
+// a distinction the UI has to make anyway.
+export type CalendarEvent =
+  | (CalendarEventBase & { allDay: true; startsAt: null; endsAt: null })
+  | (CalendarEventBase & {
+      allDay: false;
+      startsAt: Date;
+      endsAt: Date | null;
+    });
 
 interface ApiEvent {
   id?: string;

@@ -12,6 +12,7 @@ import {
   MEMBERSHIP_STATUSES,
   parseSemester,
   resolveUserRole,
+  startOfWeek,
 } from "@/types";
 
 // ─── parseSemester ───────────────────────────────────────────────────────────
@@ -136,6 +137,26 @@ describe("addDays", () => {
 
   it("is unaffected by the DST change the shifted range spans", () => {
     expect(addDays("2026-10-24", 3)).toBe("2026-10-27");
+  });
+});
+
+// ─── startOfWeek ─────────────────────────────────────────────────────────────
+
+describe("startOfWeek", () => {
+  it("returns the Monday of a midweek date", () => {
+    expect(startOfWeek("2026-09-16")).toBe("2026-09-14");
+  });
+
+  it("leaves a Monday where it is", () => {
+    expect(startOfWeek("2026-09-14")).toBe("2026-09-14");
+  });
+
+  it("keeps Sunday in the week that is ending, not the one starting", () => {
+    expect(startOfWeek("2026-09-20")).toBe("2026-09-14");
+  });
+
+  it("steps back across a month boundary", () => {
+    expect(startOfWeek("2026-09-01")).toBe("2026-08-31");
   });
 });
 
