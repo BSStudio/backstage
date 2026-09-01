@@ -3,6 +3,7 @@ import {
   addDays,
   civilDate,
   currentSemester,
+  daysBetween,
   deriveUsername,
   formatSemester,
   hasAuthentikAccount,
@@ -157,6 +158,20 @@ describe("startOfWeek", () => {
 
   it("steps back across a month boundary", () => {
     expect(startOfWeek("2026-09-01")).toBe("2026-08-31");
+  });
+});
+
+// ─── daysBetween ─────────────────────────────────────────────────────────────
+
+describe("daysBetween", () => {
+  it("counts forward and back", () => {
+    expect(daysBetween("2026-09-14", "2026-09-16")).toBe(2);
+    expect(daysBetween("2026-09-16", "2026-09-14")).toBe(-2);
+    expect(daysBetween("2026-09-16", "2026-09-16")).toBe(0);
+  });
+
+  it("is unaffected by the DST change the range spans", () => {
+    expect(daysBetween("2026-10-24", "2026-10-27")).toBe(3);
   });
 });
 

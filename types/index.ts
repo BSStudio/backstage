@@ -163,6 +163,12 @@ export function startOfWeek(date: string): string {
   return addDays(date, -((weekday + 6) % 7));
 }
 
+/** Whole days from one date to another, negative when the second is earlier. */
+export function daysBetween(from: string, to: string): number {
+  const ms = Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`);
+  return Math.round(ms / 86_400_000);
+}
+
 // ─── Username derivation ─────────────────────────────────────────────────────
 
 // Hungarian digraphs/trigraphs that count as a single "letter"
