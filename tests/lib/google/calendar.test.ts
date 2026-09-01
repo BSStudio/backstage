@@ -87,6 +87,7 @@ describe("listCalendarEvents", () => {
         location: "Klubhelyiség",
         allDay: false,
         date: "2026-09-02",
+        endDate: "2026-09-02",
         startsAt: new Date("2026-09-02T18:00:00+02:00"),
         endsAt: new Date("2026-09-02T20:00:00+02:00"),
       },
@@ -112,7 +113,7 @@ describe("listCalendarEvents", () => {
       items: [
         {
           id: "e2",
-          summary: "Gólyatábor",
+          summary: "Egynapos tábor",
           start: { date: "2026-09-14" },
           end: { date: "2026-09-15" },
         },
@@ -128,13 +129,77 @@ describe("listCalendarEvents", () => {
     // A Monday all-day event: UTC midnight would place it in the previous week.
     expect(event).toEqual({
       id: "e2",
-      title: "Gólyatábor",
+      title: "Egynapos tábor",
       location: null,
       allDay: true,
       date: "2026-09-14",
+      endDate: "2026-09-14",
       startsAt: null,
       endsAt: null,
     });
+  });
+
+  it("steps back from the exclusive end of a multi-day all-day event", async () => {
+    googleFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "e10",
+          summary: "Többnapos tábor",
+          start: { date: "2026-09-18" },
+          end: { date: "2026-09-22" },
+        },
+      ],
+    });
+
+    const { listCalendarEvents } = await importCalendar();
+    const [event] = await listCalendarEvents({
+      timeMin: TIME_MIN,
+      timeMax: TIME_MAX,
+    });
+
+    expect(event).toMatchObject({ date: "2026-09-18", endDate: "2026-09-21" });
+  });
+
+  it("keeps a malformed all-day range on its start date", async () => {
+    googleFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "e11",
+          summary: "Elrontott",
+          start: { date: "2026-09-10" },
+          end: { date: "2026-09-09" },
+        },
+      ],
+    });
+
+    const { listCalendarEvents } = await importCalendar();
+    const [event] = await listCalendarEvents({
+      timeMin: TIME_MIN,
+      timeMax: TIME_MAX,
+    });
+
+    expect(event.endDate).toBe("2026-09-10");
+  });
+
+  it("carries a timed event past midnight to the next date", async () => {
+    googleFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "e12",
+          summary: "Éjszakai buli",
+          start: { dateTime: "2026-09-19T21:00:00+02:00" },
+          end: { dateTime: "2026-09-20T04:00:00+02:00" },
+        },
+      ],
+    });
+
+    const { listCalendarEvents } = await importCalendar();
+    const [event] = await listCalendarEvents({
+      timeMin: TIME_MIN,
+      timeMax: TIME_MAX,
+    });
+
+    expect(event).toMatchObject({ date: "2026-09-19", endDate: "2026-09-20" });
   });
 
   it("resolves the civil date in the studio zone, not the server's", async () => {
@@ -142,7 +207,7 @@ describe("listCalendarEvents", () => {
       items: [
         {
           id: "e3",
-          summary: "Éjszakai vágás",
+          summary: "Hajnali vágás",
           // 00:30 in Budapest on the 5th is still the 4th in UTC.
           start: { dateTime: "2026-09-05T00:30:00+02:00" },
           end: { dateTime: "2026-09-05T02:00:00+02:00" },
@@ -181,6 +246,8 @@ describe("listCalendarEvents", () => {
       title: "(Névtelen esemény)",
       location: null,
       endsAt: null,
+      date: "2026-09-03",
+      endDate: "2026-09-03",
     });
   });
 
@@ -238,7 +305,7 @@ describe("listCalendarEvents", () => {
       items: [
         {
           id: "e9",
-          summary: "Tokiói forgatás",
+          summary: "Távoli forgatás",
           start: { dateTime: "2026-09-05T00:30:00+02:00" },
         },
       ],

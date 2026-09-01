@@ -1,4 +1,4 @@
-import { civilDate, STUDIO_TIME_ZONE } from "@/types";
+import { addDays, civilDate, STUDIO_TIME_ZONE } from "@/types";
 import { googleFetch } from "./client";
 
 const CALENDAR_BASE = "https://www.googleapis.com/calendar/v3";
@@ -14,8 +14,10 @@ export interface CalendarEvent {
   title: string;
   location: string | null;
   allDay: boolean;
-  /** Calendar date at the studio, "YYYY-MM-DD". Grouping and day labels compare this. */
+  /** First calendar date at the studio, "YYYY-MM-DD". Grouping and day labels compare this. */
   date: string;
+  /** Last date the event covers, inclusive. Equal to `date` for anything single-day. */
+  endDate: string;
   /** Absolute instants, null on an all-day event — it has no time to show. */
   startsAt: Date | null;
   endsAt: Date | null;
@@ -58,12 +60,18 @@ function toEvent(raw: ApiEvent, timeZone: string): CalendarEvent | null {
   const location = raw.location?.trim() || null;
 
   if (raw.start?.date) {
+    const date = raw.start.date;
+    // An all-day end is the morning after the last day covered — a single day on the 4th
+    // arrives as the 4th to the 5th. Stepping back is what makes it comparable to today.
+    const exclusiveEnd = raw.end?.date;
     return {
       id,
       title,
       location,
       allDay: true,
-      date: raw.start.date,
+      date,
+      endDate:
+        exclusiveEnd && exclusiveEnd > date ? addDays(exclusiveEnd, -1) : date,
       startsAt: null,
       endsAt: null,
     };
@@ -73,14 +81,20 @@ function toEvent(raw: ApiEvent, timeZone: string): CalendarEvent | null {
 
   const startsAt = new Date(raw.start.dateTime);
   const end = raw.end?.dateTime;
+  const endsAt = end ? new Date(end) : null;
+  const date = civilDate(startsAt, timeZone);
+  // A party that ends at 04:00 belongs to both dates; the later one is what keeps it on
+  // the dashboard until it is actually over.
+  const endDate = endsAt ? civilDate(endsAt, timeZone) : date;
   return {
     id,
     title,
     location,
     allDay: false,
-    date: civilDate(startsAt, timeZone),
+    date,
+    endDate: endDate > date ? endDate : date,
     startsAt,
-    endsAt: end ? new Date(end) : null,
+    endsAt,
   };
 }
 

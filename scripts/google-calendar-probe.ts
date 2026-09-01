@@ -39,8 +39,9 @@ async function main() {
       const when = event.startsAt
         ? `${event.date} ${time.format(event.startsAt)}`
         : `${event.date} egész nap`;
+      const span = event.endDate === event.date ? "" : ` → ${event.endDate}`;
       info(
-        `${when}  ${event.title}${event.location ? ` — ${event.location}` : ""}`,
+        `${when}${span}  ${event.title}${event.location ? ` — ${event.location}` : ""}`,
       );
     }
     done(`${events.length} event(s)`);

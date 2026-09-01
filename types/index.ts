@@ -150,6 +150,13 @@ export function civilDate(
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+/** Shift a "YYYY-MM-DD" by whole days. UTC arithmetic, so no zone shift can move it. */
+export function addDays(date: string, days: number): string {
+  const shifted = new Date(`${date}T00:00:00Z`);
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}
+
 // ─── Username derivation ─────────────────────────────────────────────────────
 
 // Hungarian digraphs/trigraphs that count as a single "letter"

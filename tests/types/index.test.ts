@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  addDays,
   civilDate,
   currentSemester,
   deriveUsername,
@@ -117,6 +118,24 @@ describe("civilDate", () => {
     expect(civilDate(new Date("2026-09-04T12:00:00Z"), "Asia/Tokyo")).toBe(
       "2026-09-04",
     );
+  });
+});
+
+// ─── addDays ─────────────────────────────────────────────────────────────────
+
+describe("addDays", () => {
+  it("steps forward and back", () => {
+    expect(addDays("2026-09-04", 1)).toBe("2026-09-05");
+    expect(addDays("2026-09-05", -1)).toBe("2026-09-04");
+  });
+
+  it("crosses a month and a year boundary", () => {
+    expect(addDays("2026-08-31", 1)).toBe("2026-09-01");
+    expect(addDays("2026-01-01", -1)).toBe("2025-12-31");
+  });
+
+  it("is unaffected by the DST change the shifted range spans", () => {
+    expect(addDays("2026-10-24", 3)).toBe("2026-10-27");
   });
 });
 
