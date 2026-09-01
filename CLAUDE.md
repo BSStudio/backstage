@@ -99,16 +99,17 @@ The scripts refuse to run against a database whose host is not local unless pass
   `auth/[...all]`
 - `app/avatars/[...path]/route.ts` — serves avatar bytes from whichever storage backend is active
 - `lib/services/` — business logic (`members.ts`, `sync-jobs.ts`, `usernames.ts`,
-  `google-group.ts`, `audit.ts`, `app-links.ts`). All real work happens here. `member-schemas.ts`,
-  `google-group-schemas.ts` and `app-link-schemas.ts` hold the Zod schemas, split out so client
-  forms can import them;
+  `google-group.ts`, `audit.ts`, `app-links.ts`, `calendar.ts`). All real work happens here.
+  `member-schemas.ts`, `google-group-schemas.ts` and `app-link-schemas.ts` hold the Zod schemas,
+  split out so client forms can import them;
   `pagination.ts` holds the page size and the skip/take arithmetic the paginated admin lists share
 - `lib/actions/` — Server Actions; thin wrappers around services. `result.ts` owns the
   `ActionResult` shape they all return, the two failure constants and `mapActionError`
 - `lib/authentik/` — Authentik REST client (`client`, `users`, `groups`)
 - `lib/website/` — legacy Drupal client (`client.ts` transport, `users.ts` operations)
-- `lib/google/` — Cloud Identity client (`client.ts` token minting + transport, `groups.ts`
-  membership operations)
+- `lib/google/` — the Google clients sharing one signer: `client.ts` (token minting + transport,
+  `googleFetch` for an absolute URL, `googleRequest` for a Cloud Identity path), `groups.ts`
+  (membership operations), `calendar.ts` (the studio calendar read)
 - `lib/sync/` — `executor.ts` + per-target `{authentik,website}/{operations,orchestrators,group-mapping}.ts`
   and `google/{operations,orchestrators}.ts`
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
@@ -127,20 +128,27 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `lib/observability/` — `sentry.ts` (shared init options), `scrub.ts` (PII redaction),
   `capture.ts` (capture helpers), `logger.ts` (structured logging)
 - `lib/members.ts`, `lib/audit.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts`,
-  `lib/google-group.ts`, `lib/app-links.ts` — display helpers + Hungarian labels.
-  `lib/app-links.ts` also owns the icon name → lucide component map and the per-accent tile
-  classes
+  `lib/google-group.ts`, `lib/app-links.ts`, `lib/calendar.ts` — display helpers + Hungarian
+  labels. `lib/app-links.ts` also owns the icon name → lucide component map and the per-accent
+  tile classes; `lib/calendar.ts` owns every Hungarian date and time string the dashboard
+  renders, and the split between the two kinds of formatter that needs — see Dates and the
+  studio zone
 - `components/form.tsx` — TanStack Form `useAppForm` plus the field/submit components every form
   is built from
 - `components/` — shared pieces above the primitives: `page-nav.tsx` (admin list pagination),
   `status-badge.tsx` (`StatusBadge` / `ArchivedBadge`), `archive-dialog.tsx` (the archive
   confirmation and its mailing-list checkbox), `app-link-card.tsx` (one row on /apps),
   `portal-shell.tsx` (the authenticated frame)
+- `components/dashboard/` — the widgets `/` composes, one file per source: `calendar.tsx`
+  (`HeroEvent` + `UpcomingEvents`, two server components sharing one `cache()`d read),
+  `profile-card.tsx` (which also exports the member read the page's greeting reuses),
+  `quick-links.tsx`, and `computers-card.tsx`, still a placeholder
 - `components/ui/` — shadcn/ui primitives
 - `scripts/` — dev tooling run with `tsx`: `dev-setup.ts`, `seed-dev.ts` (+ `seed-data.ts` roster,
   `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`,
-  `authentik-contract.ts` + its `authentik-contract.json` snapshot, and `google-group-probe.ts`,
-  which lists the configured group through the real client to check credentials
+  `authentik-contract.ts` + its `authentik-contract.json` snapshot, and the two credential probes,
+  `google-group-probe.ts` and `google-calendar-probe.ts`, which read the configured group and
+  calendar through the real clients
 - `tests/` — mirrors the source layout; `setup.ts` spins Testcontainers Postgres
 - `proxy.ts` — route protection (Next.js 16 convention), and the CardDAV endpoint, which cannot
   live in a route handler
@@ -207,6 +215,13 @@ guards itself regardless.
 opening with `pageActor()` — or `pageActor(<predicate>)` when a role gates it; a Hungarian label in
 `lib/nav-labels.ts` (used by both sidebar and breadcrumbs); and a sidebar entry in
 `components/app-sidebar.tsx`.
+
+**Add a dashboard widget** — one file in `components/dashboard/`, exporting a server component
+that **reads its own data**. `app/(portal)/page.tsx` composes and never queries on a widget's
+behalf, so a feature arrives with its card instead of the page growing a read per source. A
+widget that talks to something off our own network goes in its own `<Suspense>` with a
+`Skeleton`, so the rest of the page does not wait for it. Two widgets over one source share a
+`cache()`d reader rather than querying twice (`readCalendar`, `readOwnProfile`).
 
 ---
 
@@ -298,6 +313,20 @@ concepts.
 One string: `"2025/2026/1"` (autumn) or `"2025/2026/2"` (spring) — start year / end year / semester
 number. Sorts correctly as a string. Helpers in `types/index.ts`: `parseSemester`, `formatSemester`
 (`"2025 ősz"`), `currentSemester`, and `semesterSchema` for validation.
+
+### Dates and the studio zone
+
+The container runs on UTC and the studio does not, so nothing derives a calendar date from the
+server's clock. `STUDIO_TIME_ZONE` and `civilDate(instant, zone?)` in `types/index.ts` resolve an
+instant to the date it falls on **at the studio**; `addDays`, `startOfWeek` (Monday, as a Hungarian
+calendar starts) and `daysBetween` are whole-day arithmetic over the `"YYYY-MM-DD"` strings that
+produces, done in UTC so no zone shift can move them.
+
+Rendering splits along the same line, and `lib/calendar.ts` is where both halves live. An instant
+is formatted **in the studio's zone**, because that is the clock on the wall. A `"YYYY-MM-DD"` is
+already a civil date with no zone of its own, so it is parsed and formatted **as UTC** — putting
+it through Budapest would shift it a day. Getting this backwards moves a Monday all-day event
+into the previous week, which is exactly the bug the split exists to prevent.
 
 ---
 
@@ -545,6 +574,33 @@ Workspace **Groups Administrator** role, which needs a Super Admin and buys one 
 The service account is itself a member of the group; the reconciliation read filters its own
 address out, or it would sit there as a permanent `UNKNOWN`.
 
+**The calendar is a second, unrelated grant on the same account.** `GOOGLE_CALENDAR_ID` names it,
+`lib/google/calendar.ts` reads it on `calendar.readonly`, and the per-scope token cache keeps that
+token apart from the group ones. None of the Cloud Identity story above applies: sharing the
+calendar with the service account's address at **"See all event details"** is the entire setup, and
+no Workspace admin is involved. Leaving `GOOGLE_CALENDAR_ID` unset drops the widget instead of
+failing, so an instance without a calendar is a supported configuration.
+
+A share that never landed reads as **404, not 403** — the account cannot see the calendar at all,
+so the API answers as if it did not exist. `scripts/google-calendar-probe.ts` prints what the
+account can actually read and says as much on a 404.
+
+Three shapes of the events feed cost a probe to establish and none of them is guessable:
+
+- **An all-day `end.date` is exclusive.** A single day on the 4th arrives as the 4th to the 5th,
+  so `endDate` steps a day back from it. Read literally, every all-day event looks a day longer
+  than it is.
+- **The API returns anything *overlapping* the window,** so a multi-day event under way arrives
+  dated before `timeMin`. Its own start date is therefore not a safe grouping key — see the hero
+  under Architectural decisions.
+- **`singleEvents=true` is what expands a recurrence** into one row per occurrence, and
+  `orderBy=startTime` is only accepted alongside it. Without them the weekly meetings render once,
+  forever, as the series' first instance.
+
+The request manager writes a `További információk a <a href="…">felkéréskezelőben</a>.` line
+into the description of every event it creates, which is where an event's `url` comes from — the
+first anchor in the description, and only when it is `http(s)`.
+
 ---
 
 ## Sync architecture
@@ -685,7 +741,10 @@ redirect would drop the POST body.
 **Structured logging** (`lib/observability/logger.ts`) writes one JSON object per line to
 stdout/stderr. `/api/usernames/suggest` logs the calling service account (`sub` + service account
 name) with the outcome on every path — service account names are not PII, so they are logged raw.
-Nothing else logs through it yet.
+The calendar logs `calendar_read_failed` when Google will not answer — deliberately a warning
+rather than a Sentry event, see Architectural decisions — and `calendar_page_cap_reached` when a
+read stops at `MAX_PAGES`, which at studio scale means something is wrong rather than that a real
+limit was reached. Nothing else logs through it yet.
 
 ---
 
@@ -993,10 +1052,46 @@ sidesteps shadcn's `CommandList` hiding its own scrollbar and reading as a list 
 admin thinks in terms of what sits above what. `moveAppLink` renumbers every row from the resulting
 order rather than swapping two values, so a list that arrived with gaps comes out contiguous.
 
+**The calendar is fetched and rendered, not embedded.** An iframe of a public Google calendar is
+one line of markup, but it drops Google's own chrome, locale and theme into the middle of the
+portal and none of the three is ours to change. Fetching means the events are Hungarian, match the
+rest of the UI, and can be reshaped into a hero plus four weeks rather than a month grid nobody
+asked for. The cost is a credential and a sharing step, and the Google Group integration had
+already paid both — the calendar rides the service account that was there anyway.
+
+**A calendar that will not answer is not an incident.** `getDashboardCalendar` catches the read,
+logs a warning and returns `status: "unavailable"`, which the widget renders as a line of text.
+Sentry is deliberately not involved: every member loads this page, so a merely slow calendar would
+report an outage on every refresh, and the person looking at the dashboard has already been told.
+A failure is also retried sooner than a success is refreshed — one minute against five — so that
+thirty dashboards do not each wait out the same timeout, and a share that has just been fixed
+appears while somebody is still looking. The cache is a single process-wide slot, like
+`lib/rate-limit.ts`: correct because the deployment is one replica, and merely one read per
+replica if it ever is not.
+
+**The hero leads with the shortest event under way, not the longest.** A festival week and the
+party inside it are both running, and the week is the one that sorts first and says least —
+"egész nap", against a start date days in the past. So `getDashboardCalendar` separates what has
+begun from what has not and ranks the running ones by duration: a seven-hour party is a more
+specific answer to "what is happening" than the week containing it. Everything else running
+becomes a `Közben` line and the soonest unstarted event an `Utána` line, so one card answers all
+three questions. A multi-day event carries its span and its remaining days wherever it appears —
+the one thing a reader cannot act on is an event that never says when it ends.
+
+That ranking also buys an invariant: **every running event belongs to the hero, so nothing the
+week list receives is dated before today.** `groupIntoWeeks` relies on it — it buckets on the
+event's own date with no clamp, and an event dated into a week already gone would silently
+vanish. Anything that lets a running event reach the list has to restore that clamp.
+
+**A calendar description is untrusted HTML.** The `url` on an event is the first anchor in a
+description written by whoever created the event, and it lands in an `href` — so only `http(s)`
+survives, for the same reason `z.url({ protocol: /^https?$/ })` guards an app link. A plain "first
+link wins" would make `javascript:` clickable on the dashboard. A test asserts the refusal.
+
 **The dashboard gets chips, `/apps` gets rows.** The home page is a shortcut bar, and a second copy
-of the card grid would compete with the calendar and machine status once those land. The chips are
-monochrome for the same reason — the accent is what identifies an app in the catalogue, and the
-shortcut bar is not the catalogue.
+of the card grid would compete with the calendar it now sits beside, and with machine status once
+that lands. The chips are monochrome for the same reason — the accent is what identifies an app in
+the catalogue, and the shortcut bar is not the catalogue.
 
 **Studio leaders history lives on the wiki.** Not an in-app page — the sidebar links to
 `https://wiki.bsstudio.hu/doc/studiovezetok-AdWWlRMuAI`. Edits are rare, pre-2010 entries lack
