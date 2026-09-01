@@ -72,6 +72,7 @@ import {
   batchArchive,
   batchUpdateStatus,
   createMember,
+  findMemberSummary,
   getMember,
   listAuthentikGroups,
   listMembers,
@@ -250,6 +251,23 @@ describe("getMember", () => {
     await expect(getMember(prisma, "non-existent")).rejects.toThrow(
       NotFoundError,
     );
+  });
+});
+
+// ─── findMemberSummary ───────────────────────────────────────────────────────
+
+describe("findMemberSummary", () => {
+  it("returns the member with leadershipRole and no timeline", async () => {
+    const prisma = getTestPrisma();
+    const member = await findMemberSummary(prisma, MEMBER_ID);
+
+    expect(member).toMatchObject({ id: MEMBER_ID, leadershipRole: null });
+    expect(member).not.toHaveProperty("timeline");
+  });
+
+  it("returns null for a member that is not there", async () => {
+    const prisma = getTestPrisma();
+    await expect(findMemberSummary(prisma, "non-existent")).resolves.toBeNull();
   });
 });
 

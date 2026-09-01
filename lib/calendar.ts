@@ -17,6 +17,12 @@ const dateFormats = {
   short: { month: "short", day: "numeric" },
   month: { month: "long" },
   day: { day: "numeric" },
+  full: {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  },
 } as const satisfies Record<string, Intl.DateTimeFormatOptions>;
 
 const dateFormatters = new Map<string, Intl.DateTimeFormat>();
@@ -43,9 +49,21 @@ export function formatTime(instant: Date): string {
   return clock.format(instant);
 }
 
-/** "18:00 – 20:00", "18:00" when the end is unknown, "Egész nap" when there is no clock. */
+/** "2026. szeptember 2., szerda" — the date under the dashboard's greeting. */
+export function formatFullDate(date: string): string {
+  return formatDate(date, "full");
+}
+
+/**
+ * "18:00 – 20:00", or the span of dates when there is no clock. A multi-day event saying
+ * only "Egész nap" is the one thing a reader cannot act on — it never says when it ends.
+ */
 export function formatEventTime(event: CalendarEvent): string {
-  if (event.allDay) return "Egész nap";
+  if (event.allDay) {
+    return event.endDate === event.date
+      ? "Egész nap"
+      : formatDateRange(event.date, event.endDate);
+  }
   if (!event.endsAt) return formatTime(event.startsAt);
   return `${formatTime(event.startsAt)} – ${formatTime(event.endsAt)}`;
 }
@@ -60,7 +78,7 @@ export function formatDayLabel(date: string, today: string): string {
 }
 
 /** "szept. 14 – 20.", collapsing the month when both ends share one. */
-export function formatWeekRange(start: string, end: string): string {
+export function formatDateRange(start: string, end: string): string {
   const sameMonth = start.slice(0, 7) === end.slice(0, 7);
   const to = sameMonth
     ? `${formatDate(end, "day")}.`
@@ -76,11 +94,13 @@ export function formatWeekHeading(
   week: CalendarWeek,
   today: string,
 ): { title: string; range: string | null } {
-  const range = formatWeekRange(week.start, week.end);
+  const range = formatDateRange(week.start, week.end);
   const thisWeek = startOfWeek(today);
 
-  if (week.start === thisWeek) return { title: "Ez a hét", range };
-  if (week.start === addDays(thisWeek, 7)) return { title: "Jövő hét", range };
+  if (week.start === thisWeek) return { title: "Ezen a héten", range };
+  if (week.start === addDays(thisWeek, 7)) {
+    return { title: "Jövő héten", range };
+  }
   return { title: capitalize(range), range: null };
 }
 
@@ -120,4 +140,31 @@ export function formatCountdown(
   const minutes = Math.round(untilStart / 60_000);
   if (minutes < 60) return `${Math.max(minutes, 1)} perc múlva`;
   return `Ma, ${Math.round(minutes / 60)} óra múlva`;
+}
+
+/** What the hero calls the event it is showing. */
+export function formatHeroKicker(
+  event: CalendarEvent,
+  running: boolean,
+): string {
+  if (!running) return "Következő esemény";
+  return event.allDay ? "Most tart" : "Most zajlik";
+}
+
+/** When something already under way finishes: "Ma 04:00-ig", "Még 2 napig". */
+export function formatUntil(event: CalendarEvent, today: string): string {
+  if (event.allDay) {
+    const remaining = daysBetween(today, event.endDate);
+    if (remaining <= 0) return "Ma ér véget";
+    if (remaining === 1) return "Holnapig";
+    return `Még ${remaining} napig`;
+  }
+
+  if (!event.endsAt) return "Folyamatban";
+
+  const ends = formatTime(event.endsAt);
+  const days = daysBetween(today, event.endDate);
+  if (days <= 0) return `Ma ${ends}-ig`;
+  if (days === 1) return `Holnap ${ends}-ig`;
+  return `${formatDayLabel(event.endDate, today)} ${ends}-ig`;
 }

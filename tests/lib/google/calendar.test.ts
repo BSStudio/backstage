@@ -61,6 +61,84 @@ describe("getCalendarId", () => {
   });
 });
 
+describe("description links", () => {
+  it("takes the first http link out of the description", async () => {
+    googleFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "e20",
+          summary: "Forgatás",
+          description:
+            'További információk a <a href="https://example.com/requests/7">felkéréskezelőben</a>.',
+          start: { dateTime: "2026-09-03T10:00:00+02:00" },
+        },
+      ],
+    });
+
+    const { listCalendarEvents } = await importCalendar();
+    const [event] = await listCalendarEvents({
+      timeMin: TIME_MIN,
+      timeMax: TIME_MAX,
+    });
+
+    expect(event.url).toBe("https://example.com/requests/7");
+  });
+
+  it("decodes entities in the href", async () => {
+    googleFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "e21",
+          summary: "Forgatás",
+          description: '<a href="https://example.com/r?a=1&amp;b=2">link</a>',
+          start: { date: "2026-09-03" },
+        },
+      ],
+    });
+
+    const { listCalendarEvents } = await importCalendar();
+    const [event] = await listCalendarEvents({
+      timeMin: TIME_MIN,
+      timeMax: TIME_MAX,
+    });
+
+    expect(event.url).toBe("https://example.com/r?a=1&b=2");
+  });
+
+  it("refuses a scheme that is not http, since this ends up in an href", async () => {
+    googleFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "e22",
+          summary: "Gyanús",
+          description: `<a href="javascript:alert(1)">kattints</a>`,
+          start: { date: "2026-09-03" },
+        },
+        {
+          id: "e23",
+          summary: "Rossz URL",
+          description: '<a href="nem-egy-url">kattints</a>',
+          start: { date: "2026-09-03" },
+        },
+        {
+          id: "e24",
+          summary: "Nincs horgony",
+          description: "Csak szöveg, link nélkül.",
+          start: { date: "2026-09-03" },
+        },
+      ],
+    });
+
+    const { listCalendarEvents } = await importCalendar();
+    const events = await listCalendarEvents({
+      timeMin: TIME_MIN,
+      timeMax: TIME_MAX,
+    });
+
+    expect(events.map((event) => event.url)).toEqual([null, null, null]);
+  });
+});
+
 describe("listCalendarEvents", () => {
   it("expands recurrences, orders by start and asks for the read-only scope", async () => {
     googleFetch.mockResolvedValueOnce({
@@ -85,6 +163,7 @@ describe("listCalendarEvents", () => {
         id: "e1",
         title: "Stúdiógyűlés",
         location: "Klubhelyiség",
+        url: null,
         allDay: false,
         date: "2026-09-02",
         endDate: "2026-09-02",
@@ -131,6 +210,7 @@ describe("listCalendarEvents", () => {
       id: "e2",
       title: "Egynapos tábor",
       location: null,
+      url: null,
       allDay: true,
       date: "2026-09-14",
       endDate: "2026-09-14",

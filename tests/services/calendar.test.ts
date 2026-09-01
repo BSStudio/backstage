@@ -23,6 +23,7 @@ function timed(id: string, start: string, end: string | null): CalendarEvent {
     id,
     title: id,
     location: null,
+    url: null,
     allDay: false,
     date: start.slice(0, 10),
     endDate: (end ?? start).slice(0, 10),
@@ -36,6 +37,7 @@ function allDay(id: string, date: string, endDate = date): CalendarEvent {
     id,
     title: id,
     location: null,
+    url: null,
     allDay: true,
     date,
     endDate,
@@ -101,8 +103,8 @@ describe("getDashboardCalendar", () => {
     const result = await getCalendar();
     if (result.status !== "ok") throw new Error(result.status);
 
+    expect(result.running).toEqual([]);
     expect(result.next?.id).toBe("gyűlés");
-    expect(result.total).toBe(4);
     expect(result.weeks.map((week) => week.start)).toEqual(MONDAYS);
     expect(result.weeks.map((week) => week.end)).toEqual([
       "2026-09-20",
@@ -127,10 +129,61 @@ describe("getDashboardCalendar", () => {
     const result = await getCalendar();
     if (result.status !== "ok") throw new Error(result.status);
 
-    // It sorts first, so it leads; the one after it lands in the current week rather than
-    // being dropped for belonging to a Monday the window no longer covers.
-    expect(result.next?.id).toBe("tábor");
+    // The hero takes it, and the one after it lands in the current week rather than being
+    // dropped for belonging to a Monday the window no longer covers.
+    expect(result.running.map((event) => event.id)).toEqual(["tábor"]);
     expect(result.weeks[0].events.map((event) => event.id)).toEqual(["gyűlés"]);
+  });
+
+  it("leads with the shortest running event, not the umbrella it sits inside", async () => {
+    listCalendarEvents.mockResolvedValue([
+      allDay("fesztiválhét", "2026-09-14", "2026-09-18"),
+      timed("buli", "2026-09-16T11:00:00Z", "2026-09-16T18:00:00Z"),
+      timed("gyűlés", "2026-09-18T18:00:00Z", "2026-09-18T20:00:00Z"),
+    ]);
+
+    const result = await getCalendar();
+    if (result.status !== "ok") throw new Error(result.status);
+
+    // A seven-hour party is more specific than the week it belongs to.
+    expect(result.running.map((event) => event.id)).toEqual([
+      "buli",
+      "fesztiválhét",
+    ]);
+    // `next` is the soonest that has *not* started, so the hero can point at it.
+    expect(result.next?.id).toBe("gyűlés");
+    // Everything the hero renders is left out of the list; the rest stays.
+    expect(result.weeks[0].events.map((event) => event.id)).toEqual(["gyűlés"]);
+  });
+
+  it("has no next to point at when everything ahead is already running", async () => {
+    listCalendarEvents.mockResolvedValue([
+      allDay("fesztiválhét", "2026-09-14", "2026-09-18"),
+    ]);
+
+    const result = await getCalendar();
+    if (result.status !== "ok") throw new Error(result.status);
+
+    expect(result.running.map((event) => event.id)).toEqual(["fesztiválhét"]);
+    expect(result.next).toBeNull();
+    expect(result.weeks.every((week) => week.events.length === 0)).toBe(true);
+  });
+
+  it("measures a timed event with no end as instantaneous when ranking", async () => {
+    listCalendarEvents.mockResolvedValue([
+      allDay("nap", "2026-09-16"),
+      // Starting exactly now is the only moment an end-less event is both still ahead and
+      // already running — a second later it counts as over.
+      timed("pillanat", NOW.toISOString(), null),
+    ]);
+
+    const result = await getCalendar();
+    if (result.status !== "ok") throw new Error(result.status);
+
+    expect(result.running.map((event) => event.id)).toEqual([
+      "pillanat",
+      "nap",
+    ]);
   });
 
   it("clamps a following event that also began before today", async () => {
@@ -144,10 +197,12 @@ describe("getDashboardCalendar", () => {
 
     // The second one is grouped too, and lands in the current week rather than in the
     // Monday bucket its own start date would point at.
-    expect(result.next?.id).toBe("hosszú tábor");
-    expect(result.weeks[0].events.map((event) => event.id)).toEqual([
+    // Both are running, so both belong to the hero and neither reaches the list.
+    expect(result.running.map((event) => event.id)).toEqual([
       "rövid tábor",
+      "hosszú tábor",
     ]);
+    expect(result.weeks[0].events).toEqual([]);
   });
 
   it("keeps an event still running and drops one that has finished", async () => {
@@ -161,9 +216,8 @@ describe("getDashboardCalendar", () => {
     const result = await getCalendar();
     if (result.status !== "ok") throw new Error(result.status);
 
-    expect(result.next?.id).toBe("mostani");
-    expect(result.total).toBe(2);
-    expect(result.weeks[0].events.map((event) => event.id)).toEqual(["mai"]);
+    expect(result.running.map((event) => event.id)).toEqual(["mostani", "mai"]);
+    expect(result.weeks[0].events).toEqual([]);
   });
 
   it("treats a timed event with no end as ahead only until it starts", async () => {
@@ -175,8 +229,8 @@ describe("getDashboardCalendar", () => {
     const result = await getCalendar();
     if (result.status !== "ok") throw new Error(result.status);
 
+    expect(result.running).toEqual([]);
     expect(result.next?.id).toBe("jövő");
-    expect(result.total).toBe(1);
   });
 
   it("drops an event past the last week the window groups", async () => {
@@ -190,6 +244,7 @@ describe("getDashboardCalendar", () => {
 
     expect(result.next?.id).toBe("bent");
     expect(result.weeks[3].events).toEqual([]);
+    expect(result.running).toEqual([]);
   });
 
   it("answers with four empty weeks on an empty calendar", async () => {
@@ -197,7 +252,7 @@ describe("getDashboardCalendar", () => {
     if (result.status !== "ok") throw new Error(result.status);
 
     expect(result.next).toBeNull();
-    expect(result.total).toBe(0);
+    expect(result.running).toEqual([]);
     expect(result.weeks).toHaveLength(4);
     expect(result.weeks.every((week) => week.events.length === 0)).toBe(true);
   });

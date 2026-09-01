@@ -13,6 +13,8 @@ interface CalendarEventBase {
   id: string;
   title: string;
   location: string | null;
+  /** First http(s) link in the description — the request manager puts one on every event. */
+  url: string | null;
   /** First calendar date at the studio, "YYYY-MM-DD". Grouping and day labels compare this. */
   date: string;
   /** Last date the event covers, inclusive. Equal to `date` for anything single-day. */
@@ -34,6 +36,7 @@ interface ApiEvent {
   id?: string;
   summary?: string;
   location?: string;
+  description?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
 }
@@ -57,6 +60,40 @@ export function getCalendarId(): string {
   return calendarId;
 }
 
+const ANCHOR_HREF = /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']/i;
+
+const HTML_ENTITIES: Record<string, string> = {
+  "&amp;": "&",
+  "&quot;": '"',
+  "&#39;": "'",
+  "&apos;": "'",
+  "&lt;": "<",
+  "&gt;": ">",
+};
+
+/**
+ * The first link in an event's description. Descriptions are HTML written by whoever created
+ * the event, so the href is only accepted when it is http(s) — anything else could be a
+ * `javascript:` URL, and this ends up in an href.
+ */
+function extractUrl(description: string | undefined): string | null {
+  const href = description?.match(ANCHOR_HREF)?.[1];
+  if (!href) return null;
+
+  // The alternation lists exactly the map's keys, so every match resolves.
+  const decoded = href.replace(
+    /&(amp|quot|#39|apos|lt|gt);/g,
+    (entity) => HTML_ENTITIES[entity],
+  );
+
+  try {
+    const { protocol } = new URL(decoded);
+    return protocol === "http:" || protocol === "https:" ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
 // An event with neither a dateTime nor a date is not something the API returns; a title is,
 // and Google renders an untitled event as this same string.
 function toEvent(raw: ApiEvent, timeZone: string): CalendarEvent | null {
@@ -65,6 +102,7 @@ function toEvent(raw: ApiEvent, timeZone: string): CalendarEvent | null {
 
   const title = raw.summary?.trim() || "(Névtelen esemény)";
   const location = raw.location?.trim() || null;
+  const url = extractUrl(raw.description);
 
   if (raw.start?.date) {
     const date = raw.start.date;
@@ -75,6 +113,7 @@ function toEvent(raw: ApiEvent, timeZone: string): CalendarEvent | null {
       id,
       title,
       location,
+      url,
       allDay: true,
       date,
       endDate:
@@ -97,6 +136,7 @@ function toEvent(raw: ApiEvent, timeZone: string): CalendarEvent | null {
     id,
     title,
     location,
+    url,
     allDay: false,
     date,
     endDate: endDate > date ? endDate : date,

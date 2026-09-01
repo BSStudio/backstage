@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   formatCountdown,
+  formatDateRange,
   formatDayLabel,
   formatEventTime,
+  formatFullDate,
   formatHeroDate,
+  formatHeroKicker,
   formatTime,
+  formatUntil,
   formatWeekHeading,
-  formatWeekRange,
 } from "@/lib/calendar";
 import type { CalendarEvent } from "@/lib/google/calendar";
 import type { CalendarWeek } from "@/lib/services/calendar";
@@ -20,6 +23,7 @@ function timed(start: string, end: string | null = null): CalendarEvent {
     id: "e",
     title: "Esemény",
     location: null,
+    url: null,
     allDay: false,
     date: start.slice(0, 10),
     endDate: (end ?? start).slice(0, 10),
@@ -33,6 +37,7 @@ function allDay(date: string, endDate = date): CalendarEvent {
     id: "e",
     title: "Esemény",
     location: null,
+    url: null,
     allDay: true,
     date,
     endDate,
@@ -51,6 +56,12 @@ describe("formatTime", () => {
   });
 });
 
+describe("formatFullDate", () => {
+  it("spells the greeting's date out in full", () => {
+    expect(formatFullDate("2026-09-02")).toBe("2026. szeptember 2., szerda");
+  });
+});
+
 describe("formatEventTime", () => {
   it("renders a span", () => {
     expect(
@@ -64,6 +75,12 @@ describe("formatEventTime", () => {
 
   it("says so when there is no clock at all", () => {
     expect(formatEventTime(allDay("2026-09-16"))).toBe("Egész nap");
+  });
+
+  it("gives a multi-day event its span instead, so its end is visible", () => {
+    expect(formatEventTime(allDay("2026-08-31", "2026-09-04"))).toBe(
+      "aug. 31 – szept. 4.",
+    );
   });
 });
 
@@ -87,13 +104,13 @@ describe("formatDayLabel", () => {
   });
 });
 
-describe("formatWeekRange", () => {
+describe("formatDateRange", () => {
   it("collapses a shared month", () => {
-    expect(formatWeekRange("2026-09-14", "2026-09-20")).toBe("szept. 14 – 20.");
+    expect(formatDateRange("2026-09-14", "2026-09-20")).toBe("szept. 14 – 20.");
   });
 
   it("keeps both months when the week straddles one", () => {
-    expect(formatWeekRange("2026-09-28", "2026-10-04")).toBe(
+    expect(formatDateRange("2026-09-28", "2026-10-04")).toBe(
       "szept. 28 – okt. 4.",
     );
   });
@@ -102,14 +119,14 @@ describe("formatWeekRange", () => {
 describe("formatWeekHeading", () => {
   it("names the current week and keeps its range", () => {
     expect(formatWeekHeading(week("2026-09-14", "2026-09-20"), TODAY)).toEqual({
-      title: "Ez a hét",
+      title: "Ezen a héten",
       range: "szept. 14 – 20.",
     });
   });
 
   it("names the next one", () => {
     expect(formatWeekHeading(week("2026-09-21", "2026-09-27"), TODAY)).toEqual({
-      title: "Jövő hét",
+      title: "Jövő héten",
       range: "szept. 21 – 27.",
     });
   });
@@ -182,5 +199,55 @@ describe("formatCountdown", () => {
     expect(
       formatCountdown(allDay("2026-09-14", "2026-09-18"), NOW, TODAY),
     ).toBe("Most tart");
+  });
+});
+
+describe("formatHeroKicker", () => {
+  it("distinguishes a clock from a stretch of days", () => {
+    expect(formatHeroKicker(timed("2026-09-16T10:00:00Z"), true)).toBe(
+      "Most zajlik",
+    );
+    expect(formatHeroKicker(allDay("2026-09-16"), true)).toBe("Most tart");
+  });
+
+  it("names an event that has not started", () => {
+    expect(formatHeroKicker(timed("2026-09-18T10:00:00Z"), false)).toBe(
+      "Következő esemény",
+    );
+  });
+});
+
+describe("formatUntil", () => {
+  it("gives the closing time of something ending today or tomorrow", () => {
+    expect(
+      formatUntil(timed("2026-09-16T10:00:00Z", "2026-09-16T18:00:00Z"), TODAY),
+    ).toBe("Ma 20:00-ig");
+    expect(
+      formatUntil(timed("2026-09-16T19:00:00Z", "2026-09-17T02:00:00Z"), TODAY),
+    ).toBe("Holnap 04:00-ig");
+  });
+
+  it("dates a closing time further out", () => {
+    expect(
+      formatUntil(timed("2026-09-16T19:00:00Z", "2026-09-18T02:00:00Z"), TODAY),
+    ).toBe("Péntek 04:00-ig");
+  });
+
+  it("says only that a timed event with no end is under way", () => {
+    expect(formatUntil(timed("2026-09-16T10:00:00Z"), TODAY)).toBe(
+      "Folyamatban",
+    );
+  });
+
+  it("counts remaining days for an all-day stretch", () => {
+    expect(formatUntil(allDay("2026-09-14", "2026-09-16"), TODAY)).toBe(
+      "Ma ér véget",
+    );
+    expect(formatUntil(allDay("2026-09-14", "2026-09-17"), TODAY)).toBe(
+      "Holnapig",
+    );
+    expect(formatUntil(allDay("2026-09-14", "2026-09-18"), TODAY)).toBe(
+      "Még 2 napig",
+    );
   });
 });

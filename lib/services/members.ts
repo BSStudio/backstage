@@ -103,6 +103,13 @@ export async function findMember(prisma: PrismaClient, id: string) {
   });
 }
 
+export async function findMemberSummary(prisma: PrismaClient, id: string) {
+  return prisma.member.findUnique({
+    where: { id },
+    include: { leadershipRole: true },
+  });
+}
+
 export async function getMember(prisma: PrismaClient, id: string) {
   const member = await findMember(prisma, id);
   if (!member) throw new NotFoundError();

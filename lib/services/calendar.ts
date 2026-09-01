@@ -4,7 +4,7 @@ import {
   listCalendarEvents,
 } from "@/lib/google/calendar";
 import { logger } from "@/lib/observability/logger";
-import { addDays, civilDate, startOfWeek } from "@/types";
+import { addDays, civilDate, daysBetween, startOfWeek } from "@/types";
 
 export type { CalendarEvent } from "@/lib/google/calendar";
 
@@ -30,12 +30,16 @@ export type DashboardCalendar =
   | { status: "unavailable" }
   | {
       status: "ok";
-      /** The event to lead with — in progress or soonest. Null on an empty window. */
+      /**
+       * Under way right now, shortest first. The shortest is the most specific thing
+       * happening — a party inside a festival week rather than the week itself — which is
+       * what the dashboard leads with.
+       */
+      running: CalendarEvent[];
+      /** Soonest event that has not started. */
       next: CalendarEvent | null;
       /** Always CALENDAR_WEEKS entries; an empty one renders as a single line. */
       weeks: CalendarWeek[];
-      /** Everything still ahead, `next` included. */
-      total: number;
     };
 
 type CacheEntry =
@@ -99,10 +103,29 @@ function isAhead(event: CalendarEvent, today: string, now: Date): boolean {
   return (event.endsAt ?? event.startsAt).getTime() >= now.getTime();
 }
 
+/** Already begun. An all-day event counts for every date it covers — it has no clock. */
+function isRunning(event: CalendarEvent, today: string, now: Date): boolean {
+  if (event.allDay) return event.date <= today;
+  return event.startsAt.getTime() <= now.getTime();
+}
+
+// Milliseconds, so an all-day event and a timed one can be compared. A seven-hour party is
+// shorter than a one-day event, which is what puts it ahead of the week it belongs to.
+function duration(event: CalendarEvent): number {
+  if (event.allDay) {
+    return (daysBetween(event.date, event.endDate) + 1) * 86_400_000;
+  }
+  return (
+    (event.endsAt?.getTime() ?? event.startsAt.getTime()) -
+    event.startsAt.getTime()
+  );
+}
+
+// Only events that have not started reach this, so none of them is dated before today and
+// every one lands on or after the first Monday. What is under way belongs to the hero.
 function groupIntoWeeks(
   events: CalendarEvent[],
   firstMonday: string,
-  today: string,
 ): CalendarWeek[] {
   const weeks: CalendarWeek[] = [];
   const byMonday = new Map<string, CalendarEvent[]>();
@@ -115,12 +138,9 @@ function groupIntoWeeks(
   }
 
   for (const event of events) {
-    const bucket = byMonday.get(
-      startOfWeek(event.date < today ? today : event.date),
-    );
     // Google's window is bounded in instants and ours in whole weeks, so the last day or
     // two it returns can fall past the final Monday.
-    bucket?.push(event);
+    byMonday.get(startOfWeek(event.date))?.push(event);
   }
 
   return weeks;
@@ -139,12 +159,20 @@ export async function getDashboardCalendar(
   if (!events) return { status: "unavailable" };
 
   const ahead = events.filter((event) => isAhead(event, today, now));
-  const [next = null, ...rest] = ahead;
+  const running = ahead
+    .filter((event) => isRunning(event, today, now))
+    .sort((a, b) => duration(a) - duration(b));
+  const next = ahead.find((event) => !isRunning(event, today, now)) ?? null;
+
+  // The hero renders whatever it shows in full, so the list below picks up after it. When
+  // nothing is running the hero is `next`, and that is the one the list leaves out instead.
+  const hero = running.length > 0 ? running : next ? [next] : [];
+  const rest = ahead.filter((event) => !hero.includes(event));
 
   return {
     status: "ok",
+    running,
     next,
-    weeks: groupIntoWeeks(rest, firstMonday, today),
-    total: ahead.length,
+    weeks: groupIntoWeeks(rest, firstMonday),
   };
 }
