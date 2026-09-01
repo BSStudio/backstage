@@ -1,3 +1,4 @@
+import { logger } from "@/lib/observability/logger";
 import { addDays, civilDate, STUDIO_TIME_ZONE } from "@/types";
 import { googleFetch } from "./client";
 
@@ -192,6 +193,15 @@ export async function listCalendarEvents({
     pageToken = result.nextPageToken;
     page += 1;
   } while (pageToken && page < MAX_PAGES);
+
+  // A token left over means the cap cut the answer short. Nothing downstream can tell a
+  // truncated calendar from a quiet one, so a short list would otherwise look correct.
+  if (pageToken) {
+    logger.warn("calendar_page_cap_reached", {
+      pages: MAX_PAGES,
+      events: events.length,
+    });
+  }
 
   return events;
 }

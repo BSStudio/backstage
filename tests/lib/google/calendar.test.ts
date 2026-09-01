@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const googleFetch = vi.fn();
+const warn = vi.fn();
 
 vi.mock("@/lib/google/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/google/client")>()),
   googleFetch: (...args: unknown[]) => googleFetch(...args),
+}));
+
+vi.mock("@/lib/observability/logger", () => ({
+  logger: { warn: (...args: unknown[]) => warn(...args) },
 }));
 
 async function importCalendar() {
@@ -21,6 +26,7 @@ function query(call: number): URLSearchParams {
 
 beforeEach(() => {
   googleFetch.mockReset().mockResolvedValue({});
+  warn.mockReset();
   vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_KEY", "a-key");
   vi.stubEnv("GOOGLE_CALENDAR_ID", "studio@group.calendar.google.com");
 });
@@ -369,15 +375,25 @@ describe("listCalendarEvents", () => {
     expect(events.map((event) => event.id)).toEqual(["e7", "e8"]);
     expect(query(1).get("pageToken")).toBe("page-2");
     expect(query(2).get("pageToken")).toBe("page-3");
+    // The last page carried no token, so nothing was cut short.
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("stops after the page cap rather than following a token forever", async () => {
-    googleFetch.mockResolvedValue({ items: [], nextPageToken: "next" });
+    googleFetch.mockResolvedValue({
+      items: [{ id: "e10", summary: "Sok", start: { date: "2026-09-02" } }],
+      nextPageToken: "next",
+    });
 
     const { listCalendarEvents } = await importCalendar();
     await listCalendarEvents({ timeMin: TIME_MIN, timeMax: TIME_MAX });
 
     expect(googleFetch).toHaveBeenCalledTimes(5);
+    // Silently returning a short list would read as a quiet calendar.
+    expect(warn).toHaveBeenCalledWith("calendar_page_cap_reached", {
+      pages: 5,
+      events: 5,
+    });
   });
 
   it("accepts an explicit calendar and zone", async () => {
