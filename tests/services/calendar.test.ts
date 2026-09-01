@@ -294,6 +294,31 @@ describe("caching", () => {
     expect(listCalendarEvents).toHaveBeenCalledTimes(2);
   });
 
+  it("replaces the entry when the studio day moves the window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    listCalendarEvents.mockResolvedValue([]);
+
+    await getCalendar();
+    // The next studio day asks for a window of its own, and the entry it caches is the
+    // only one left — a stale window is never served and never kept.
+    const tomorrow = new Date("2026-09-17T12:00:00Z");
+    vi.setSystemTime(tomorrow);
+    await getCalendar(tomorrow);
+    await getCalendar(tomorrow);
+    await getCalendar(NOW);
+
+    expect(
+      listCalendarEvents.mock.calls.map((call) =>
+        call[0].timeMin.toISOString(),
+      ),
+    ).toEqual([
+      "2026-09-15T00:00:00.000Z",
+      "2026-09-16T00:00:00.000Z",
+      "2026-09-15T00:00:00.000Z",
+    ]);
+  });
+
   it("logs a rejection that is not an Error", async () => {
     listCalendarEvents.mockRejectedValue("kapcsolat megszakadt");
 

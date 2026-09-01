@@ -42,15 +42,18 @@ export type DashboardCalendar =
       weeks: CalendarWeek[];
     };
 
-type CacheEntry =
-  | { ok: true; events: CalendarEvent[]; expiresAt: number }
-  | { ok: false; expiresAt: number };
+type CacheEntry = { window: string; expiresAt: number } & (
+  | { ok: true; events: CalendarEvent[] }
+  | { ok: false }
+);
 
-const cache = new Map<string, CacheEntry>();
+// One slot rather than a map keyed by window: the window moves once a studio day, so a map
+// would only ever hold one reachable entry and accumulate a dead one per day of uptime.
+let cache: CacheEntry | null = null;
 
 /** Test seam: the module-level cache would otherwise leak between cases. */
 export function clearCalendarCache(): void {
-  cache.clear();
+  cache = null;
 }
 
 // The window is derived from civil dates rather than the instant, so its bounds — and with
@@ -72,15 +75,14 @@ async function readEvents(
   timeMin: Date,
   timeMax: Date,
 ): Promise<CalendarEvent[] | null> {
-  const key = `${timeMin.toISOString()}|${timeMax.toISOString()}`;
-  const cached = cache.get(key);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.ok ? cached.events : null;
+  const window = `${timeMin.toISOString()}|${timeMax.toISOString()}`;
+  if (cache?.window === window && cache.expiresAt > Date.now()) {
+    return cache.ok ? cache.events : null;
   }
 
   try {
     const events = await listCalendarEvents({ timeMin, timeMax });
-    cache.set(key, { ok: true, events, expiresAt: Date.now() + CACHE_TTL_MS });
+    cache = { window, ok: true, events, expiresAt: Date.now() + CACHE_TTL_MS };
     return events;
   } catch (error) {
     // Not a Sentry incident: the widget says so on the dashboard, which every member sees,
@@ -88,7 +90,7 @@ async function readEvents(
     logger.warn("calendar_read_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    cache.set(key, { ok: false, expiresAt: Date.now() + FAILURE_TTL_MS });
+    cache = { window, ok: false, expiresAt: Date.now() + FAILURE_TTL_MS };
     return null;
   }
 }
