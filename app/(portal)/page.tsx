@@ -1,70 +1,49 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Suspense } from "react";
+import { HeroEvent, UpcomingEvents } from "@/components/dashboard/calendar";
+import { ComputersCard } from "@/components/dashboard/computers-card";
 import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { appLinkIcon } from "@/lib/app-links";
-import prisma from "@/lib/prisma";
-import { listAppLinks } from "@/lib/services/app-links";
+  ProfileCard,
+  readOwnProfile,
+} from "@/components/dashboard/profile-card";
+import { QuickLinks } from "@/components/dashboard/quick-links";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatFullDate } from "@/lib/calendar";
 import { pageActor } from "@/lib/session";
+import { civilDate } from "@/types";
 
 export const metadata: Metadata = { title: "Kezdőlap - Backstage" };
 
 export default async function DashboardPage() {
-  await pageActor();
-  const featured = await listAppLinks(prisma, { featuredOnly: true });
+  const actor = await pageActor();
+  const member = await readOwnProfile(actor.id);
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Kezdőlap</h1>
-        <p className="text-muted-foreground">Üdvözlünk a Backstage-ben.</p>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {member ? `Szia, ${member.firstName}!` : "Kezdőlap"}
+        </h1>
+        <p className="text-muted-foreground">
+          {formatFullDate(civilDate(new Date()))}
+        </p>
       </div>
 
-      {featured.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <div>
-            <h2 className="font-semibold">Gyakran használt</h2>
-            <p className="text-sm text-muted-foreground">
-              A többi az{" "}
-              <Link href="/apps" className="underline">
-                Alkalmazások
-              </Link>{" "}
-              oldalon.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {featured.map((link) => {
-              const Icon = appLinkIcon(link.icon);
-              return (
-                <a
-                  key={link.id}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border bg-card py-2 pr-4 pl-3 text-sm font-medium transition-colors hover:border-primary hover:bg-accent"
-                >
-                  <Icon className="size-4 text-primary" />
-                  {link.name}
-                </a>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <Suspense fallback={<Skeleton className="h-28 w-full rounded-xl" />}>
+        <HeroEvent />
+      </Suspense>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Hamarosan</CardTitle>
-          <CardDescription>
-            Ezen az oldalon fogjuk megjeleníteni a naptár eseményeit és a
-            számítógépek állapotát.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-[1.85fr_1fr] lg:items-start">
+        <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>
+          <UpcomingEvents />
+        </Suspense>
+
+        <div className="flex flex-col gap-4">
+          <ProfileCard memberId={actor.id} />
+          <QuickLinks />
+          <ComputersCard />
+        </div>
+      </div>
     </div>
   );
 }

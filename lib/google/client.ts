@@ -1,7 +1,7 @@
 import { importPKCS8, SignJWT } from "jose";
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
-const API_BASE = "https://cloudidentity.googleapis.com/v1";
+const CLOUD_IDENTITY_BASE = "https://cloudidentity.googleapis.com/v1";
 
 export const GOOGLE_SCOPE_READONLY =
   "https://www.googleapis.com/auth/cloud-identity.groups.readonly";
@@ -119,14 +119,14 @@ async function getAccessToken(scope: string): Promise<string> {
   return access_token;
 }
 
-export async function googleRequest<T>(
-  path: string,
+export async function googleFetch<T>(
+  url: string,
   options: RequestInit & { scope?: string } = {},
 ): Promise<T> {
   const { scope = GOOGLE_SCOPE_READONLY, ...init } = options;
   const token = await getAccessToken(scope);
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -138,4 +138,11 @@ export async function googleRequest<T>(
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new GoogleApiError(res.status, body);
   return body as T;
+}
+
+export function googleRequest<T>(
+  path: string,
+  options: RequestInit & { scope?: string } = {},
+): Promise<T> {
+  return googleFetch<T>(`${CLOUD_IDENTITY_BASE}${path}`, options);
 }

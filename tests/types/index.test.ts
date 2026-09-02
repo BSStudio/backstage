@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  addDays,
+  civilDate,
   currentSemester,
+  daysBetween,
   deriveUsername,
   formatSemester,
   hasAuthentikAccount,
@@ -10,6 +13,7 @@ import {
   MEMBERSHIP_STATUSES,
   parseSemester,
   resolveUserRole,
+  startOfWeek,
 } from "@/types";
 
 // ─── parseSemester ───────────────────────────────────────────────────────────
@@ -90,6 +94,84 @@ describe("currentSemester", () => {
     vi.setSystemTime(new Date(2026, 7, 31)); // Aug 31, 2026
     expect(currentSemester()).toBe("2025/2026/2");
     vi.useRealTimers();
+  });
+});
+
+// ─── civilDate ───────────────────────────────────────────────────────────────
+
+describe("civilDate", () => {
+  it("resolves the date in the studio zone by default", () => {
+    // 00:30 in Budapest on the 5th is still the 4th in UTC.
+    expect(civilDate(new Date("2026-09-04T22:30:00Z"))).toBe("2026-09-05");
+  });
+
+  it("stays on the previous date before local midnight", () => {
+    expect(civilDate(new Date("2026-09-04T21:30:00Z"))).toBe("2026-09-04");
+  });
+
+  it("pads month and day to two digits", () => {
+    expect(civilDate(new Date("2026-01-02T12:00:00Z"))).toBe("2026-01-02");
+  });
+
+  it("honours an explicit zone, reusing the cached formatter", () => {
+    expect(civilDate(new Date("2026-09-04T22:30:00Z"), "Asia/Tokyo")).toBe(
+      "2026-09-05",
+    );
+    expect(civilDate(new Date("2026-09-04T12:00:00Z"), "Asia/Tokyo")).toBe(
+      "2026-09-04",
+    );
+  });
+});
+
+// ─── addDays ─────────────────────────────────────────────────────────────────
+
+describe("addDays", () => {
+  it("steps forward and back", () => {
+    expect(addDays("2026-09-04", 1)).toBe("2026-09-05");
+    expect(addDays("2026-09-05", -1)).toBe("2026-09-04");
+  });
+
+  it("crosses a month and a year boundary", () => {
+    expect(addDays("2026-08-31", 1)).toBe("2026-09-01");
+    expect(addDays("2026-01-01", -1)).toBe("2025-12-31");
+  });
+
+  it("is unaffected by the DST change the shifted range spans", () => {
+    expect(addDays("2026-10-24", 3)).toBe("2026-10-27");
+  });
+});
+
+// ─── startOfWeek ─────────────────────────────────────────────────────────────
+
+describe("startOfWeek", () => {
+  it("returns the Monday of a midweek date", () => {
+    expect(startOfWeek("2026-09-16")).toBe("2026-09-14");
+  });
+
+  it("leaves a Monday where it is", () => {
+    expect(startOfWeek("2026-09-14")).toBe("2026-09-14");
+  });
+
+  it("keeps Sunday in the week that is ending, not the one starting", () => {
+    expect(startOfWeek("2026-09-20")).toBe("2026-09-14");
+  });
+
+  it("steps back across a month boundary", () => {
+    expect(startOfWeek("2026-09-01")).toBe("2026-08-31");
+  });
+});
+
+// ─── daysBetween ─────────────────────────────────────────────────────────────
+
+describe("daysBetween", () => {
+  it("counts forward and back", () => {
+    expect(daysBetween("2026-09-14", "2026-09-16")).toBe(2);
+    expect(daysBetween("2026-09-16", "2026-09-14")).toBe(-2);
+    expect(daysBetween("2026-09-16", "2026-09-16")).toBe(0);
+  });
+
+  it("is unaffected by the DST change the range spans", () => {
+    expect(daysBetween("2026-10-24", "2026-10-27")).toBe(3);
   });
 });
 
