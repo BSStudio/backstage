@@ -5,6 +5,7 @@ import { isCardDavPath, isDavMethod } from "@/lib/carddav/paths";
 
 const publicPaths = [
   "/api/auth",
+  "/api/computers",
   "/api/health",
   "/api/usernames",
   "/login",

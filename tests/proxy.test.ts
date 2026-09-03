@@ -37,6 +37,15 @@ describe("proxy", () => {
     expect(mockGetSessionCookie).not.toHaveBeenCalled();
   });
 
+  // The agent carries a bearer token instead of a session cookie; the route authenticates
+  // it itself.
+  it("lets the computer endpoints past the cookie check", async () => {
+    const response = await proxy(request("/api/computers/nle4/ping", "POST"));
+
+    expect(response.status).toBe(200);
+    expect(mockGetSessionCookie).not.toHaveBeenCalled();
+  });
+
   it("lets an authenticated request through", async () => {
     mockGetSessionCookie.mockReturnValue("a-session-token");
 
