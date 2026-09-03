@@ -59,6 +59,7 @@ enum AuditAction {
   APP_LINK_CREATED
   APP_LINK_UPDATED
   APP_LINK_DELETED
+  COMPUTER_DELETED
 }
 
 enum GoogleGroupMatchStatus {
@@ -234,4 +235,21 @@ model AppLink {
   sortOrder    Int            @default(0)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+}
+
+// ─── Computers ────────────────────────────────────────────────────────────────
+
+// A studio workstation. Created by its own agent on first ping rather than by an admin:
+// the machine is the only thing that knows it exists.
+model Computer {
+  // The slug in the agent's config, e.g. "nle4". Not a generated key — it is what the ping
+  // URL names, so it has to be readable off the machine.
+  id          String    @id
+  // The service account that claimed this id; a different one pinging it is refused.
+  agentSub    String
+  lastSeenAt  DateTime
+  // What the agent reports: OS, load, signed-in user. JSON so it widens without a migration.
+  metadata    Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
