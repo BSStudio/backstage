@@ -105,7 +105,8 @@ The scripts refuse to run against a database whose host is not local unless pass
   `pagination.ts` holds the page size and the skip/take arithmetic the paginated admin lists share
 - `lib/actions/` — Server Actions; thin wrappers around services. `result.ts` owns the
   `ActionResult` shape they all return, the two failure constants and `mapActionError`
-- `lib/authentik/` — Authentik REST client (`client`, `users`, `groups`)
+- `lib/authentik/` — Authentik REST client (`client`, `users`, `groups`), plus `issuer.ts`,
+  which owns the one spelling of `AUTHENTIK_ISSUER` every path is joined onto
 - `lib/website/` — legacy Drupal client (`client.ts` transport, `users.ts` operations)
 - `lib/google/` — the Google clients sharing one signer: `client.ts` (token minting + transport,
   `googleFetch` for an absolute URL, `googleRequest` for a Cloud Identity path), `groups.ts`
@@ -341,6 +342,15 @@ the core endpoints — there is no client-side plugin, the redirect URI register
 `accountIssuer` is pinned to `AUTHENTIK_ISSUER` rather than left to discovery. A discovery fetch
 that returns nothing throws out of plugin init, which fails *every* auth route including
 `/get-session`; pinned, an unreachable Authentik only breaks login.
+
+**The issuer is normalised before anything is appended to it.** Authentik's issuer identifier ends
+in a slash — `https://…/application/o/backstage/` is what its own discovery document reports — so
+joining `/.well-known/openid-configuration` onto the raw value yields a double slash, which
+Authentik answers 404 to: discovery returns nothing and login breaks, while the pinned
+`accountIssuer` keeps the rest of the auth routes alive. Both the login config and
+`lib/api-client-auth.ts` therefore take the value from `authentikIssuer()`
+(`lib/authentik/issuer.ts`), which drops the trailing slash. The slash-terminated form is still
+what arrives in an `iss` claim, which is why `requireApiClient` verifies against both spellings.
 
 On login `mapProfileToUser` reads the `groups` claim and derives a role, and carries the Authentik
 `sub` in an `authentikSub` field; a `databaseHooks.user.create.before` hook promotes that to the
