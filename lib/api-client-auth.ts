@@ -1,5 +1,6 @@
 import { createRemoteJWKSet, type JWTPayload, jwtVerify } from "jose";
 import { NextResponse } from "next/server";
+import { authentikIssuer } from "@/lib/authentik/issuer";
 
 export interface ApiClient {
   sub: string;
@@ -7,7 +8,7 @@ export interface ApiClient {
 }
 
 function getConfig() {
-  const issuer = process.env.AUTHENTIK_ISSUER;
+  const issuer = authentikIssuer();
   const audience = process.env.AUTHENTIK_CLIENT_ID;
   const group = process.env.AUTHENTIK_GROUP_API_CLIENTS;
   if (!issuer || !audience || !group) {
@@ -15,7 +16,7 @@ function getConfig() {
       "Missing AUTHENTIK_ISSUER, AUTHENTIK_CLIENT_ID or AUTHENTIK_GROUP_API_CLIENTS environment variables",
     );
   }
-  return { issuer: issuer.replace(/\/+$/, ""), audience, group };
+  return { issuer, audience, group };
 }
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
