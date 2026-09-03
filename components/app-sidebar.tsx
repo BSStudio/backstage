@@ -37,7 +37,6 @@ type NavItem = {
   title: string;
   url: string;
   icon: React.ComponentType<{ className?: string }>;
-  disabled?: boolean;
   children?: { title: string; url: string; external?: boolean }[];
 };
 
@@ -72,7 +71,6 @@ const mainNav: NavItem[] = [
     title: NAV_LABELS.computers,
     url: "/computers",
     icon: Monitor,
-    disabled: true,
   },
 ];
 
@@ -119,30 +117,18 @@ function NavSection({
             const Icon = item.icon;
             return (
               <SidebarMenuItem key={item.url}>
-                {item.disabled ? (
-                  <SidebarMenuButton
-                    isActive={false}
-                    disabled
-                    tooltip="Hamarosan"
-                    className="opacity-50"
-                  >
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive}
+                  tooltip={item.title}
+                  className="data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:hover:bg-primary/90 data-[active=true]:hover:text-primary-foreground"
+                >
+                  <Link href={item.url}>
                     <Icon className="size-4" />
                     <span>{item.title}</span>
-                  </SidebarMenuButton>
-                ) : (
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive}
-                    tooltip={item.title}
-                    className="data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:hover:bg-primary/90 data-[active=true]:hover:text-primary-foreground"
-                  >
-                    <Link href={item.url}>
-                      <Icon className="size-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                )}
-                {item.children && !item.disabled && (
+                  </Link>
+                </SidebarMenuButton>
+                {item.children && (
                   <SidebarMenuSub>
                     {item.children.map((child) => (
                       <SidebarMenuSubItem key={child.url}>
