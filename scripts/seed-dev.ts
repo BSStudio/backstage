@@ -13,7 +13,12 @@ import {
 } from "../types";
 import { type ResolvedGroups, resolveAuthentikGroups } from "./dev-groups";
 import { type DevUser, resolveDevUser } from "./dev-user";
-import { SEED_APP_LINKS, SEED_MEMBERS, type SeedMember } from "./seed-data";
+import {
+  SEED_APP_LINKS,
+  SEED_COMPUTERS,
+  SEED_MEMBERS,
+  type SeedMember,
+} from "./seed-data";
 import { assertLocalDatabase, done, hasFlag, info, step } from "./utils";
 
 const NOW = new Date();
@@ -47,6 +52,7 @@ async function seedDev(): Promise<void> {
     prisma.googleGroupEntry.deleteMany(),
     prisma.cardDAVToken.deleteMany(),
     prisma.appLink.deleteMany(),
+    prisma.computer.deleteMany(),
     prisma.leadershipRole.deleteMany(),
     prisma.member.deleteMany(),
     prisma.authentikGroup.deleteMany(),
@@ -58,8 +64,13 @@ async function seedDev(): Promise<void> {
   await prisma.leadershipRole.createMany({ data: buildRoles(members) });
   await prisma.timelineEntry.createMany({ data: buildTimeline(members) });
   await prisma.appLink.createMany({ data: buildAppLinks() });
+  await prisma.computer.createMany({ data: buildComputers() });
   await prisma.auditLog.createMany({
-    data: [...buildAuditLog(members, devUser), ...buildAppLinkAudit(devUser)],
+    data: [
+      ...buildAuditLog(members, devUser),
+      ...buildAppLinkAudit(devUser),
+      ...buildComputerAudit(devUser),
+    ],
   });
   await prisma.syncJob.createMany({ data: buildSyncJobs(members, devUser) });
   await prisma.cardDAVToken.createMany({
@@ -67,7 +78,7 @@ async function seedDev(): Promise<void> {
   });
 
   info(
-    `${members.length} members, ${groups.rows.length} groups, ${SEED_APP_LINKS.length} apps`,
+    `${members.length} members, ${groups.rows.length} groups, ${SEED_APP_LINKS.length} apps, ${SEED_COMPUTERS.length} computers`,
   );
   info(`you: ${devUser.lastName} ${devUser.firstName} <${devUser.email}>`);
   info(`carddav password: ${DEV_CARDDAV_TOKEN}`);
@@ -206,6 +217,30 @@ function buildAppLinks(): Prisma.AppLinkCreateManyInput[] {
     featured: link.featured ?? false,
     sortOrder: index,
   }));
+}
+
+function buildComputers(): Prisma.ComputerCreateManyInput[] {
+  return SEED_COMPUTERS.map(({ id, minutesAgo, metadata }) => ({
+    id,
+    agentSub: `svc-${id}-agent`,
+    lastSeenAt: new Date(NOW.getTime() - minutesAgo * 60_000),
+    metadata,
+  }));
+}
+
+// A machine that was retired, so COMPUTER_DELETED has something to render on /admin/audit.
+function buildComputerAudit(
+  devUser: DevUser,
+): Prisma.AuditLogCreateManyInput[] {
+  return [
+    {
+      actorId: devUser.id,
+      targetLabel: "NLE5",
+      action: "COMPUTER_DELETED" as const,
+      diff: { name: { old: "NLE5", new: null } },
+      createdAt: daysAgo(9),
+    },
+  ];
 }
 
 // One entry per app so the audit page has the new action types to render.

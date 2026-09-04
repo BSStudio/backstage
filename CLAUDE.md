@@ -88,19 +88,24 @@ to show, between them using all eight accents, and one with no description so th
 too. Each gets an `APP_LINK_CREATED` audit entry, which is what puts the new action badges and
 the `targetLabel` column on `/admin/audit` without having to create an app first.
 
+Three `Computer` rows cover every state a card renders: `nle4` in use, `nle6` signed in but
+locked (which the portal reads as free), and `nle7` offline on an older agent version. A
+`COMPUTER_DELETED` audit entry for a retired `NLE5` gives `/admin/audit` the new action to render.
+
 The scripts refuse to run against a database whose host is not local unless passed `--force`.
 
 ---
 
 ## Repository structure
 
-- `app/(portal)/` — authenticated pages (members, apps, admin, dashboard)
+- `app/(portal)/` — authenticated pages (members, apps, computers, admin, dashboard)
 - `app/api/` — REST routes: `members/`, `members/[id]/{roles,avatar}`, `usernames/suggest`,
-  `auth/[...all]`
+  `computers/[id]/ping`, `auth/[...all]`
 - `app/avatars/[...path]/route.ts` — serves avatar bytes from whichever storage backend is active
 - `lib/services/` — business logic (`members.ts`, `sync-jobs.ts`, `usernames.ts`,
-  `google-group.ts`, `audit.ts`, `app-links.ts`, `calendar.ts`). All real work happens here.
-  `member-schemas.ts`, `google-group-schemas.ts` and `app-link-schemas.ts` hold the Zod schemas,
+  `google-group.ts`, `audit.ts`, `app-links.ts`, `calendar.ts`, `computers.ts`). All real work
+  happens here. `member-schemas.ts`, `google-group-schemas.ts`, `app-link-schemas.ts` and
+  `computer-schemas.ts` hold the Zod schemas,
   split out so client forms can import them;
   `pagination.ts` holds the page size and the skip/take arithmetic the paginated admin lists share
 - `lib/actions/` — Server Actions; thin wrappers around services. `result.ts` owns the
@@ -120,7 +125,8 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `lib/toast.ts` — `toastSync`, the success-or-partial-failure toast every mutation raises
 - `lib/permissions.ts` — every role rule: `can*` predicates for the UI, `ensureCan*` guards that
   throw `ForbiddenError` for services
-- `lib/api-client-auth.ts` — bearer verification for machine-to-machine callers
+- `lib/api-client-auth.ts` — bearer verification for machine-to-machine callers, one Authentik
+  group per kind of caller
 - `lib/carddav/` — the read-only CardDAV endpoint: `paths.ts` (URL shapes, recognised without
   loading the rest), `handler.ts` (method dispatch + Basic auth), `vcard.ts`, `xml.ts`. Served from
   `proxy.ts`, not `app/api/` — see Architectural decisions
@@ -129,7 +135,8 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `lib/observability/` — `sentry.ts` (shared init options), `scrub.ts` (PII redaction),
   `capture.ts` (capture helpers), `logger.ts` (structured logging)
 - `lib/members.ts`, `lib/audit.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts`,
-  `lib/google-group.ts`, `lib/app-links.ts`, `lib/calendar.ts` — display helpers + Hungarian
+  `lib/google-group.ts`, `lib/app-links.ts`, `lib/calendar.ts`, `lib/computers.ts` — display
+  helpers + Hungarian
   labels. `lib/app-links.ts` also owns the icon name → lucide component map and the per-accent
   tile classes; `lib/calendar.ts` owns every Hungarian date and time string the dashboard
   renders, and the split between the two kinds of formatter that needs — see Dates and the
@@ -139,17 +146,19 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `components/` — shared pieces above the primitives: `page-nav.tsx` (admin list pagination),
   `status-badge.tsx` (`StatusBadge` / `ArchivedBadge`), `archive-dialog.tsx` (the archive
   confirmation and its mailing-list checkbox), `app-link-card.tsx` (one row on /apps),
-  `portal-shell.tsx` (the authenticated frame)
+  `computer-card.tsx` (one workstation on /computers), `portal-shell.tsx` (the authenticated
+  frame)
 - `components/dashboard/` — the widgets `/` composes, one file per source: `calendar.tsx`
   (`HeroEvent` + `UpcomingEvents`, two server components sharing one `cache()`d read),
   `profile-card.tsx` (which also exports the member read the page's greeting reuses),
-  `quick-links.tsx`, and `computers-card.tsx`, still a placeholder
+  `quick-links.tsx`, and `computers-card.tsx`
 - `components/ui/` — shadcn/ui primitives
 - `scripts/` — dev tooling run with `tsx`: `dev-setup.ts`, `seed-dev.ts` (+ `seed-data.ts` roster,
   `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`,
   `authentik-contract.ts` + its `authentik-contract.json` snapshot, and the two credential probes,
   `google-group-probe.ts` and `google-calendar-probe.ts`, which read the configured group and
-  calendar through the real clients
+  calendar through the real clients. `scripts/agent/` is the exception — PowerShell, not `tsx`,
+  and deployed to workstations rather than run here
 - `tests/` — mirrors the source layout; `setup.ts` spins Testcontainers Postgres
 - `proxy.ts` — route protection (Next.js 16 convention), and the CardDAV endpoint, which cannot
   live in a route handler
@@ -211,6 +220,17 @@ field in `lib/authentik/*` has to be mirrored into the contract check, or it goe
 when the body is the resource itself — and `mapServiceError` around failures. No business
 logic, and no role list of its own — the predicate comes from `lib/permissions.ts` and the service
 guards itself regardless.
+
+**Add something the workstation agent reports**
+1. Collect it in `Get-Metadata` (`scripts/agent/backstage-agent.ps1`), inside its own `try`, so a
+   machine that cannot answer still pings
+2. Add the field to `ComputerMetadataSchema` (`lib/services/computer-schemas.ts`) — unknown keys
+   are stripped, so an agent reporting a field the schema does not name writes nothing
+3. Render it from `lib/computers.ts` and `components/computer-card.tsx`
+4. Report a fact, not a conclusion. The portal decides what a fact means, so changing that
+   decision is not a reinstall on every workstation
+5. Old agents keep running: every field is optional, and absent has to stay distinguishable from
+   an empty value
 
 **Add a portal page** — `app/(portal)/…/page.tsx` exporting `metadata` and, if it reads data,
 opening with `pageActor()` — or `pageActor(<predicate>)` when a role gates it; a Hungarian label in
@@ -285,6 +305,14 @@ member data: no relations, and nothing here is derived from anything else. `icon
 name from the curated list in `types/index.ts`, `accent` is an enum of eight presets rather than
 a colour string, `featured` is what the dashboard filters on and `/apps` ignores, and `sortOrder`
 is renumbered contiguously on every move.
+
+**Computer** — one studio workstation, created by its own agent's first ping rather than by an
+admin. `id` is the slug the agent config carries (`nle4`), not a generated key — it is what the
+ping URL names. There is no display name column: it is the slug uppercased. `agentSub` records
+the service account that claimed the id, and a different one pinging it is refused. `metadata` is
+whatever the agent last reported — OS, load, signed-in user, whether the screen is locked —
+validated on the way in and re-parsed on the way out, so a row written by an older agent still
+renders. Status is derived, not stored: online means a ping inside `COMPUTER_ONLINE_WINDOW_MS`.
 
 **CardDAVToken** — one row per device a member set up for contact sync. `tokenHash` is the SHA-256
 of a 256-bit random token; the token itself is shown once and stored nowhere. `label` names the
@@ -417,7 +445,7 @@ fails the request earlier, before a body is parsed; it is not what makes the cal
 | --- | --- | --- |
 | `MEMBER` | everyone else | view member list, view/edit own profile |
 | `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive; read the whole admin area — audit log, sync jobs, Google Group reconciliation, app links |
-| `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + retry failed sync jobs, refresh and annotate the Google Group list, create/edit/reorder/delete app links |
+| `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + retry failed sync jobs, refresh and annotate the Google Group list, create/edit/reorder/delete app links, delete a computer |
 
 The admin area splits on read vs write: `LEADER` sees every admin page, `ADMIN` is what the
 mutations on them require.
@@ -429,7 +457,14 @@ mutations on them require.
 Other studio apps authenticate with Authentik **client credentials** against the same login
 provider — no second provider, application or redirect URI. One service account per consuming app,
 added to the group named by `AUTHENTIK_GROUP_API_CLIENTS`; the account's app password is the
-per-app secret, so revoking access means deleting the account.
+per-app secret, so revoking access means deleting the account. Authentik's client-credentials flow
+takes `client_id` plus that username and password, so the provider's own client secret never
+leaves the server.
+
+`requireApiClient(req, kind)` takes the *kind* of caller, and each kind names its own group:
+`apiClient` (the default) requires `AUTHENTIK_GROUP_API_CLIENTS`, `computerAgent` requires
+`AUTHENTIK_GROUP_COMPUTER_AGENTS`. One group would make every workstation token a credential on
+every machine-to-machine endpoint, and an agent token sits on a machine members can walk up to.
 
 `requireApiClient(req)` (`lib/api-client-auth.ts`) does `jwtVerify` + `createRemoteJWKSet` against
 `AUTHENTIK_ISSUER` (JWKS at `<issuer>/jwks/`, memoized per issuer), audience
@@ -499,13 +534,19 @@ to it, `/api/carddav/principal/` is the principal (Apple's `/principals` is an a
 `/api/carddav/addressbook/` holds one `<id>.vcf` per member still around — archived members and
 plain `ALUMNI` are left out, `ACTIVE_ALUMNI` are not. Reads `APP_URL` to absolutise avatar URLs.
 
+`POST /api/computers/[id]/ping` — a workstation agent's heartbeat, machine-to-machine only
+(bearer token, see Machine-to-machine access). `id` is the agent's configured slug; the body is
+`{ metadata }`. Answers **201** when the ping registered the machine and 200 afterwards. 10
+requests per minute per service account — an agent pings once a minute, so anything near that
+ceiling is a schedule misconfigured into a loop.
+
 `GET /api/health` — container liveness. Public to the proxy and unauthenticated: it answers
 `{ status: "ok" }`, or 503 once the database round trip fails.
 
 `websiteUserId` is never accepted on any write — it is set by sync and import only.
 
-Admin-area resources (sync jobs, audit log, Google Group) and app links deliberately have **no**
-REST routes; see Architectural Decisions.
+Admin-area resources (sync jobs, audit log, Google Group), app links and computers deliberately
+have **no** REST read routes; see Architectural Decisions.
 
 ---
 
@@ -522,7 +563,8 @@ Three independent uses:
    extra config beyond `AUTHENTIK_GROUP_API_CLIENTS`
 
 Group **names** (matched against the OIDC groups claim): `AUTHENTIK_GROUP_LEADERSHIP`,
-`AUTHENTIK_GROUP_ADMIN` for role resolution, `AUTHENTIK_GROUP_API_CLIENTS` for API clients.
+`AUTHENTIK_GROUP_ADMIN` for role resolution, `AUTHENTIK_GROUP_API_CLIENTS` for API clients and
+`AUTHENTIK_GROUP_COMPUTER_AGENTS` for workstation agents.
 
 Group **UUIDs** (used by the sync layer): `AUTHENTIK_GROUP_CANDIDATE_CANDIDATE`,
 `AUTHENTIK_GROUP_CANDIDATE`, `AUTHENTIK_GROUP_MEMBER`, `AUTHENTIK_GROUP_ALUMNI` (covers both alumni
@@ -754,7 +796,8 @@ name) with the outcome on every path — service account names are not PII, so t
 The calendar logs `calendar_read_failed` when Google will not answer — deliberately a warning
 rather than a Sentry event, see Architectural decisions — and `calendar_page_cap_reached` when a
 read stops at `MAX_PAGES`, which at studio scale means something is wrong rather than that a real
-limit was reached. Nothing else logs through it yet.
+limit was reached. `POST /api/computers/[id]/ping` logs the calling agent and the outcome on every
+path, `registered` marking a machine's first ping. Nothing else logs through it yet.
 
 ---
 
@@ -950,6 +993,10 @@ App links follow the same rule for a different reason: `/apps` is a page every m
 an admin resource, but nothing outside Backstage consumes the list either. `GET /api/apps` is the
 one route worth adding the day another studio app wants to render the same launcher.
 
+Computers too, and the write route does not imply the read one: the agent has to POST from off the
+server, but nothing outside Backstage reads machine status, so `/computers` reads the service
+directly. `GET /api/computers` arrives the day something does — a lobby display, say.
+
 **Restricted reads go through a guarded service, never Prisma in the page.** Next.js is explicit
 that a layout cannot gate its segments — they render regardless and land in the RSC payload — so
 there is no one place to put a check for a group of pages, and the check belongs next to the data
@@ -1102,6 +1149,47 @@ link wins" would make `javascript:` clickable on the dashboard. A test asserts t
 of the card grid would compete with the calendar it now sits beside, and with machine status once
 that lands. The chips are monochrome for the same reason — the accent is what identifies an app in
 the catalogue, and the shortcut bar is not the catalogue.
+
+**A workstation registers itself.** The alternative was an admin creating each `Computer` row and
+copying its id into the agent config. The machine is the only thing that knows it exists, and a
+row created by hand is a second place to keep in sync for no gain at three workstations. Cost:
+any agent may create a row under any id, so a typo in one config leaves a stray machine on the
+page until an admin deletes it — which is why the id has a shape at all. Deleting is not
+permanent; the machine comes back on its agent's next ping.
+
+**The first service account to claim a computer id owns it.** Every agent token sits on a machine
+members have physical access to, so without this a credential lifted off one workstation could
+rewrite any other machine's status. Re-pairing a machine means deleting it from `/computers`
+first, which is the rare case paying for the common one.
+
+**One Authentik group per kind of machine-to-machine caller.** Login and client-credentials tokens
+share an issuer and an audience, so group membership is the only boundary — and with a single
+API-client group, a token lifted off a workstation would also be a credential on
+`/api/usernames/suggest`. `requireApiClient` therefore takes the caller kind and each names its
+own group. The default keeps existing callers unchanged.
+
+**The agent reports facts; the portal decides what they mean.** A locked machine counts as free,
+but the agent sends `loggedInUser` and `locked` rather than the conclusion. Changing what counts
+as free is then a portal change instead of a reinstall on three workstations. That is also why
+`metadata` is JSON rather than columns, and why every field in it is optional with absent
+distinguishable from empty: an old agent keeps working.
+
+**Local and RDP sessions are deliberately not told apart.** `LogonType` records how a session was
+established rather than where it is now, and an RDP client taking over a console session on a
+Windows client SKU leaves it type 2 — so the field would report the common remote case as local.
+Doing it properly needs the WTS session table, which is a text scrape with a localised `STATE`
+column, for a distinction Windows already warns about at sign-in.
+
+**An offline machine renders no gauges and no occupancy.** Those are its last readings rather than
+its current ones, and a stale bar reads exactly like a live one. Offline collapses to the name,
+the badge and when it last pinged — everything still true.
+
+**The agent is Windows PowerShell 5.1 under a SYSTEM scheduled task.** 5.1 is a Windows component
+present on every box at a fixed path; PowerShell 7 is a separately installed app that would become
+a second thing to maintain on the machines least worth babysitting, and `powershell.exe` is
+findable by SYSTEM in a way `pwsh.exe` is not. SYSTEM is what makes the agent independent of who
+is signed in and out of reach of a standard user. A local administrator can still stop it, and the
+README says so rather than implying otherwise.
 
 **Studio leaders history lives on the wiki.** Not an in-app page — the sidebar links to
 `https://wiki.bsstudio.hu/doc/studiovezetok-AdWWlRMuAI`. Edits are rare, pre-2010 entries lack
