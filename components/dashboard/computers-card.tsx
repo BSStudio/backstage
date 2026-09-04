@@ -1,7 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatLoggedInUser } from "@/lib/computers";
+import { formatOccupancy } from "@/lib/computers";
 import prisma from "@/lib/prisma";
 import { listComputers } from "@/lib/services/computers";
 
@@ -33,7 +33,7 @@ export async function ComputersCard() {
                 </span>
                 <span className="truncate text-muted-foreground">
                   {online
-                    ? (formatLoggedInUser(computer.metadata) ?? "Online")
+                    ? (formatOccupancy(computer.metadata) ?? "Online")
                     : "Offline"}
                 </span>
               </li>

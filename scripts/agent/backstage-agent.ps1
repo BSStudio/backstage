@@ -67,22 +67,20 @@ function Get-Metadata {
     }
     catch { }
 
-    # Logon type 2 is the console and 10 is RDP, and both mean the machine is taken — someone
-    # working over RDP still has the timeline open. Win32_ComputerSystem.UserName reports the
-    # console only, so it would call an RDP-only machine free. Windows opens several logon
-    # sessions per sign-in, hence the dedupe. Null rather than absent says nobody is on it.
+    # A client SKU runs one interactive session, so this is whoever is signed in, console or
+    # RDP. The "console only" caveat on this property is about terminal servers.
     try {
-        $accounts = Get-CimInstance Win32_LogonSession -Filter 'LogonType = 2 OR LogonType = 10' |
-            ForEach-Object {
-                Get-CimAssociatedInstance -InputObject $_ -ResultClassName Win32_Account -ErrorAction SilentlyContinue
-            } |
-            ForEach-Object { "$($_.Domain)\$($_.Name)" } |
-            Sort-Object -Unique
-
-        if ($accounts) { $meta.loggedInUser = ($accounts -join ', ') }
-        else { $meta.loggedInUser = $null }
+        $user = (Get-CimInstance Win32_ComputerSystem).UserName
+        if ([string]::IsNullOrWhiteSpace($user)) { $meta.loggedInUser = $null }
+        else { $meta.loggedInUser = $user }
     }
     catch { $meta.loggedInUser = $null }
+
+    # LogonUI owns the lock and sign-in screens, so its presence means nobody is at it.
+    try {
+        $meta.locked = [bool](Get-Process LogonUI -ErrorAction SilentlyContinue)
+    }
+    catch { }
 
     return $meta
 }
@@ -171,9 +169,8 @@ while ($true) {
     }
     catch {
         $failures++
-        # An unreachable portal is not something to die over, and exiting would not fix a
-        # rejected credential either. Only the first failure of a run is logged, or a
-        # weekend-long outage fills the event log with one entry a minute.
+        # Exiting would not fix an unreachable portal or a rejected credential. Only the
+        # first failure of a run is logged, or an outage fills the log a line a minute.
         if ($failures -eq 1) {
             Write-AgentLog -Level Warning -EventId 1004 -Message "Ping failed: $($_.Exception.Message)"
         }

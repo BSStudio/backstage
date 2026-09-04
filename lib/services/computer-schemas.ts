@@ -15,6 +15,9 @@ export const ComputerMetadataSchema = z.object({
   diskPercent: z.number().min(0).max(100).optional(),
   // Null when nobody is signed in; absent when the agent does not report it at all.
   loggedInUser: z.string().trim().max(120).nullable().optional(),
+  // The lock or sign-in screen is up. Reported rather than resolved into "free" here, so
+  // changing what counts as free does not mean reinstalling every agent.
+  locked: z.boolean().optional(),
   agentVersion: z.string().trim().max(40).optional(),
 });
 

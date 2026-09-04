@@ -8,7 +8,7 @@ import {
   computerStatus,
   formatComputerName,
   formatLastSeen,
-  formatLoggedInUser,
+  formatOccupancy,
 } from "@/lib/computers";
 
 const NOW = new Date("2026-09-03T12:00:00Z");
@@ -108,20 +108,32 @@ describe("computerGauges", () => {
   });
 });
 
-describe("formatLoggedInUser", () => {
-  it("names the signed-in account", () => {
-    expect(formatLoggedInUser({ loggedInUser: "BSS\\nkovacs" })).toBe(
-      "BSS\\nkovacs",
-    );
+describe("formatOccupancy", () => {
+  it("names whoever is at the machine, without the domain", () => {
+    expect(formatOccupancy({ loggedInUser: "BSS\\nkovacs" })).toBe("nkovacs");
   });
 
-  it("says so when nobody is signed in", () => {
-    expect(formatLoggedInUser({ loggedInUser: null })).toBe(
-      "Nincs bejelentkezve",
-    );
+  it("keeps a bare account name that carries no domain", () => {
+    expect(formatOccupancy({ loggedInUser: "nkovacs" })).toBe("nkovacs");
+  });
+
+  it("is free when nobody is signed in", () => {
+    expect(formatOccupancy({ loggedInUser: null })).toBe("Szabad");
+  });
+
+  it("is free when the session is locked, since nobody is at it", () => {
+    expect(
+      formatOccupancy({ loggedInUser: "BSS\\nkovacs", locked: true }),
+    ).toBe("Szabad");
+  });
+
+  it("names the user when the session is explicitly unlocked", () => {
+    expect(
+      formatOccupancy({ loggedInUser: "BSS\\nkovacs", locked: false }),
+    ).toBe("nkovacs");
   });
 
   it("returns null when the agent did not report the field", () => {
-    expect(formatLoggedInUser({})).toBeNull();
+    expect(formatOccupancy({})).toBeNull();
   });
 });

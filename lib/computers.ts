@@ -69,7 +69,12 @@ export function computerGauges(metadata: ComputerMetadata): ComputerGauge[] {
   });
 }
 
-export function formatLoggedInUser(metadata: ComputerMetadata): string | null {
-  if (metadata.loggedInUser === undefined) return null;
-  return metadata.loggedInUser ?? "Nincs bejelentkezve";
+// A locked session counts as free: signed in, but nobody is at the machine.
+export function formatOccupancy(metadata: ComputerMetadata): string | null {
+  const { loggedInUser, locked } = metadata;
+  if (loggedInUser === undefined) return null;
+  if (loggedInUser === null || locked) return "Szabad";
+
+  // Windows reports DOMAIN\user, and the domain is the same on every studio machine.
+  return loggedInUser.replace(/^.*\\/, "");
 }

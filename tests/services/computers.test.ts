@@ -21,6 +21,7 @@ const PING = {
     memoryPercent: 41.4,
     diskPercent: 78,
     loggedInUser: "BSS\\nkovacs",
+    locked: false,
     agentVersion: "1.0.0",
   },
 };
@@ -122,6 +123,20 @@ describe("recordComputerPing", () => {
 
     expect(signedOut.computer.metadata).toEqual({ loggedInUser: null });
     expect(notReported.computer.metadata).toEqual({});
+  });
+
+  it("records the signed-in user and whether the screen is locked", async () => {
+    const { computer } = await recordComputerPing(
+      getTestPrisma(),
+      "nle4",
+      { metadata: { loggedInUser: "BSS\\nkovacs", locked: true } },
+      AGENT,
+    );
+
+    expect(computer.metadata).toEqual({
+      loggedInUser: "BSS\\nkovacs",
+      locked: true,
+    });
   });
 
   it.each([

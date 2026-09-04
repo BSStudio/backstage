@@ -5,7 +5,7 @@ import {
   COMPUTER_STATUS_LABELS,
   computerGauges,
   formatLastSeen,
-  formatLoggedInUser,
+  formatOccupancy,
 } from "@/lib/computers";
 import type { ComputerView } from "@/lib/services/computers";
 
@@ -34,7 +34,7 @@ export function ComputerCard({
   action?: React.ReactNode;
 }) {
   const online = computer.status === "ONLINE";
-  const loggedInUser = formatLoggedInUser(computer.metadata);
+  const occupancy = formatOccupancy(computer.metadata);
   const gauges = computerGauges(computer.metadata);
 
   return (
@@ -59,10 +59,10 @@ export function ComputerCard({
 
         {online && (
           <>
-            {loggedInUser && (
+            {occupancy && (
               <div className="flex justify-between gap-3 text-xs">
-                <span className="text-muted-foreground">Felhasználó</span>
-                <span className="truncate">{loggedInUser}</span>
+                <span className="text-muted-foreground">Foglaltság</span>
+                <span className="truncate">{occupancy}</span>
               </div>
             )}
             {gauges.length > 0 && (
