@@ -10,7 +10,7 @@ runs:
       run: echo "version=$(cat .nvmrc)" >> "$GITHUB_OUTPUT"
 
     - name: Set up pnpm and Node.js
-      uses: pnpm/setup@v2.0.2
+      uses: pnpm/setup@v2.1.0
       with:
         runtime: node@${{ steps.node.outputs.version }}
         cache: true
