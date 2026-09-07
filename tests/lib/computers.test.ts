@@ -1,20 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
   COMPUTER_ONLINE_WINDOW_MS,
-  COMPUTER_STATUS_CLASS,
-  COMPUTER_STATUS_LABELS,
-  COMPUTER_STATUSES,
+  COMPUTER_TONE_STYLE,
+  COMPUTER_TONES,
   computerGauges,
   computerStatus,
+  computerVerdict,
+  countFreeComputers,
   formatComputerName,
   formatLastSeen,
-  formatOccupancy,
 } from "@/lib/computers";
+import type { ComputerMetadata } from "@/lib/services/computer-schemas";
 
 const NOW = new Date("2026-09-03T12:00:00Z");
 
 function ago(ms: number): Date {
   return new Date(NOW.getTime() - ms);
+}
+
+function online(metadata: ComputerMetadata) {
+  return { status: "ONLINE" as const, metadata };
 }
 
 describe("formatComputerName", () => {
@@ -42,15 +47,6 @@ describe("computerStatus", () => {
   });
 });
 
-describe("status labels and classes", () => {
-  it("cover every status", () => {
-    for (const status of COMPUTER_STATUSES) {
-      expect(COMPUTER_STATUS_LABELS[status]).toBeTruthy();
-      expect(COMPUTER_STATUS_CLASS[status]).toContain("text-");
-    }
-  });
-});
-
 describe("formatLastSeen", () => {
   it.each([
     ["a few seconds", 30_000, "Néhány másodperce"],
@@ -72,6 +68,79 @@ describe("formatLastSeen", () => {
 
   it("defaults to the current time", () => {
     expect(formatLastSeen(new Date())).toBe("Néhány másodperce");
+  });
+});
+
+describe("computerVerdict", () => {
+  it("says only that an offline machine is offline", () => {
+    expect(
+      computerVerdict({
+        status: "OFFLINE",
+        // Whoever was signed in when it went quiet is not there now.
+        metadata: { loggedInUser: "BSS\\nkovacs", locked: false },
+      }),
+    ).toEqual({ tone: "OFFLINE", label: "Offline", user: null });
+  });
+
+  it("is free when nobody is signed in", () => {
+    expect(computerVerdict(online({ loggedInUser: null }))).toEqual({
+      tone: "FREE",
+      label: "Szabad",
+      user: null,
+    });
+  });
+
+  it("is free when the session is locked, since nobody is at it", () => {
+    expect(
+      computerVerdict(online({ loggedInUser: "BSS\\nkovacs", locked: true })),
+    ).toEqual({ tone: "FREE", label: "Szabad", user: null });
+  });
+
+  it("names whoever is at the machine, without the domain", () => {
+    expect(
+      computerVerdict(online({ loggedInUser: "BSS\\nkovacs", locked: false })),
+    ).toEqual({ tone: "BUSY", label: "Foglalt", user: "nkovacs" });
+  });
+
+  it("keeps a bare account name that carries no domain", () => {
+    expect(computerVerdict(online({ loggedInUser: "nkovacs" })).user).toBe(
+      "nkovacs",
+    );
+  });
+
+  it("says only online when the agent does not report the field", () => {
+    expect(computerVerdict(online({}))).toEqual({
+      tone: "IDLE",
+      label: "Online",
+      user: null,
+    });
+  });
+});
+
+describe("COMPUTER_TONE_STYLE", () => {
+  it("covers every tone", () => {
+    for (const tone of COMPUTER_TONES) {
+      expect(COMPUTER_TONE_STYLE[tone].surface).toContain("bg-");
+      expect(COMPUTER_TONE_STYLE[tone].text).toContain("text-");
+    }
+  });
+});
+
+describe("countFreeComputers", () => {
+  it("counts what somebody could sit down at", () => {
+    expect(
+      countFreeComputers([
+        online({ loggedInUser: null }),
+        online({ loggedInUser: "BSS\\aszabo", locked: true }),
+        online({ loggedInUser: "BSS\\nkovacs", locked: false }),
+        online({}),
+        { status: "OFFLINE", metadata: { loggedInUser: null } },
+      ]),
+    ).toBe(2);
+  });
+
+  it("is zero with nothing to count", () => {
+    expect(countFreeComputers([])).toBe(0);
   });
 });
 
@@ -105,35 +174,5 @@ describe("computerGauges", () => {
   it("is empty when there is no load at all", () => {
     expect(computerGauges({})).toEqual([]);
     expect(computerGauges({ os: "Windows 11 Pro" })).toEqual([]);
-  });
-});
-
-describe("formatOccupancy", () => {
-  it("names whoever is at the machine, without the domain", () => {
-    expect(formatOccupancy({ loggedInUser: "BSS\\nkovacs" })).toBe("nkovacs");
-  });
-
-  it("keeps a bare account name that carries no domain", () => {
-    expect(formatOccupancy({ loggedInUser: "nkovacs" })).toBe("nkovacs");
-  });
-
-  it("is free when nobody is signed in", () => {
-    expect(formatOccupancy({ loggedInUser: null })).toBe("Szabad");
-  });
-
-  it("is free when the session is locked, since nobody is at it", () => {
-    expect(
-      formatOccupancy({ loggedInUser: "BSS\\nkovacs", locked: true }),
-    ).toBe("Szabad");
-  });
-
-  it("names the user when the session is explicitly unlocked", () => {
-    expect(
-      formatOccupancy({ loggedInUser: "BSS\\nkovacs", locked: false }),
-    ).toBe("nkovacs");
-  });
-
-  it("returns null when the agent did not report the field", () => {
-    expect(formatOccupancy({})).toBeNull();
   });
 });

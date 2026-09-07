@@ -1180,6 +1180,15 @@ Windows client SKU leaves it type 2 — so the field would report the common rem
 Doing it properly needs the WTS session table, which is a text scrape with a localised `STATE`
 column, for a distinction Windows already warns about at sign-in.
 
+**Status is a tinted card, not a value in a row.** Members open both surfaces with one question —
+which machine can I sit at — and a label-and-value row answers it in the same grey at the far edge
+of the card, so free and occupied look identical until read. `computerVerdict` reduces status plus
+metadata to a tone and a Hungarian label, the tone colours the whole card ground, and the machine
+name and the verdict sit in one block. Colour is what carries the answer at a glance and the label
+is what carries it for everyone else, so neither stands alone. It lives in `lib/computers.ts`
+rather than in the two components because the dashboard and `/computers` must not be able to
+disagree about what free means.
+
 **An offline machine renders no gauges and no occupancy.** Those are its last readings rather than
 its current ones, and a stale bar reads exactly like a live one. Offline collapses to the name,
 the badge and when it last pinged — everything still true.

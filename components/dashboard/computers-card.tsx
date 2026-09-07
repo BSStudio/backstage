@@ -1,52 +1,74 @@
-import { ArrowRight } from "lucide-react";
+import { Monitor } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatOccupancy } from "@/lib/computers";
+import {
+  COMPUTER_TONE_STYLE,
+  computerVerdict,
+  countFreeComputers,
+} from "@/lib/computers";
 import prisma from "@/lib/prisma";
 import { listComputers } from "@/lib/services/computers";
+import { cn } from "@/lib/utils";
 
 export async function ComputersCard() {
   const computers = await listComputers(prisma);
   if (computers.length === 0) return null;
 
+  const free = countFreeComputers(computers);
+
   return (
     <Card size="sm">
-      <CardHeader>
-        <CardTitle className="text-sm">Számítógépek</CardTitle>
+      <CardHeader className="flex items-center gap-2">
+        <Monitor className="size-4 text-primary" />
+        <CardTitle className="flex-1 text-sm">Számítógépek</CardTitle>
+        <span
+          className={cn(
+            "text-xs font-medium",
+            free === 0
+              ? "text-muted-foreground"
+              : COMPUTER_TONE_STYLE.FREE.text,
+          )}
+        >
+          {free === 0 ? "Nincs szabad" : `${free} szabad`}
+        </span>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-3">
-        <ul className="flex flex-col gap-2">
+        {/* Tiles rather than rows: a row puts the machine and its answer at opposite edges
+            of the card, so the two have to be paired by eye. */}
+        <div className="grid grid-cols-3 gap-2">
           {computers.map((computer) => {
-            const online = computer.status === "ONLINE";
+            const verdict = computerVerdict(computer);
+            const tone = COMPUTER_TONE_STYLE[verdict.tone];
             return (
-              <li
+              <div
                 key={computer.id}
-                className="flex items-center justify-between gap-3 text-xs"
+                className={cn(
+                  "flex flex-col gap-0.5 rounded-lg p-2.5 ring-1",
+                  tone.surface,
+                )}
               >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span
-                    aria-hidden
-                    className={`size-1.5 shrink-0 rounded-full ${online ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
-                  />
-                  <span className="truncate font-medium">{computer.name}</span>
+                <span className="truncate font-heading text-sm font-semibold tracking-tight">
+                  {computer.name}
                 </span>
-                <span className="truncate text-muted-foreground">
-                  {online
-                    ? (formatOccupancy(computer.metadata) ?? "Online")
-                    : "Offline"}
+                <span className={cn("truncate text-xs font-medium", tone.text)}>
+                  {verdict.label}
                 </span>
-              </li>
+                {verdict.user && (
+                  <span className="truncate text-xs text-muted-foreground">
+                    {verdict.user}
+                  </span>
+                )}
+              </div>
             );
           })}
-        </ul>
+        </div>
 
         <Link
           href="/computers"
-          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+          className="text-xs text-muted-foreground hover:underline"
         >
           Részletek
-          <ArrowRight className="size-3" />
         </Link>
       </CardContent>
     </Card>
