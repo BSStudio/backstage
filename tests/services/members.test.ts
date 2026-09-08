@@ -1150,6 +1150,21 @@ describe("archiveMember", () => {
     expect(await prisma.auditLog.count()).toBe(1);
   });
 
+  it("still removes an already archived member from the Google Group", async () => {
+    const prisma = getTestPrisma();
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    vi.clearAllMocks();
+
+    const result = await archiveMember(prisma, MEMBER_ID, ACTOR, {
+      removeFromGoogleGroup: true,
+    });
+
+    expect(result.syncErrors).toEqual([]);
+    expect(mockOrchestrateRemoveFromGoogleGroup).toHaveBeenCalledTimes(1);
+    expect(mockOrchestrateDeactivate).not.toHaveBeenCalled();
+    expect(await prisma.auditLog.count()).toBe(1);
+  });
+
   it("ends the leadership position and takes back its groups", async () => {
     const prisma = getTestPrisma();
     await prisma.leadershipRole.create({

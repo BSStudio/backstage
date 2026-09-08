@@ -506,7 +506,14 @@ export async function archiveMember(
     include: { leadershipRole: true },
   });
   if (!member) throw new NotFoundError();
-  if (member.archived) return { syncErrors: [] };
+  if (member.archived) {
+    if (!options.removeFromGoogleGroup) return { syncErrors: [] };
+    return {
+      syncErrors: collectSyncErrors([
+        await orchestrateRemoveFromGoogleGroup(prisma, member.id, member.email),
+      ]),
+    };
+  }
 
   await prisma.$transaction([
     prisma.member.update({
