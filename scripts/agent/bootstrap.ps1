@@ -22,6 +22,11 @@ $Repo = 'BSStudio/backstage'
 # Windows PowerShell 5.1 still negotiates TLS 1.0 by default, which GitHub refuses.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+# This script arrives through `iex` and so runs under any policy, but the installer it fetches
+# is a file, and a workstation's default policy is Restricted. Process scope dies with this
+# session and leaves the machine's own setting alone.
+Set-ExecutionPolicy Bypass -Scope Process -Force
+
 # `#Requires -RunAsAdministrator` is not enforced when this arrives through `iex`, so the
 # check is explicit. Without it the failure lands halfway through, on the first icacls.
 $principal = New-Object Security.Principal.WindowsPrincipal(
