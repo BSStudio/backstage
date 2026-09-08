@@ -20,7 +20,9 @@ import {
   buildAuthentikAttributes,
   createAuthentikUser,
   orchestrateAddToGroup,
+  orchestrateAddToStatusGroup,
   orchestrateDeactivate,
+  orchestrateReactivate,
   orchestrateRemoveFromGroup,
   orchestrateStatusChange,
   orchestrateUpdateAttributes,
@@ -35,6 +37,7 @@ import { getWebsiteStatusLabel } from "@/lib/sync/website/group-mapping";
 import {
   orchestrateCreateWebsiteUser,
   orchestrateDeactivateWebsiteUser,
+  orchestrateReactivateWebsiteUser,
   orchestrateUpdateWebsiteUser,
 } from "@/lib/sync/website/orchestrators";
 import type { UpdateWebsiteUserInput } from "@/lib/website/users";
@@ -471,6 +474,27 @@ export interface ArchiveOptions {
   removeFromGoogleGroup?: boolean;
 }
 
+// A position does not survive its holder leaving. The throw is caught rather than
+// propagated: the archive has already committed, so a failure here would otherwise skip
+// the deactivation that takes the member's access away, with no SyncJob row to retry.
+async function endLeadership(
+  prisma: PrismaClient,
+  memberId: string,
+  actor: Actor,
+): Promise<string[]> {
+  try {
+    const { syncErrors } = await removeRole(prisma, memberId, actor);
+    return syncErrors;
+  } catch (error) {
+    return [
+      `a pozíció megszüntetése nem sikerült: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    ];
+  }
+}
+
+// Idempotent like reactivateMember: a second click must not move archivedAt.
 export async function archiveMember(
   prisma: PrismaClient,
   id: string,
@@ -481,6 +505,14 @@ export async function archiveMember(
 
   const member = await prisma.member.findUnique({ where: { id } });
   if (!member) throw new NotFoundError();
+  if (member.archived) {
+    if (!options.removeFromGoogleGroup) return { syncErrors: [] };
+    return {
+      syncErrors: collectSyncErrors([
+        await orchestrateRemoveFromGoogleGroup(prisma, member.id, member.email),
+      ]),
+    };
+  }
 
   await prisma.$transaction([
     prisma.member.update({
@@ -500,6 +532,8 @@ export async function archiveMember(
     }),
   ]);
 
+  const roleErrors = await endLeadership(prisma, member.id, actor);
+
   const results: SyncResult[] = await Promise.all([
     orchestrateDeactivate(prisma, member.id),
     orchestrateDeactivateWebsiteUser(prisma, member.id),
@@ -510,6 +544,50 @@ export async function archiveMember(
       await orchestrateRemoveFromGoogleGroup(prisma, member.id, member.email),
     );
   }
+
+  return { syncErrors: [...roleErrors, ...collectSyncErrors(results)] };
+}
+
+// Idempotent: a member who is not archived is left alone rather than refused, so a
+// second click cannot write a second audit entry or a second round of sync jobs.
+export async function reactivateMember(
+  prisma: PrismaClient,
+  id: string,
+  actor: Actor,
+) {
+  ensureCanManageMembers(actor);
+
+  const member = await prisma.member.findUnique({ where: { id } });
+  if (!member) throw new NotFoundError();
+  if (!member.archived) return { syncErrors: [] };
+
+  await prisma.$transaction([
+    prisma.member.update({
+      where: { id },
+      data: { archived: false, archivedAt: null },
+    }),
+    prisma.timelineEntry.create({
+      data: { memberId: member.id, action: "MEMBER_REACTIVATED" },
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        targetId: member.id,
+        action: "MEMBER_REACTIVATED",
+        diff: { archived: { old: true, new: false } },
+      },
+    }),
+  ]);
+
+  // The status group is re-added even though archiving never removed it, in case the
+  // account was tidied up by hand in the meantime; add_user is idempotent. No leadership
+  // group comes back: archiving ended the position, and a returning member is given one
+  // again by hand.
+  const results: SyncResult[] = await Promise.all([
+    orchestrateReactivate(prisma, member.id),
+    orchestrateAddToStatusGroup(prisma, member.id, member.status),
+    orchestrateReactivateWebsiteUser(prisma, member.id),
+  ]);
 
   return { syncErrors: collectSyncErrors(results) };
 }
@@ -524,6 +602,7 @@ export async function batchArchive(
 
   const members = await prisma.member.findMany({
     where: { id: { in: ids }, archived: false },
+    include: { leadershipRole: true },
   });
 
   const now = new Date();
@@ -550,6 +629,12 @@ export async function batchArchive(
     }),
   ]);
 
+  const roleErrors = await Promise.all(
+    members
+      .filter((m) => m.leadershipRole)
+      .map((m) => endLeadership(prisma, m.id, actor)),
+  );
+
   const syncResults = await Promise.all(
     members.flatMap((m) => [
       orchestrateDeactivate(prisma, m.id),
@@ -559,7 +644,10 @@ export async function batchArchive(
         : []),
     ]),
   );
-  return { count: members.length, syncErrors: collectSyncErrors(syncResults) };
+  return {
+    count: members.length,
+    syncErrors: [...roleErrors.flat(), ...collectSyncErrors(syncResults)],
+  };
 }
 
 export async function batchUpdateStatus(

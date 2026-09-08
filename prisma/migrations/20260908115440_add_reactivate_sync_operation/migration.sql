@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "SyncOperation" ADD VALUE 'REACTIVATE_USER';

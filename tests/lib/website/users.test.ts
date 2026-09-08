@@ -22,6 +22,7 @@ import {
   createWebsiteUser,
   deactivateWebsiteUser,
   getWebsiteUserId,
+  reactivateWebsiteUser,
   updateWebsiteUser,
 } from "@/lib/website/users";
 
@@ -268,6 +269,64 @@ describe("deactivateWebsiteUser", () => {
   });
 });
 
+// ─── reactivateWebsiteUser ───────────────────────────────────────────────────
+
+describe("reactivateWebsiteUser", () => {
+  it("restores the roles and leaves the account status alone", async () => {
+    await reactivateWebsiteUser(USER_ID);
+
+    expect(postTo(`/user/${USER_ID}/edit`)).toEqual({
+      name: "jkovacs",
+      mail: "jkovacs@bss.hu",
+      "roles[8]": 8,
+      "roles[5]": 5,
+      "roles[4]": 4,
+      form_token: "tok-profile",
+      form_id: "user_profile_form",
+    });
+
+    expect(postTo(`/user/${USER_ID}/edit/BSS adatok`)).toEqual({
+      profile_passive: 0,
+      profile_BSS_join_year: "2025 ősz",
+      form_token: "tok-profile",
+      form_id: "user_profile_form",
+    });
+  });
+
+  it("throws when step 1 does not confirm", async () => {
+    mockWebsitePost.mockResolvedValueOnce("<p>Hiba</p>");
+
+    await expect(reactivateWebsiteUser(USER_ID)).rejects.toThrow(
+      "Reactivation step 1 failed for user 42",
+    );
+    expect(mockWebsitePost).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws when step 2 does not confirm", async () => {
+    mockWebsitePost
+      .mockResolvedValueOnce(SUCCESS)
+      .mockResolvedValueOnce("<p>Hiba</p>");
+
+    await expect(reactivateWebsiteUser(USER_ID)).rejects.toThrow(
+      "Reactivation step 2 failed for user 42",
+    );
+  });
+
+  it("falls back to empty name, mail and join year when the forms are bare", async () => {
+    mockWebsiteGet.mockResolvedValue(PROFILE_TOKEN);
+
+    await reactivateWebsiteUser(USER_ID);
+
+    expect(postTo(`/user/${USER_ID}/edit`)).toMatchObject({
+      name: "",
+      mail: "",
+    });
+    expect(postTo(`/user/${USER_ID}/edit/BSS adatok`)).toMatchObject({
+      profile_BSS_join_year: "",
+    });
+  });
+});
+
 // ─── updateWebsiteUser ───────────────────────────────────────────────────────
 
 const PERSONAL_TAB = `/user/${USER_ID}/edit/Személyes adatok`;
@@ -368,6 +427,7 @@ describe("updateWebsiteUser", () => {
 
     expect(postTo(BSS_TAB)).toEqual({
       profile_BSS_state: "öregtag",
+      profile_passive: 0,
       profile_BSS_is_leader: 0,
       profile_BSS_is_in_BSS_HQ: 1,
       profile_BSS_HQ_role: "Főszerkesztő",
@@ -375,6 +435,23 @@ describe("updateWebsiteUser", () => {
       form_token: "tok-profile",
       form_id: "user_profile_form",
     });
+  });
+
+  it("keeps an archived member passive", async () => {
+    mockWebsiteGet.mockImplementation((_session, path: string) =>
+      Promise.resolve(
+        path === BSS_TAB
+          ? PAGES[BSS_TAB].replace(
+              '<input id="edit-profile-passive">',
+              '<input id="edit-profile-passive" checked="checked">',
+            )
+          : PAGES[path],
+      ),
+    );
+
+    await updateWebsiteUser(USER_ID, { position: "öregtag" });
+
+    expect(postTo(BSS_TAB)).toMatchObject({ profile_passive: 1 });
   });
 
   it("sets the leader flag and clears the HQ role for Stúdióvezető", async () => {

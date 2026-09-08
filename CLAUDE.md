@@ -281,7 +281,8 @@ for pre-existing members. Later website syncs target the account by this uid dir
 
 **LeadershipRole** — only *active* roles, one per member (1:1 via `@unique` on `memberId`). Holds a
 free-text `label` and an array of `authentikGroupIds`. When a role ends the row is deleted and a
-`TimelineEntry` snapshot is written instead.
+`TimelineEntry` snapshot is written instead. Archiving the member is one of the ways it ends — see
+Architectural decisions.
 
 **AuthentikGroup** — registry of known Authentik groups powering the role-assignment checklist.
 Populated manually by admins. The Authentik UUID is the primary key — no separate cuid.
@@ -455,7 +456,7 @@ fails the request earlier, before a body is parsed; it is not what makes the cal
 | Role | Derived from | Can |
 | --- | --- | --- |
 | `MEMBER` | everyone else | view member list, view/edit own profile |
-| `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive; read the whole admin area — audit log, sync jobs, Google Group reconciliation, app links |
+| `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive, reactivate; read the whole admin area — audit log, sync jobs, Google Group reconciliation, app links |
 | `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + retry failed sync jobs, refresh and annotate the Google Group list, create/edit/reorder/delete app links, delete a computer |
 
 The admin area splits on read vs write: `LEADER` sees every admin page, `ADMIN` is what the
@@ -522,7 +523,11 @@ changes require leader/admin. Timeline entry only on status change.
 `DELETE /api/members/[id]` — soft archive (leader/admin): sets `archived` + `archivedAt`.
 `?removeFromGoogleGroup=true` also takes the member off the mailing list; anything else leaves the
 address in place. A query parameter because a DELETE body is undefined territory that proxies
-drop.
+drop. Archiving is undone by `reactivateMemberAction`, a Server Action with no REST route of its
+own — nothing outside Backstage reactivates anybody, and DELETE was only ever a route because it
+is the natural verb for the archive. A second archive answers 200 having changed nothing, except
+`?removeFromGoogleGroup=true`, which still takes the address off the list — see Architectural
+decisions.
 
 `PUT /api/members/[id]/roles` — assign/update a leadership role (leader/admin). `label` +
 `authentikGroupIds`. Identical label and groups is a no-op returning 200 with no audit entry. New
@@ -701,9 +706,13 @@ a sync step failed; `syncJson` and `syncJsonResource` (`lib/api-response.ts`) ar
 between that and the normal answer, and services build the list with `collectSyncErrors`. The UI
 shows a warning toast, not an error.
 
-Website specifics: `CREATE_USER` / `UPDATE_USER` / `DEACTIVATE_USER` are wired into create, update,
-status change, archive and bulk operations. Status changes flow through `UPDATE_USER` via the
-`position` field — there is no dedicated status orchestrator on this target.
+Website specifics: `CREATE_USER` / `UPDATE_USER` / `DEACTIVATE_USER` / `REACTIVATE_USER` are wired
+into create, update, status change, archive, reactivate and bulk operations. Status changes flow
+through `UPDATE_USER` via the `position` field — there is no dedicated status orchestrator on this
+target. `REACTIVATE_USER` is the reverse of `DEACTIVATE_USER` on both targets and shares its enum
+value with the Authentik one, the way `DEACTIVATE_USER` already does: Authentik goes back to
+`is_active` and the `users` path, Drupal gets its role boxes re-checked and `profile_passive`
+cleared.
 
 Google Group specifics: `ADD_TO_GROUP` / `REMOVE_FROM_GROUP` on the `GOOGLE_GROUP` target, with
 `{ email, groupEmail }` as the payload — the list is in the payload because there are two of them.
@@ -717,8 +726,9 @@ list; a status change **into** alumni adds it to the alumni list (once — the t
 share one list); archiving offers an optional removal, a checkbox in `ArchiveDialog` that
 defaults to off and reaches the REST route as `?removeFromGoogleGroup=true`. Everything else is
 manual on purpose — an email change leaves the old address on the list (the edit sheet says so),
-nobody is removed on becoming alumni, and leaving alumni does not undo the membership. The
-reconciliation page is where those leftovers surface.
+nobody is removed on becoming alumni, leaving alumni does not undo the membership, and reactivating
+an archived member does not put back an address the archive took off. The reconciliation page is
+where those leftovers surface, and the archive dialog's checkbox says as much.
 
 ---
 
@@ -998,6 +1008,28 @@ is still written — that is what records the replace.
 removes both. Updating an existing role keeps the Leadership membership and only diffs the
 role-specific groups.
 
+**Archiving ends the leadership position; reactivating does not hand it back.** The
+`LeadershipRole` row used to survive an archive, which left the profile rendering a title nothing
+backed and forced reactivation to choose: re-add the Authentik groups, or leave the portal claiming
+a position it does not grant. `archiveMember` and `batchArchive` therefore call `removeRole`, which
+already deletes the row, snapshots it to the timeline and takes back both the common Leadership
+group and the role-specific ones. A returning member is given a position again by hand, which is
+the rarer case and the one a leader should decide deliberately.
+
+**Archiving and reactivation are idempotent, not refused.** `reactivateMember` returns a member
+who is not archived unchanged rather than throwing, and `archiveMember` does the same for one
+already archived — the same shape as `PUT /roles` treating an identical role as a no-op. A stale
+tab or a double click would otherwise move `archivedAt`, or write a second `MEMBER_REACTIVATED`
+audit entry and a second round of sync jobs.
+
+Reactivation re-adds the status group even though archiving never removed it, because the
+Authentik account may have been tidied up by hand in between and `add_user` is idempotent. That
+is cleanup; the leadership groups are a decision, which is why they are not in the same list.
+
+The archive keeps one exception: `?removeFromGoogleGroup=true` runs on an already archived member.
+The checkbox defaults to off and the archive button is gone once a member is archived, so a leader
+who left it unchecked would otherwise have no way back to the removal but the reconciliation page.
+
 **No REST routes for admin resources.** Sync jobs, the audit log and the Google Group
 reconciliation are read through their services from server components; mutations go through Server
 Actions. No external consumer exists, so an HTTP API would be surface area for nothing.
@@ -1267,7 +1299,8 @@ contact details, and the wiki already provides editing and audit.
 - Zod `.trim()` on every string input; empty strings become `null` in the service layer so optional
   fields can be cleared
 - `archived: false` is the default filter on member queries
-- Leadership roles are deleted when they end — history survives in `TimelineEntry`
+- Leadership roles are deleted when they end, archiving their holder included — history survives
+  in `TimelineEntry`
 - 207 responses carry `syncErrors`; the UI shows a warning toast, never an error
 - Toasts (sonner) for every mutation — `toast.error()` for a refusal, and
   `toastSync(message, syncErrors)` (`lib/toast.ts`) for a success, which downgrades itself to a

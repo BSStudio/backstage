@@ -94,6 +94,13 @@ export async function orchestrateDeactivate(
   return runAuthentikJob(prisma, memberId, "DEACTIVATE_USER", {});
 }
 
+export async function orchestrateReactivate(
+  prisma: PrismaClient,
+  memberId: string,
+): Promise<SyncResult> {
+  return runAuthentikJob(prisma, memberId, "REACTIVATE_USER", {});
+}
+
 export async function orchestrateStatusChange(
   prisma: PrismaClient,
   memberId: string,
@@ -109,6 +116,14 @@ export async function orchestrateStatusChange(
   results.push(await orchestrateAddToGroup(prisma, memberId, toGroup));
   results.push(await orchestrateRemoveFromGroup(prisma, memberId, fromGroup));
   return results;
+}
+
+export async function orchestrateAddToStatusGroup(
+  prisma: PrismaClient,
+  memberId: string,
+  status: MembershipStatus,
+): Promise<SyncResult> {
+  return orchestrateAddToGroup(prisma, memberId, getStatusGroupUuid(status));
 }
 
 export async function orchestrateAddToGroup(

@@ -227,6 +227,51 @@ export async function deactivateWebsiteUser(userId: string): Promise<void> {
   }
 }
 
+/**
+ * Restores the roles and the active flag `deactivateWebsiteUser` cleared.
+ */
+export async function reactivateWebsiteUser(userId: string): Promise<void> {
+  const session = await loginWebsite();
+
+  // Step 1: re-check the role boxes, which the deactivation cleared by omitting them.
+  // `status` is left out to mirror the deactivation, which never sent it either: sending
+  // ACTIVE would unblock an account a website administrator blocked for their own reason.
+  const mainHtml = await websiteGet(session, `/user/${userId}/edit`);
+  const $main = parseHtml(mainHtml);
+  const username = $main("input#edit-name").attr("value") ?? "";
+  const email = $main("input#edit-mail").attr("value") ?? "";
+  const mainToken = getFormToken(mainHtml, "edit-user-profile-form-form-token");
+
+  const step1 = await websitePost(session, `/user/${userId}/edit`, {
+    name: username,
+    mail: email,
+    [`roles[${WEBSITE_EDITOR}]`]: WEBSITE_EDITOR,
+    [`roles[${VIDEO_META_EDITOR}]`]: VIDEO_META_EDITOR,
+    [`roles[${VIDEO_CONTENT_EDITOR}]`]: VIDEO_CONTENT_EDITOR,
+    form_token: mainToken,
+    form_id: "user_profile_form",
+  });
+  if (!step1.includes(SUCCESS_PHRASE)) {
+    throw new WebsiteError(0, `Reactivation step 1 failed for user ${userId}`);
+  }
+
+  // Step 2: clear the passive flag on the BSS adatok tab.
+  const bssHtml = await websiteGet(session, `/user/${userId}/edit/BSS adatok`);
+  const $bss = parseHtml(bssHtml);
+  const joined = $bss("input#edit-profile-BSS-join-year").attr("value") ?? "";
+  const bssToken = getFormToken(bssHtml, "edit-user-profile-form-form-token");
+
+  const step2 = await websitePost(session, `/user/${userId}/edit/BSS adatok`, {
+    profile_passive: 0,
+    profile_BSS_join_year: joined,
+    form_token: bssToken,
+    form_id: "user_profile_form",
+  });
+  if (!step2.includes(SUCCESS_PHRASE)) {
+    throw new WebsiteError(0, `Reactivation step 2 failed for user ${userId}`);
+  }
+}
+
 export type UpdateWebsiteUserInput = {
   fullname?: string;
   nickname?: string;
@@ -304,6 +349,8 @@ export async function updateWebsiteUser(
 
     const data = {
       profile_BSS_state: input.position ?? current.position,
+      // The post replaces the whole tab, so omitting the flag would un-archive the member.
+      profile_passive: Number(current.passive),
       profile_BSS_is_leader: Number(isLeader),
       profile_BSS_is_in_BSS_HQ: Number(hasRole),
       profile_BSS_HQ_role: isLeader ? "" : effectiveRole,

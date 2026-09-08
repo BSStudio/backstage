@@ -33,7 +33,9 @@ import {
   buildAuthentikAttributes,
   createAuthentikUser,
   orchestrateAddToGroup,
+  orchestrateAddToStatusGroup,
   orchestrateDeactivate,
+  orchestrateReactivate,
   orchestrateRemoveFromGroup,
   orchestrateStatusChange,
   orchestrateUpdateAttributes,
@@ -170,6 +172,22 @@ describe("orchestrateDeactivate", () => {
   });
 });
 
+describe("orchestrateReactivate", () => {
+  it("creates REACTIVATE_USER job and executes it", async () => {
+    const prisma = getTestPrisma();
+    mockUpdateUser.mockResolvedValue({ pk: 42, is_active: true });
+
+    await orchestrateReactivate(prisma, MEMBER_ID);
+
+    const jobs = await prisma.syncJob.findMany({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].operation).toBe("REACTIVATE_USER");
+    expect(jobs[0].status).toBe("SUCCESS");
+  });
+});
+
 describe("orchestrateStatusChange", () => {
   it("creates ADD_TO_GROUP then REMOVE_FROM_GROUP jobs", async () => {
     const prisma = getTestPrisma();
@@ -229,6 +247,24 @@ describe("orchestrateAddToGroup / orchestrateRemoveFromGroup", () => {
     expect(jobs[0].payload).toEqual({ groupUuid: "group-xyz" });
   });
 
+  it("resolves the status group and adds the member to it", async () => {
+    const prisma = getTestPrisma();
+
+    await orchestrateAddToStatusGroup(prisma, MEMBER_ID, "MEMBER");
+
+    expect(mockAddUserToGroup).toHaveBeenCalledWith("group-m", 42);
+  });
+
+  it("rejects rather than throwing when the status group is unconfigured", async () => {
+    const prisma = getTestPrisma();
+    vi.stubEnv("AUTHENTIK_GROUP_MEMBER", "");
+
+    await expect(
+      orchestrateAddToStatusGroup(prisma, MEMBER_ID, "MEMBER"),
+    ).rejects.toThrow("Missing Authentik group UUID for status MEMBER");
+    expect(mockAddUserToGroup).not.toHaveBeenCalled();
+  });
+
   it("creates REMOVE_FROM_GROUP job and executes it", async () => {
     const prisma = getTestPrisma();
 
@@ -275,6 +311,20 @@ describe("members without an Authentik account", () => {
     });
     expect(jobs).toHaveLength(1);
     expect(jobs[0].operation).toBe("DEACTIVATE_USER");
+    expect(jobs[0].status).toBe("SKIPPED");
+  });
+
+  it("records REACTIVATE_USER as SKIPPED", async () => {
+    const prisma = getTestPrisma();
+
+    await orchestrateReactivate(prisma, LOCAL_MEMBER_ID);
+
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+    const jobs = await prisma.syncJob.findMany({
+      where: { memberId: LOCAL_MEMBER_ID },
+    });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].operation).toBe("REACTIVATE_USER");
     expect(jobs[0].status).toBe("SKIPPED");
   });
 

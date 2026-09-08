@@ -27,6 +27,7 @@ export function ArchiveDialog({
 }) {
   const [removeFromGoogleGroup, setRemoveFromGoogleGroup] = useState(false);
   const checkboxId = useId();
+  const hintId = useId();
 
   function handleOpenChange(next: boolean) {
     if (!next) setRemoveFromGoogleGroup(false);
@@ -39,21 +40,26 @@ export function ArchiveDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Archiválás megerősítése</AlertDialogTitle>
           <AlertDialogDescription>
-            {/* TODO: update when reactivation flow is implemented */}
-            {description} Ez a művelet jelenleg NEM visszavonható.
+            {description} Az archiválás később visszavonható.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={checkboxId}
-            checked={removeFromGoogleGroup}
-            onCheckedChange={(checked) =>
-              setRemoveFromGoogleGroup(checked === true)
-            }
-          />
-          <Label htmlFor={checkboxId} className="font-normal">
-            Törlés a Google Group levelezőlistáról is
-          </Label>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={checkboxId}
+              checked={removeFromGoogleGroup}
+              onCheckedChange={(checked) =>
+                setRemoveFromGoogleGroup(checked === true)
+              }
+              aria-describedby={hintId}
+            />
+            <Label htmlFor={checkboxId} className="font-normal">
+              Törlés a Google Group levelezőlistáról is
+            </Label>
+          </div>
+          <p id={hintId} className="text-xs text-muted-foreground">
+            A listáról való törlést az újraaktiválás nem vonja vissza.
+          </p>
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel>Mégse</AlertDialogCancel>

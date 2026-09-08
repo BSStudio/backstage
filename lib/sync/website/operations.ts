@@ -3,6 +3,7 @@ import {
   type CreateWebsiteUserInput,
   createWebsiteUser,
   deactivateWebsiteUser,
+  reactivateWebsiteUser,
   type UpdateWebsiteUserInput,
   updateWebsiteUser,
 } from "@/lib/website/users";
@@ -41,6 +42,12 @@ export const websiteHandlers: OperationHandlers = {
   DEACTIVATE_USER: async (_payload, memberId, prisma) => {
     const userId = await resolveWebsiteUserId(prisma, memberId);
     await deactivateWebsiteUser(userId);
+    return { userId };
+  },
+
+  REACTIVATE_USER: async (_payload, memberId, prisma) => {
+    const userId = await resolveWebsiteUserId(prisma, memberId);
+    await reactivateWebsiteUser(userId);
     return { userId };
   },
 };

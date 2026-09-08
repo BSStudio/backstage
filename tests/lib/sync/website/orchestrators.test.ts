@@ -5,10 +5,12 @@ const {
   mockCreateWebsiteUser,
   mockUpdateWebsiteUser,
   mockDeactivateWebsiteUser,
+  mockReactivateWebsiteUser,
 } = vi.hoisted(() => ({
   mockCreateWebsiteUser: vi.fn(),
   mockUpdateWebsiteUser: vi.fn(),
   mockDeactivateWebsiteUser: vi.fn(),
+  mockReactivateWebsiteUser: vi.fn(),
 }));
 
 vi.mock("@/lib/website/users", async (importOriginal) => ({
@@ -16,11 +18,13 @@ vi.mock("@/lib/website/users", async (importOriginal) => ({
   createWebsiteUser: mockCreateWebsiteUser,
   updateWebsiteUser: mockUpdateWebsiteUser,
   deactivateWebsiteUser: mockDeactivateWebsiteUser,
+  reactivateWebsiteUser: mockReactivateWebsiteUser,
 }));
 
 import {
   orchestrateCreateWebsiteUser,
   orchestrateDeactivateWebsiteUser,
+  orchestrateReactivateWebsiteUser,
   orchestrateUpdateWebsiteUser,
 } from "@/lib/sync/website/orchestrators";
 
@@ -51,6 +55,7 @@ beforeEach(async () => {
   });
   mockUpdateWebsiteUser.mockResolvedValue(undefined);
   mockDeactivateWebsiteUser.mockResolvedValue(undefined);
+  mockReactivateWebsiteUser.mockResolvedValue(undefined);
 
   await getTestPrisma().member.upsert({
     where: { id: MEMBER_ID },
@@ -205,6 +210,39 @@ describe("orchestrateDeactivateWebsiteUser", () => {
     expect(result).toEqual({
       success: false,
       error: "Deactivation step 1 failed for user 9001",
+    });
+    expect((await jobsFor(MEMBER_ID))[0].status).toBe("FAILED");
+  });
+});
+
+describe("orchestrateReactivateWebsiteUser", () => {
+  it("creates an empty-payload REACTIVATE_USER job", async () => {
+    const result = await orchestrateReactivateWebsiteUser(
+      getTestPrisma(),
+      MEMBER_ID,
+    );
+
+    expect(result).toEqual({ success: true, result: { userId: WEBSITE_UID } });
+    expect(mockReactivateWebsiteUser).toHaveBeenCalledWith(WEBSITE_UID);
+
+    const [job] = await jobsFor(MEMBER_ID);
+    expect(job.operation).toBe("REACTIVATE_USER");
+    expect(job.payload).toEqual({});
+  });
+
+  it("persists a FAILED job when the Drupal reactivation fails", async () => {
+    mockReactivateWebsiteUser.mockRejectedValue(
+      new Error("Reactivation step 1 failed for user 9001"),
+    );
+
+    const result = await orchestrateReactivateWebsiteUser(
+      getTestPrisma(),
+      MEMBER_ID,
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: "Reactivation step 1 failed for user 9001",
     });
     expect((await jobsFor(MEMBER_ID))[0].status).toBe("FAILED");
   });
