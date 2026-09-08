@@ -1,7 +1,8 @@
 # Workstation agent
 
 A heartbeat for one editing station. It pings `POST /api/computers/<id>/ping` every minute and
-`/computers` renders what it reports: OS, CPU, memory, disk and who is signed in at the console.
+`/computers` renders what it reports: OS, CPU, memory, disk and who is using it, at the machine or
+over RDP.
 
 Windows PowerShell 5.1, which every Windows box already has. Nothing to install but the scripts here.
 

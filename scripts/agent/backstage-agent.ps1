@@ -38,6 +38,92 @@ function Write-AgentLog {
     }
 }
 
+# Win32_ComputerSystem.UserName names the console session, and an RDP client leaves that session
+# locked behind it — so on the machines the studio actually works on remotely it reports either
+# nobody or the wrong person. The session table is the only thing that answers for both, and its
+# connect state is a numeric enum rather than the localised text `quser` prints.
+$WtsSource = @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+
+public static class BackstageWts {
+    [DllImport("wtsapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "WTSEnumerateSessionsW")]
+    static extern int WTSEnumerateSessions(IntPtr hServer, int Reserved, int Version, ref IntPtr ppSessionInfo, ref int pCount);
+
+    [DllImport("wtsapi32.dll")]
+    static extern void WTSFreeMemory(IntPtr pMemory);
+
+    [DllImport("wtsapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "WTSQuerySessionInformationW")]
+    static extern bool WTSQuerySessionInformation(IntPtr hServer, int sessionId, int infoClass, out IntPtr ppBuffer, out int pBytesReturned);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct SessionInfo {
+        public int SessionId;
+        [MarshalAs(UnmanagedType.LPWStr)] public string WinStationName;
+        public int State;
+    }
+
+    static string Query(int sessionId, int infoClass) {
+        IntPtr buffer;
+        int length;
+        if (!WTSQuerySessionInformation(IntPtr.Zero, sessionId, infoClass, out buffer, out length)) return "";
+        string value = Marshal.PtrToStringUni(buffer);
+        WTSFreeMemory(buffer);
+        return value == null ? "" : value;
+    }
+
+    // "<session id>|<connect state>|<domain>\<user>", the user empty for a session nobody is
+    // signed into.
+    public static string[] Sessions() {
+        IntPtr sessions = IntPtr.Zero;
+        int count = 0;
+        List<string> rows = new List<string>();
+        if (WTSEnumerateSessions(IntPtr.Zero, 0, 1, ref sessions, ref count) == 0) return rows.ToArray();
+        try {
+            int size = Marshal.SizeOf(typeof(SessionInfo));
+            for (int i = 0; i < count; i++) {
+                SessionInfo info = (SessionInfo)Marshal.PtrToStructure(new IntPtr(sessions.ToInt64() + i * size), typeof(SessionInfo));
+                string user = Query(info.SessionId, 5);
+                string domain = Query(info.SessionId, 7);
+                string who = user.Length == 0 ? "" : (domain.Length == 0 ? user : domain + "\\" + user);
+                rows.Add(info.SessionId + "|" + info.State + "|" + who);
+            }
+        } finally { WTSFreeMemory(sessions); }
+        return rows.ToArray();
+    }
+}
+'@
+
+# A machine where this will not compile still reports its load: Get-Metadata catches the missing
+# type and leaves the field out, which the portal renders as "no idea" rather than "free".
+try { Add-Type -TypeDefinition $WtsSource -Language CSharp } catch { }
+
+function Get-SessionOccupancy {
+    # State 0 is WTSActive: attached to a display, local or remote. Anything else — most often a
+    # disconnected RDP session — is somebody who signed in and left.
+    $lockedSessions = @(Get-Process LogonUI -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty SessionId -Unique)
+
+    $signedIn = $null
+
+    foreach ($row in [BackstageWts]::Sessions()) {
+        $fields = $row -split '\|'
+        $user = $fields[2]
+        if (-not $user) { continue }
+
+        # LogonUI per session, not per machine: it is running for the console the whole time
+        # somebody works over RDP.
+        if ($fields[1] -eq '0' -and $lockedSessions -notcontains [int]$fields[0]) {
+            return @{ loggedInUser = $user; locked = $false }
+        }
+        if (-not $signedIn) { $signedIn = $user }
+    }
+
+    if ($signedIn) { return @{ loggedInUser = $signedIn; locked = $true } }
+    return @{ loggedInUser = $null; locked = $false }
+}
+
 function Get-Metadata {
     $meta = @{ agentVersion = $script:AgentVersion }
 
@@ -67,18 +153,12 @@ function Get-Metadata {
     }
     catch { }
 
-    # A client SKU runs one interactive session, so this is whoever is signed in, console or
-    # RDP. The "console only" caveat on this property is about terminal servers.
+    # Left out entirely on failure rather than reported as null, which would claim the machine
+    # is free on the strength of a query that did not run.
     try {
-        $user = (Get-CimInstance Win32_ComputerSystem).UserName
-        if ([string]::IsNullOrWhiteSpace($user)) { $meta.loggedInUser = $null }
-        else { $meta.loggedInUser = $user }
-    }
-    catch { $meta.loggedInUser = $null }
-
-    # LogonUI owns the lock and sign-in screens, so its presence means nobody is at it.
-    try {
-        $meta.locked = [bool](Get-Process LogonUI -ErrorAction SilentlyContinue)
+        $occupancy = Get-SessionOccupancy
+        $meta.loggedInUser = $occupancy.loggedInUser
+        $meta.locked = $occupancy.locked
     }
     catch { }
 

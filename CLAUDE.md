@@ -1174,11 +1174,20 @@ as free is then a portal change instead of a reinstall on three workstations. Th
 `metadata` is JSON rather than columns, and why every field in it is optional with absent
 distinguishable from empty: an old agent keeps working.
 
-**Local and RDP sessions are deliberately not told apart.** `LogonType` records how a session was
-established rather than where it is now, and an RDP client taking over a console session on a
-Windows client SKU leaves it type 2 — so the field would report the common remote case as local.
-Doing it properly needs the WTS session table, which is a text scrape with a localised `STATE`
-column, for a distinction Windows already warns about at sign-in.
+**Occupancy comes from the session table, not `Win32_ComputerSystem.UserName`.** That property
+names the console session, and an RDP client leaves the console locked behind it — so on a machine
+being worked on remotely it reported nobody, while a machine-wide `Get-Process LogonUI` saw the
+console's own lock screen and called the machine free. Both halves of the old signal failed on the
+same case, and the studio works over RDP. The agent enumerates sessions through `wtsapi32`
+instead: `WTSActive` is a session attached to a display, local or remote, and LogonUI is matched
+by session id rather than machine-wide. `quser` prints the same table, but its `STATE` column is
+localised where the API's connect state is a numeric enum. A session that is signed in but not
+active — a disconnected RDP session, most often — reports as `locked`, which is the same thing the
+portal already treats as free.
+
+**Local and RDP sessions are still not told apart in the portal.** The session table names the
+station, and the agent throws it away: the portal's question is whether somebody is there, not how
+they got there, and it is a distinction Windows already warns about at sign-in.
 
 **Status is a tinted card, not a value in a row.** Members open both surfaces with one question —
 which machine can I sit at — and a label-and-value row answers it in the same grey at the far edge
