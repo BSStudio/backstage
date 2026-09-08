@@ -501,10 +501,7 @@ export async function archiveMember(
 ) {
   ensureCanManageMembers(actor);
 
-  const member = await prisma.member.findUnique({
-    where: { id },
-    include: { leadershipRole: true },
-  });
+  const member = await prisma.member.findUnique({ where: { id } });
   if (!member) throw new NotFoundError();
   if (member.archived) {
     if (!options.removeFromGoogleGroup) return { syncErrors: [] };
@@ -533,9 +530,7 @@ export async function archiveMember(
     }),
   ]);
 
-  const roleErrors = member.leadershipRole
-    ? await endLeadership(prisma, member.id, actor)
-    : [];
+  const roleErrors = await endLeadership(prisma, member.id, actor);
 
   const results: SyncResult[] = await Promise.all([
     orchestrateDeactivate(prisma, member.id),
