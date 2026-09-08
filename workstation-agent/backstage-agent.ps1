@@ -85,7 +85,10 @@ public static class BackstageWts {
         IntPtr sessions = IntPtr.Zero;
         int count = 0;
         List<string> rows = new List<string>();
-        if (WTSEnumerateSessions(IntPtr.Zero, 0, 1, ref sessions, ref count) == 0) return rows.ToArray();
+        // Thrown rather than returned empty: an unreadable session table is not a machine
+        // nobody is signed into, and the caller would otherwise report it as free.
+        if (WTSEnumerateSessions(IntPtr.Zero, 0, 1, ref sessions, ref count) == 0)
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
         try {
             int size = Marshal.SizeOf(typeof(SessionInfo));
             for (int i = 0; i < count; i++) {
