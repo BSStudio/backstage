@@ -7,13 +7,21 @@ export interface ApiClient {
   username: string;
 }
 
-function getConfig() {
+// One group per caller kind: a workstation token must not reach the other endpoints.
+const GROUP_ENV = {
+  apiClient: "AUTHENTIK_GROUP_API_CLIENTS",
+  computerAgent: "AUTHENTIK_GROUP_COMPUTER_AGENTS",
+} as const;
+
+export type ApiClientKind = keyof typeof GROUP_ENV;
+
+function getConfig(kind: ApiClientKind) {
   const issuer = authentikIssuer();
   const audience = process.env.AUTHENTIK_CLIENT_ID;
-  const group = process.env.AUTHENTIK_GROUP_API_CLIENTS;
+  const group = process.env[GROUP_ENV[kind]];
   if (!issuer || !audience || !group) {
     throw new Error(
-      "Missing AUTHENTIK_ISSUER, AUTHENTIK_CLIENT_ID or AUTHENTIK_GROUP_API_CLIENTS environment variables",
+      `Missing AUTHENTIK_ISSUER, AUTHENTIK_CLIENT_ID or ${GROUP_ENV[kind]} environment variables`,
     );
   }
   return { issuer, audience, group };
@@ -39,8 +47,9 @@ function unauthorized(): NextResponse {
 
 export async function requireApiClient(
   req: Request,
+  kind: ApiClientKind = "apiClient",
 ): Promise<ApiClient | NextResponse> {
-  const { issuer, audience, group } = getConfig();
+  const { issuer, audience, group } = getConfig(kind);
 
   const token = req.headers.get("authorization")?.match(/^Bearer (.+)$/i)?.[1];
   if (!token) return unauthorized();

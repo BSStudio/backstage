@@ -11,6 +11,9 @@ const publicPaths = [
   "/monitoring",
 ];
 
+// A pattern rather than a prefix, so a route added beside one does not inherit its exemption.
+const publicPathPatterns = [/^\/api\/computers\/[^/]+\/ping$/];
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -31,7 +34,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url, 308);
   }
 
-  if (publicPaths.some((path) => pathname.startsWith(path))) {
+  if (
+    publicPaths.some((path) => pathname.startsWith(path)) ||
+    publicPathPatterns.some((pattern) => pattern.test(pathname))
+  ) {
     return NextResponse.next();
   }
 

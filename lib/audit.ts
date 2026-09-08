@@ -18,6 +18,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   APP_LINK_CREATED: "Alkalmazás létrehozás",
   APP_LINK_UPDATED: "Alkalmazás módosítás",
   APP_LINK_DELETED: "Alkalmazás törlés",
+  COMPUTER_DELETED: "Számítógép törlés",
 };
 
 /** Tailwind classes for audit action badges. */
@@ -40,6 +41,7 @@ export const AUDIT_ACTION_VARIANT: Record<AuditAction, string> = {
   APP_LINK_CREATED: "bg-green-500/15 text-green-600 dark:text-green-400",
   APP_LINK_UPDATED: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   APP_LINK_DELETED: "bg-red-500/15 text-red-600 dark:text-red-400",
+  COMPUTER_DELETED: "bg-red-500/15 text-red-600 dark:text-red-400",
 };
 
 /** Parse an audit log diff into structured entries. Returns null for non-diff objects. */

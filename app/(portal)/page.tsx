@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { HeroEvent, UpcomingEvents } from "@/components/dashboard/calendar";
 import { ComputersCard } from "@/components/dashboard/computers-card";
 import {
@@ -9,6 +10,7 @@ import {
 import { QuickLinks } from "@/components/dashboard/quick-links";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatFullDate } from "@/lib/calendar";
+import { COMPUTER_REFRESH_MS } from "@/lib/computers";
 import { pageActor } from "@/lib/session";
 import { civilDate } from "@/types";
 
@@ -20,6 +22,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <AutoRefresh intervalMs={COMPUTER_REFRESH_MS} />
+
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
           {member ? `Szia, ${member.firstName}!` : "Kezdőlap"}

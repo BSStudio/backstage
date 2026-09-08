@@ -2,6 +2,7 @@ import type {
   AppLinkAccent,
   MembershipStatus,
 } from "../app/generated/prisma/client";
+import type { ComputerMetadata } from "../lib/services/computer-schemas";
 import type { AppLinkIconName } from "../types";
 
 // The fallback UUIDs are invented, so a default seed never points at a real Authentik instance.
@@ -543,5 +544,66 @@ export const SEED_APP_LINKS: SeedAppLink[] = [
     url: "https://foglalas.bsstudio.hu",
     icon: "monitor",
     accent: "PINK",
+  },
+];
+
+export interface SeedComputer {
+  id: string;
+  minutesAgo: number;
+  metadata: ComputerMetadata;
+}
+
+// The four edit stations, between them covering every state a card renders: in use, signed
+// in but locked (which the portal reads as free), online but reporting no occupancy at all,
+// and offline.
+export const SEED_COMPUTERS: SeedComputer[] = [
+  // No occupancy fields at all: what an agent sends when its session lookup failed. The card
+  // has to stay neutral here rather than call the machine free.
+  {
+    id: "nle3",
+    minutesAgo: 0,
+    metadata: {
+      os: "Microsoft Windows 11 Pro",
+      cpuPercent: 8,
+      memoryPercent: 30,
+      diskPercent: 55,
+      agentVersion: "v1.1.1",
+    },
+  },
+  {
+    id: "nle4",
+    minutesAgo: 0,
+    metadata: {
+      os: "Microsoft Windows 11 Pro",
+      cpuPercent: 34,
+      memoryPercent: 61,
+      diskPercent: 88,
+      loggedInUser: "BSS\\nkovacs",
+      locked: false,
+      agentVersion: "v1.1.1",
+    },
+  },
+  {
+    id: "nle6",
+    minutesAgo: 1,
+    metadata: {
+      os: "Microsoft Windows 11 Pro",
+      cpuPercent: 2,
+      memoryPercent: 24,
+      diskPercent: 41,
+      loggedInUser: "BSS\\aszabo",
+      locked: true,
+      agentVersion: "v1.1.1",
+    },
+  },
+  // Offline, and left on an older agent so the version the card reports differs from the rest.
+  {
+    id: "nle7",
+    minutesAgo: 240,
+    metadata: {
+      os: "Microsoft Windows 11 Pro",
+      loggedInUser: null,
+      agentVersion: "v1.1.0",
+    },
   },
 ];

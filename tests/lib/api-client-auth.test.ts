@@ -16,6 +16,7 @@ import { requireApiClient } from "@/lib/api-client-auth";
 const ISSUER = "https://auth.example.com/application/o/backstage";
 const AUDIENCE = "backstage-client-id";
 const GROUP = "backstage-api-clients";
+const AGENT_GROUP = "backstage-computer-agents";
 
 let privateKey: CryptoKey;
 let publicKey: CryptoKey;
@@ -34,6 +35,7 @@ beforeEach(() => {
   vi.stubEnv("AUTHENTIK_ISSUER", ISSUER);
   vi.stubEnv("AUTHENTIK_CLIENT_ID", AUDIENCE);
   vi.stubEnv("AUTHENTIK_GROUP_API_CLIENTS", GROUP);
+  vi.stubEnv("AUTHENTIK_GROUP_COMPUTER_AGENTS", AGENT_GROUP);
 });
 
 async function sign(
@@ -84,6 +86,43 @@ describe("requireApiClient configuration", () => {
     await expect(requireApiClient(req("token"))).rejects.toThrow(
       "Missing AUTHENTIK_ISSUER",
     );
+  });
+
+  it("names the group the caller kind actually needs", async () => {
+    vi.stubEnv("AUTHENTIK_GROUP_COMPUTER_AGENTS", "");
+
+    await expect(
+      requireApiClient(req("token"), "computerAgent"),
+    ).rejects.toThrow("AUTHENTIK_GROUP_COMPUTER_AGENTS");
+  });
+});
+
+describe("requireApiClient caller kinds", () => {
+  it("refuses an API client token on the computer agent boundary", async () => {
+    const token = await sign({ sub: "svc-1", groups: [GROUP] });
+
+    expect(
+      await status(await requireApiClient(req(token), "computerAgent")),
+    ).toBe(403);
+  });
+
+  it("refuses a computer agent token on the API client boundary", async () => {
+    const token = await sign({ sub: "svc-nle4", groups: [AGENT_GROUP] });
+
+    expect(await status(await requireApiClient(req(token)))).toBe(403);
+  });
+
+  it("accepts a computer agent token on its own boundary", async () => {
+    const token = await sign({
+      sub: "svc-nle4",
+      groups: [AGENT_GROUP],
+      preferred_username: "nle4-agent",
+    });
+
+    expect(await requireApiClient(req(token), "computerAgent")).toEqual({
+      sub: "svc-nle4",
+      username: "nle4-agent",
+    });
   });
 });
 
