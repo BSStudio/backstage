@@ -476,6 +476,24 @@ export interface ArchiveOptions {
   removeFromGoogleGroup?: boolean;
 }
 
+// A position does not survive its holder leaving. The throw is caught rather than
+// propagated: the archive has already committed, so a failure here would otherwise skip
+// the deactivation that takes the member's access away, with no SyncJob row to retry.
+async function endLeadership(
+  prisma: PrismaClient,
+  memberId: string,
+  actor: Actor,
+): Promise<string[]> {
+  try {
+    const { syncErrors } = await removeRole(prisma, memberId, actor);
+    return syncErrors;
+  } catch (error) {
+    return [
+      `a pozíció megszüntetése nem sikerült: ${(error as Error).message}`,
+    ];
+  }
+}
+
 export async function archiveMember(
   prisma: PrismaClient,
   id: string,
@@ -484,7 +502,10 @@ export async function archiveMember(
 ) {
   ensureCanManageMembers(actor);
 
-  const member = await prisma.member.findUnique({ where: { id } });
+  const member = await prisma.member.findUnique({
+    where: { id },
+    include: { leadershipRole: true },
+  });
   if (!member) throw new NotFoundError();
 
   await prisma.$transaction([
@@ -505,10 +526,9 @@ export async function archiveMember(
     }),
   ]);
 
-  // A position does not survive its holder leaving. Ending it here keeps the profile
-  // from rendering a title nothing backs, and reactivation from having to decide
-  // whether to hand it back — a returning member is given one again by hand.
-  const { syncErrors: roleErrors } = await removeRole(prisma, member.id, actor);
+  const roleErrors = member.leadershipRole
+    ? await endLeadership(prisma, member.id, actor)
+    : [];
 
   const results: SyncResult[] = await Promise.all([
     orchestrateDeactivate(prisma, member.id),
@@ -578,6 +598,7 @@ export async function batchArchive(
 
   const members = await prisma.member.findMany({
     where: { id: { in: ids }, archived: false },
+    include: { leadershipRole: true },
   });
 
   const now = new Date();
@@ -604,9 +625,10 @@ export async function batchArchive(
     }),
   ]);
 
-  // Same as archiveMember: the position does not outlive the membership.
-  const roleResults = await Promise.all(
-    members.map((m) => removeRole(prisma, m.id, actor)),
+  const roleErrors = await Promise.all(
+    members
+      .filter((m) => m.leadershipRole)
+      .map((m) => endLeadership(prisma, m.id, actor)),
   );
 
   const syncResults = await Promise.all(
@@ -620,10 +642,7 @@ export async function batchArchive(
   );
   return {
     count: members.length,
-    syncErrors: [
-      ...roleResults.flatMap((r) => r.syncErrors),
-      ...collectSyncErrors(syncResults),
-    ],
+    syncErrors: [...roleErrors.flat(), ...collectSyncErrors(syncResults)],
   };
 }
 

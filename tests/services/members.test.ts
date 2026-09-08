@@ -1188,6 +1188,26 @@ describe("archiveMember", () => {
     expect(result.syncErrors).toContain("Authentik unreachable");
   });
 
+  it("still deactivates when ending the position throws", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: [],
+      },
+    });
+    vi.stubEnv("AUTHENTIK_GROUP_LEADERSHIP_UUID", "");
+
+    const result = await archiveMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.syncErrors).toEqual([
+      "a pozíció megszüntetése nem sikerült: Missing Authentik group UUID for Leadership",
+    ]);
+    expect(mockOrchestrateDeactivate).toHaveBeenCalledTimes(1);
+    expect(mockOrchestrateDeactivateWebsiteUser).toHaveBeenCalledTimes(1);
+  });
+
   it("returns syncErrors when Authentik deactivation fails", async () => {
     const prisma = getTestPrisma();
     mockOrchestrateDeactivate.mockResolvedValueOnce({
@@ -1521,6 +1541,26 @@ describe("batchArchive", () => {
 
     const timeline = await prisma.timelineEntry.findMany();
     expect(timeline).toHaveLength(0);
+  });
+
+  it("deactivates every member even when one position removal throws", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: [],
+      },
+    });
+    vi.stubEnv("AUTHENTIK_GROUP_LEADERSHIP_UUID", "");
+
+    const result = await batchArchive(prisma, [MEMBER_ID, ACTOR.id], ACTOR);
+
+    expect(result.count).toBe(2);
+    expect(result.syncErrors).toEqual([
+      "a pozíció megszüntetése nem sikerült: Missing Authentik group UUID for Leadership",
+    ]);
+    expect(mockOrchestrateDeactivate).toHaveBeenCalledTimes(2);
   });
 
   it("collects syncErrors from failed deactivations", async () => {
