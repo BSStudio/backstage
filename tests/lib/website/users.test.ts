@@ -272,13 +272,12 @@ describe("deactivateWebsiteUser", () => {
 // ─── reactivateWebsiteUser ───────────────────────────────────────────────────
 
 describe("reactivateWebsiteUser", () => {
-  it("restores the roles and the active flag, then clears passive", async () => {
+  it("restores the roles and leaves the account status alone", async () => {
     await reactivateWebsiteUser(USER_ID);
 
     expect(postTo(`/user/${USER_ID}/edit`)).toEqual({
       name: "jkovacs",
       mail: "jkovacs@bss.hu",
-      status: 1,
       "roles[8]": 8,
       "roles[5]": 5,
       "roles[4]": 4,

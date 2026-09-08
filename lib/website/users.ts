@@ -234,10 +234,8 @@ export async function reactivateWebsiteUser(userId: string): Promise<void> {
   const session = await loginWebsite();
 
   // Step 1: re-check the role boxes, which the deactivation cleared by omitting them.
-  // `status` is sent explicitly rather than mirrored, because omitting a radio and
-  // omitting a checkbox do not mean the same thing to Drupal: if the deactivation's
-  // omission blocked the account, only this restores it, and if it did not, this is
-  // the value the account already carries.
+  // `status` is left out to mirror the deactivation, which never sent it either: sending
+  // ACTIVE would unblock an account a website administrator blocked for their own reason.
   const mainHtml = await websiteGet(session, `/user/${userId}/edit`);
   const $main = parseHtml(mainHtml);
   const username = $main("input#edit-name").attr("value") ?? "";
@@ -247,7 +245,6 @@ export async function reactivateWebsiteUser(userId: string): Promise<void> {
   const step1 = await websitePost(session, `/user/${userId}/edit`, {
     name: username,
     mail: email,
-    status: ACTIVE,
     [`roles[${WEBSITE_EDITOR}]`]: WEBSITE_EDITOR,
     [`roles[${VIDEO_META_EDITOR}]`]: VIDEO_META_EDITOR,
     [`roles[${VIDEO_CONTENT_EDITOR}]`]: VIDEO_CONTENT_EDITOR,
