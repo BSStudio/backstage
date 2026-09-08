@@ -88,8 +88,9 @@ to show, between them using all eight accents, and one with no description so th
 too. Each gets an `APP_LINK_CREATED` audit entry, which is what puts the new action badges and
 the `targetLabel` column on `/admin/audit` without having to create an app first.
 
-Three `Computer` rows cover every state a card renders: `nle4` in use, `nle6` signed in but
-locked (which the portal reads as free), and `nle7` offline on an older agent version. A
+Four `Computer` rows cover every state a card renders: `nle4` in use, `nle6` signed in but
+locked (which the portal reads as free), `nle5` online but reporting no occupancy at all —
+what an agent whose session lookup failed sends — and `nle7` offline. A
 `COMPUTER_DELETED` audit entry for a retired `NLE5` gives `/admin/audit` the new action to render.
 
 The scripts refuse to run against a database whose host is not local unless passed `--force`.
@@ -236,7 +237,8 @@ guards itself regardless.
 4. Report a fact, not a conclusion. The portal decides what a fact means, so changing that
    decision is not a reinstall on every workstation
 5. Old agents keep running: every field is optional, and absent has to stay distinguishable from
-   an empty value
+   an empty value. `loggedInUser` is the worked example — omitted when the session lookup
+   failed, `null` when it ran and found nobody, and only the second means the machine is free
 
 **Add a portal page** — `app/(portal)/…/page.tsx` exporting `metadata` and, if it reads data,
 opening with `pageActor()` — or `pageActor(<predicate>)` when a role gates it; a Hungarian label in

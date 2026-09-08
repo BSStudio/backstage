@@ -553,8 +553,9 @@ export interface SeedComputer {
   metadata: ComputerMetadata;
 }
 
-// The three edit stations, between them covering every state a card renders: in use,
-// signed in but locked (which the portal reads as free), and offline.
+// The four edit stations, between them covering every state a card renders: in use, signed
+// in but locked (which the portal reads as free), online but reporting no occupancy at all,
+// and offline.
 export const SEED_COMPUTERS: SeedComputer[] = [
   {
     id: "nle4",
@@ -566,6 +567,19 @@ export const SEED_COMPUTERS: SeedComputer[] = [
       diskPercent: 88,
       loggedInUser: "BSS\\nkovacs",
       locked: false,
+      agentVersion: "v1.1.1",
+    },
+  },
+  // No occupancy fields at all: what an agent sends when its session lookup failed. The card
+  // has to stay neutral here rather than call the machine free.
+  {
+    id: "nle5",
+    minutesAgo: 0,
+    metadata: {
+      os: "Microsoft Windows 11 Pro",
+      cpuPercent: 8,
+      memoryPercent: 30,
+      diskPercent: 55,
       agentVersion: "v1.1.1",
     },
   },
@@ -582,7 +596,7 @@ export const SEED_COMPUTERS: SeedComputer[] = [
       agentVersion: "v1.1.1",
     },
   },
-  // Offline, and left on an older agent so the version drift the ping reports is visible.
+  // Offline, so the card collapses to the name, the badge and when it last pinged.
   {
     id: "nle7",
     minutesAgo: 240,

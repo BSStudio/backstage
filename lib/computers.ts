@@ -62,7 +62,9 @@ export function computerVerdict(computer: {
     return { tone: "OFFLINE", label: "Offline", user: null };
 
   const { loggedInUser, locked } = computer.metadata;
-  // An agent too old to report the field at all. Online is the whole of what it told us.
+  // The agent could not read the session table — most often because the C# it compiles at
+  // startup was blocked — or is too old to report occupancy at all. Either way online is the
+  // whole of what it told us, and "free" is not ours to infer from a query that never ran.
   if (loggedInUser === undefined)
     return { tone: "IDLE", label: "Online", user: null };
 
