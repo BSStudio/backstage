@@ -52,7 +52,7 @@ New-Item -ItemType Directory -Path $staging -Force | Out-Null
 try {
     foreach ($file in @('backstage-agent.ps1', 'install-agent.ps1')) {
         Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 `
-            -Uri "https://raw.githubusercontent.com/$Repo/$Ref/scripts/agent/$file" `
+            -Uri "https://raw.githubusercontent.com/$Repo/$Ref/workstation-agent/$file" `
             -OutFile (Join-Path $staging $file)
     }
 

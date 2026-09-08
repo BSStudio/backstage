@@ -157,8 +157,14 @@ The scripts refuse to run against a database whose host is not local unless pass
   `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`,
   `authentik-contract.ts` + its `authentik-contract.json` snapshot, and the two credential probes,
   `google-group-probe.ts` and `google-calendar-probe.ts`, which read the configured group and
-  calendar through the real clients. `scripts/agent/` is the exception — PowerShell, not `tsx`,
-  and deployed to workstations rather than run here
+  calendar through the real clients. Everything here runs on a developer's own machine against
+  their `.env`, and nothing here is shipped
+- `workstation-agent/` — the studio workstation agent: `backstage-agent.ps1` (the ping loop),
+  `install-agent.ps1` (the scheduled task, the ACL and the DPAPI-encrypted credential),
+  `bootstrap.ps1` (the one-liner that fetches the other two at the latest release tag), and their
+  own `README.md`. Top level rather than under `scripts/` because it is not tooling for this
+  repository: it is Windows PowerShell fetched over HTTP onto machines that never clone this, and
+  its paths are part of a published install URL
 - `tests/` — mirrors the source layout; `setup.ts` spins Testcontainers Postgres
 - `proxy.ts` — route protection (Next.js 16 convention), and the CardDAV endpoint, which cannot
   live in a route handler
@@ -222,7 +228,7 @@ logic, and no role list of its own — the predicate comes from `lib/permissions
 guards itself regardless.
 
 **Add something the workstation agent reports**
-1. Collect it in `Get-Metadata` (`scripts/agent/backstage-agent.ps1`), inside its own `try`, so a
+1. Collect it in `Get-Metadata` (`workstation-agent/backstage-agent.ps1`), inside its own `try`, so a
    machine that cannot answer still pings
 2. Add the field to `ComputerMetadataSchema` (`lib/services/computer-schemas.ts`) — unknown keys
    are stripped, so an agent reporting a field the schema does not name writes nothing

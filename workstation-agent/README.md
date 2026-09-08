@@ -21,7 +21,7 @@ One service account per machine, so a stolen credential is scoped to that machin
 From an **elevated** PowerShell on the workstation:
 
 ```powershell
-irm https://raw.githubusercontent.com/BSStudio/backstage/main/scripts/agent/bootstrap.ps1 | iex
+irm https://raw.githubusercontent.com/BSStudio/backstage/main/workstation-agent/bootstrap.ps1 | iex
 ```
 
 It installs the latest release, then asks for the Backstage URL, the Authentik issuer and client
@@ -31,7 +31,7 @@ machine's own name lowercased (`NLE4` → `nle4`).
 To pass answers instead of being asked, the pipe has to become a script block:
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/BSStudio/backstage/main/scripts/agent/bootstrap.ps1))) `
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/BSStudio/backstage/main/workstation-agent/bootstrap.ps1))) `
   -BaseUrl https://backstage.bsstudio.hu `
   -Issuer https://login.bsstudio.hu/application/o/backstage/ `
   -ClientId <client id> -Username nle4-agent
@@ -83,7 +83,7 @@ recover, naming how many were missed.
 ## Uninstall
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/BSStudio/backstage/main/scripts/agent/bootstrap.ps1))) -Uninstall
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/BSStudio/backstage/main/workstation-agent/bootstrap.ps1))) -Uninstall
 ```
 
 Kills the running agent — unregistering the task alone leaves it looping with its id and its token
