@@ -192,7 +192,13 @@ describe("archiveMemberAction", () => {
       data: { archived: true },
       syncErrors: [],
     });
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
+    expect(mockRevalidatePath.mock.calls.flat()).toEqual([
+      "/members",
+      "/members/alumni",
+      "/members/archived",
+      "/members/leadership",
+      "/members/m-1",
+    ]);
   });
 
   it("passes the Google Group removal flag to the service", async () => {

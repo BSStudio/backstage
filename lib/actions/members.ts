@@ -23,6 +23,20 @@ import { sessionActor } from "@/lib/session";
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
+// Every list is a slice of the same rows and a mutation can move a member between them,
+// so all four are refreshed rather than each caller guessing which ones it touched.
+const MEMBER_LIST_PATHS = [
+  "/members",
+  "/members/alumni",
+  "/members/archived",
+  "/members/leadership",
+];
+
+function revalidateMembers(id?: string): void {
+  for (const path of MEMBER_LIST_PATHS) revalidatePath(path);
+  if (id) revalidatePath(`/members/${id}`);
+}
+
 export async function createMemberAction(
   input: Record<string, unknown>,
 ): Promise<ActionResult> {
@@ -35,7 +49,7 @@ export async function createMemberAction(
       input,
       actor,
     );
-    revalidatePath("/members");
+    revalidateMembers(member.id);
     return { success: true, data: { ...member, username }, syncErrors };
   } catch (error) {
     return mapActionError(error);
@@ -51,8 +65,7 @@ export async function updateMemberAction(
 
   try {
     const { member, syncErrors } = await updateMember(prisma, id, input, actor);
-    revalidatePath("/members");
-    revalidatePath(`/members/${id}`);
+    revalidateMembers(id);
     return { success: true, data: member, syncErrors };
   } catch (error) {
     return mapActionError(error);
@@ -68,7 +81,7 @@ export async function archiveMemberAction(
 
   try {
     const { syncErrors } = await archiveMember(prisma, id, actor, options);
-    revalidatePath("/members");
+    revalidateMembers(id);
     return { success: true, data: { archived: true }, syncErrors };
   } catch (error) {
     return mapActionError(error);
@@ -83,9 +96,7 @@ export async function reactivateMemberAction(
 
   try {
     const { syncErrors } = await reactivateMember(prisma, id, actor);
-    revalidatePath("/members");
-    revalidatePath("/members/archived");
-    revalidatePath(`/members/${id}`);
+    revalidateMembers(id);
     return { success: true, data: { archived: false }, syncErrors };
   } catch (error) {
     return mapActionError(error);
@@ -106,7 +117,7 @@ export async function batchArchiveAction(
       actor,
       options,
     );
-    revalidatePath("/members");
+    revalidateMembers();
     return { success: true, data: { count }, syncErrors };
   } catch (error) {
     return mapActionError(error);
@@ -127,7 +138,7 @@ export async function batchUpdateStatusAction(
       status,
       actor,
     );
-    revalidatePath("/members");
+    revalidateMembers();
     return { success: true, data: { count }, syncErrors };
   } catch (error) {
     return mapActionError(error);
@@ -150,8 +161,7 @@ export async function assignRoleAction(
       authentikGroupIds,
       actor,
     );
-    revalidatePath("/members");
-    revalidatePath(`/members/${memberId}`);
+    revalidateMembers(memberId);
     return { success: true, data: null, syncErrors };
   } catch (error) {
     return mapActionError(error);
@@ -166,8 +176,7 @@ export async function removeRoleAction(
 
   try {
     const { syncErrors } = await removeRole(prisma, memberId, actor);
-    revalidatePath("/members");
-    revalidatePath(`/members/${memberId}`);
+    revalidateMembers(memberId);
     return { success: true, data: null, syncErrors };
   } catch (error) {
     return mapActionError(error);
