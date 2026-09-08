@@ -74,15 +74,14 @@ export async function recordComputerPing(
     throw new ForbiddenError("Computer is claimed by another agent");
   }
 
-  const data = {
-    metadata: parsed.data.metadata,
-    lastSeenAt: new Date(),
-    agentSub: agent.sub,
-  };
+  const data = { metadata: parsed.data.metadata, lastSeenAt: new Date() };
 
+  // agentSub is written on create only: the read above and this write are not one
+  // transaction, so an update branch that reset it would hand ownership to whichever
+  // agent raced in second.
   const computer = await prisma.computer.upsert({
     where: { id: parsedId.data },
-    create: { id: parsedId.data, ...data },
+    create: { id: parsedId.data, agentSub: agent.sub, ...data },
     update: data,
   });
 
