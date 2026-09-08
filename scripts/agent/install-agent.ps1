@@ -44,8 +44,13 @@ if (-not $ComputerId) {
     if ([string]::IsNullOrWhiteSpace($answer)) { $ComputerId = $suggested } else { $ComputerId = $answer }
 }
 
-# Matches ComputerIdSchema. Rejected here rather than at the first ping, which nobody watches.
-if ($ComputerId -notmatch '^[a-z0-9][a-z0-9-]{1,31}$') {
+# The portal shows ids uppercased, so typing the machine name as it is written on the case is
+# the obvious mistake. Normalise it rather than refuse it.
+$ComputerId = $ComputerId.Trim().ToLowerInvariant()
+
+# Matches ComputerIdSchema. Rejected here rather than at the first ping, which nobody watches —
+# and -cnotmatch because -notmatch ignores case, so it passed the one id the server refuses.
+if ($ComputerId -cnotmatch '^[a-z0-9][a-z0-9-]{1,31}$') {
     throw "Computer id '$ComputerId' must be 2-32 lowercase letters, digits or hyphens, and start with a letter or digit."
 }
 
