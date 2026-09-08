@@ -805,7 +805,9 @@ The calendar logs `calendar_read_failed` when Google will not answer — deliber
 rather than a Sentry event, see Architectural decisions — and `calendar_page_cap_reached` when a
 read stops at `MAX_PAGES`, which at studio scale means something is wrong rather than that a real
 limit was reached. `POST /api/computers/[id]/ping` logs the calling agent and the outcome on every
-path, `registered` marking a machine's first ping. Nothing else logs through it yet.
+path, `registered` marking a machine's first ping and a rejected body carrying the `details`
+tree naming the field that failed — nobody reads the 400 the agent gets back. Nothing else
+logs through it yet.
 
 ---
 

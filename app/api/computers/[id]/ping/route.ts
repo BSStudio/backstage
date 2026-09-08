@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { requireApiClient } from "@/lib/api-client-auth";
-import { mapServiceError } from "@/lib/errors";
+import { mapServiceError, ValidationError } from "@/lib/errors";
 import { logger } from "@/lib/observability/logger";
 import prisma from "@/lib/prisma";
 import { createRateLimiter } from "@/lib/rate-limit";
@@ -53,6 +53,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       ...caller,
       outcome: "error",
       message: (error as Error).message,
+      // "Validation failed" alone names no field, and nobody reads an agent's 400 body.
+      details: error instanceof ValidationError ? error.details : undefined,
     });
     return mapServiceError(error);
   }

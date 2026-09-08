@@ -116,6 +116,28 @@ describe("POST /api/computers/[id]/ping", () => {
     expect((await POST(req(), params("NLE 4"))).status).toBe(400);
   });
 
+  it("logs which field a rejected body failed on", async () => {
+    const { POST } = await importRoute();
+    const body = { metadata: { cpuPercent: 140 } };
+
+    expect((await POST(req(body), params())).status).toBe(400);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      "computers.ping",
+      expect.objectContaining({
+        outcome: "error",
+        details: expect.objectContaining({
+          properties: expect.objectContaining({
+            metadata: expect.objectContaining({
+              properties: expect.objectContaining({
+                cpuPercent: expect.anything(),
+              }),
+            }),
+          }),
+        }),
+      }),
+    );
+  });
+
   it("answers 403 when another agent already claimed the id", async () => {
     const { POST } = await importRoute();
     await POST(req(), params());
