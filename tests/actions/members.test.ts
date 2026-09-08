@@ -320,6 +320,8 @@ describe("batchArchiveAction", () => {
       syncErrors: [],
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members/a");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members/c");
   });
 });
 
@@ -362,6 +364,8 @@ describe("batchUpdateStatusAction", () => {
       syncErrors: [],
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members/a");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members/b");
   });
 });
 

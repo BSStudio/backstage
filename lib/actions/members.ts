@@ -32,9 +32,9 @@ const MEMBER_LIST_PATHS = [
   "/members/leadership",
 ];
 
-function revalidateMembers(id?: string): void {
+function revalidateMembers(...ids: string[]): void {
   for (const path of MEMBER_LIST_PATHS) revalidatePath(path);
-  if (id) revalidatePath(`/members/${id}`);
+  for (const id of ids) revalidatePath(`/members/${id}`);
 }
 
 export async function createMemberAction(
@@ -117,7 +117,7 @@ export async function batchArchiveAction(
       actor,
       options,
     );
-    revalidateMembers();
+    revalidateMembers(...ids);
     return { success: true, data: { count }, syncErrors };
   } catch (error) {
     return mapActionError(error);
@@ -138,7 +138,7 @@ export async function batchUpdateStatusAction(
       status,
       actor,
     );
-    revalidateMembers();
+    revalidateMembers(...ids);
     return { success: true, data: { count }, syncErrors };
   } catch (error) {
     return mapActionError(error);
