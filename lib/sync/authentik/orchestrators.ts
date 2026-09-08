@@ -118,6 +118,14 @@ export async function orchestrateStatusChange(
   return results;
 }
 
+export async function orchestrateAddToStatusGroup(
+  prisma: PrismaClient,
+  memberId: string,
+  status: MembershipStatus,
+): Promise<SyncResult> {
+  return orchestrateAddToGroup(prisma, memberId, getStatusGroupUuid(status));
+}
+
 export async function orchestrateAddToGroup(
   prisma: PrismaClient,
   memberId: string,

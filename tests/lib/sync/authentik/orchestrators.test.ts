@@ -33,6 +33,7 @@ import {
   buildAuthentikAttributes,
   createAuthentikUser,
   orchestrateAddToGroup,
+  orchestrateAddToStatusGroup,
   orchestrateDeactivate,
   orchestrateReactivate,
   orchestrateRemoveFromGroup,
@@ -244,6 +245,24 @@ describe("orchestrateAddToGroup / orchestrateRemoveFromGroup", () => {
     });
     expect(jobs[0].operation).toBe("ADD_TO_GROUP");
     expect(jobs[0].payload).toEqual({ groupUuid: "group-xyz" });
+  });
+
+  it("resolves the status group and adds the member to it", async () => {
+    const prisma = getTestPrisma();
+
+    await orchestrateAddToStatusGroup(prisma, MEMBER_ID, "MEMBER");
+
+    expect(mockAddUserToGroup).toHaveBeenCalledWith("group-m", 42);
+  });
+
+  it("rejects rather than throwing when the status group is unconfigured", async () => {
+    const prisma = getTestPrisma();
+    vi.stubEnv("AUTHENTIK_GROUP_MEMBER", "");
+
+    await expect(
+      orchestrateAddToStatusGroup(prisma, MEMBER_ID, "MEMBER"),
+    ).rejects.toThrow("Missing Authentik group UUID for status MEMBER");
+    expect(mockAddUserToGroup).not.toHaveBeenCalled();
   });
 
   it("creates REMOVE_FROM_GROUP job and executes it", async () => {

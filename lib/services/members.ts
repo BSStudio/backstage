@@ -15,14 +15,12 @@ import {
   CreateMemberSchema,
   UpdateMemberSchema,
 } from "@/lib/services/member-schemas";
-import {
-  getLeadershipGroupUuid,
-  getStatusGroupUuid,
-} from "@/lib/sync/authentik/group-mapping";
+import { getLeadershipGroupUuid } from "@/lib/sync/authentik/group-mapping";
 import {
   buildAuthentikAttributes,
   createAuthentikUser,
   orchestrateAddToGroup,
+  orchestrateAddToStatusGroup,
   orchestrateDeactivate,
   orchestrateReactivate,
   orchestrateRemoveFromGroup,
@@ -583,7 +581,7 @@ export async function reactivateMember(
   // again by hand.
   const results: SyncResult[] = await Promise.all([
     orchestrateReactivate(prisma, member.id),
-    orchestrateAddToGroup(prisma, member.id, getStatusGroupUuid(member.status)),
+    orchestrateAddToStatusGroup(prisma, member.id, member.status),
     orchestrateReactivateWebsiteUser(prisma, member.id),
   ]);
 

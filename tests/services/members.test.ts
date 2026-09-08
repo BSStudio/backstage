@@ -6,6 +6,7 @@ const {
   mockOrchestrateUpdateAttributes,
   mockOrchestrateStatusChange,
   mockOrchestrateAddToGroup,
+  mockOrchestrateAddToStatusGroup,
   mockOrchestrateRemoveFromGroup,
   mockOrchestrateCreateWebsiteUser,
   mockOrchestrateUpdateWebsiteUser,
@@ -21,6 +22,7 @@ const {
   mockOrchestrateUpdateAttributes: vi.fn(),
   mockOrchestrateStatusChange: vi.fn(),
   mockOrchestrateAddToGroup: vi.fn(),
+  mockOrchestrateAddToStatusGroup: vi.fn(),
   mockOrchestrateRemoveFromGroup: vi.fn(),
   mockOrchestrateCreateWebsiteUser: vi.fn(),
   mockOrchestrateUpdateWebsiteUser: vi.fn(),
@@ -39,6 +41,7 @@ vi.mock("@/lib/sync/authentik/orchestrators", () => ({
   orchestrateUpdateAttributes: mockOrchestrateUpdateAttributes,
   orchestrateStatusChange: mockOrchestrateStatusChange,
   orchestrateAddToGroup: mockOrchestrateAddToGroup,
+  orchestrateAddToStatusGroup: mockOrchestrateAddToStatusGroup,
   orchestrateRemoveFromGroup: mockOrchestrateRemoveFromGroup,
   buildAuthentikAttributes: (m: {
     firstName: string;
@@ -127,6 +130,10 @@ beforeEach(async () => {
   });
   mockOrchestrateStatusChange.mockResolvedValue([]);
   mockOrchestrateAddToGroup.mockResolvedValue({ success: true, result: null });
+  mockOrchestrateAddToStatusGroup.mockResolvedValue({
+    success: true,
+    result: null,
+  });
   mockOrchestrateRemoveFromGroup.mockResolvedValue({
     success: true,
     result: null,
@@ -1311,7 +1318,7 @@ describe("reactivateMember", () => {
       success: true,
       result: null,
     });
-    mockOrchestrateAddToGroup.mockResolvedValue({
+    mockOrchestrateAddToStatusGroup.mockResolvedValue({
       success: true,
       result: null,
     });
@@ -1367,8 +1374,8 @@ describe("reactivateMember", () => {
     expect(mockOrchestrateReactivate).toHaveBeenCalledTimes(1);
     expect(mockOrchestrateReactivate.mock.calls[0][1]).toBe(MEMBER_ID);
     expect(mockOrchestrateReactivateWebsiteUser).toHaveBeenCalledTimes(1);
-    expect(mockOrchestrateAddToGroup).toHaveBeenCalledTimes(1);
-    expect(mockOrchestrateAddToGroup.mock.calls[0][2]).toBe("group-m");
+    expect(mockOrchestrateAddToStatusGroup).toHaveBeenCalledTimes(1);
+    expect(mockOrchestrateAddToStatusGroup.mock.calls[0][2]).toBe("MEMBER");
   });
 
   it("adds the status group and nothing else", async () => {
@@ -1376,8 +1383,10 @@ describe("reactivateMember", () => {
 
     await reactivateMember(prisma, MEMBER_ID, ACTOR);
 
-    const groups = mockOrchestrateAddToGroup.mock.calls.map((c) => c[2]);
-    expect(groups).toEqual(["group-cc"]);
+    const statuses = mockOrchestrateAddToStatusGroup.mock.calls.map(
+      (c) => c[2],
+    );
+    expect(statuses).toEqual(["MEMBER_CANDIDATE_CANDIDATE"]);
   });
 
   it("does not hand back a position archiving ended", async () => {
@@ -1395,7 +1404,7 @@ describe("reactivateMember", () => {
       success: true,
       result: null,
     });
-    mockOrchestrateAddToGroup.mockResolvedValue({
+    mockOrchestrateAddToStatusGroup.mockResolvedValue({
       success: true,
       result: null,
     });
@@ -1408,8 +1417,10 @@ describe("reactivateMember", () => {
         where: { memberId: MEMBER_ID },
       }),
     ).toBeNull();
-    const groups = mockOrchestrateAddToGroup.mock.calls.map((c) => c[2]);
-    expect(groups).toEqual(["group-cc"]);
+    const statuses = mockOrchestrateAddToStatusGroup.mock.calls.map(
+      (c) => c[2],
+    );
+    expect(statuses).toEqual(["MEMBER_CANDIDATE_CANDIDATE"]);
   });
 
   it("leaves a member who is not archived alone", async () => {
@@ -1420,7 +1431,7 @@ describe("reactivateMember", () => {
     expect(result.syncErrors).toEqual([]);
     expect(mockOrchestrateReactivate).not.toHaveBeenCalled();
     expect(mockOrchestrateReactivateWebsiteUser).not.toHaveBeenCalled();
-    expect(mockOrchestrateAddToGroup).not.toHaveBeenCalled();
+    expect(mockOrchestrateAddToStatusGroup).not.toHaveBeenCalled();
     expect(
       await prisma.auditLog.count({
         where: { targetId: MEMBER_ID, action: "MEMBER_REACTIVATED" },
