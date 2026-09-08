@@ -135,7 +135,7 @@ function Get-Metadata {
 
     try {
         $os = Get-CimInstance Win32_OperatingSystem
-        $meta.os = $os.Caption.Trim()
+        if ($os.Caption) { $meta.os = $os.Caption.Trim() }
         if ($os.TotalVisibleMemorySize -gt 0) {
             $used = $os.TotalVisibleMemorySize - $os.FreePhysicalMemory
             $meta.memoryPercent = [math]::Round(($used / $os.TotalVisibleMemorySize) * 100, 1)
