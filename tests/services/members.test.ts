@@ -1248,6 +1248,26 @@ describe("archiveMember", () => {
     expect(mockOrchestrateDeactivateWebsiteUser).toHaveBeenCalledTimes(1);
   });
 
+  it("names a thrown non-Error in the position failure", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: [],
+      },
+    });
+    mockOrchestrateRemoveFromGroup.mockRejectedValueOnce(
+      "kapcsolat megszakadt",
+    );
+
+    const result = await archiveMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.syncErrors).toContain(
+      "a pozíció megszüntetése nem sikerült: kapcsolat megszakadt",
+    );
+  });
+
   it("returns syncErrors when Authentik deactivation fails", async () => {
     const prisma = getTestPrisma();
     mockOrchestrateDeactivate.mockResolvedValueOnce({

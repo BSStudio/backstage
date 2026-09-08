@@ -487,7 +487,9 @@ async function endLeadership(
     return syncErrors;
   } catch (error) {
     return [
-      `a pozíció megszüntetése nem sikerült: ${(error as Error).message}`,
+      `a pozíció megszüntetése nem sikerült: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
     ];
   }
 }
