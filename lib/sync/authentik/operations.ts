@@ -16,6 +16,11 @@ export const authentikHandlers: OperationHandlers = {
     return updateUser(pk, { is_active: false, path: "archived" });
   },
 
+  REACTIVATE_USER: async (_payload, memberId) => {
+    const pk = await getUserPk(memberId);
+    return updateUser(pk, { is_active: true, path: "users" });
+  },
+
   ADD_TO_GROUP: async (payload, memberId) => {
     const pk = await getUserPk(memberId);
     await addUserToGroup(payload.groupUuid as string, pk);

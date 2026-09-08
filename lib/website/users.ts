@@ -227,6 +227,54 @@ export async function deactivateWebsiteUser(userId: string): Promise<void> {
   }
 }
 
+/**
+ * Restores the roles and the active flag `deactivateWebsiteUser` cleared.
+ */
+export async function reactivateWebsiteUser(userId: string): Promise<void> {
+  const session = await loginWebsite();
+
+  // Step 1: re-check the role boxes, which the deactivation cleared by omitting them.
+  // `status` is sent explicitly rather than mirrored, because omitting a radio and
+  // omitting a checkbox do not mean the same thing to Drupal: if the deactivation's
+  // omission blocked the account, only this restores it, and if it did not, this is
+  // the value the account already carries.
+  const mainHtml = await websiteGet(session, `/user/${userId}/edit`);
+  const $main = parseHtml(mainHtml);
+  const username = $main("input#edit-name").attr("value") ?? "";
+  const email = $main("input#edit-mail").attr("value") ?? "";
+  const mainToken = getFormToken(mainHtml, "edit-user-profile-form-form-token");
+
+  const step1 = await websitePost(session, `/user/${userId}/edit`, {
+    name: username,
+    mail: email,
+    status: ACTIVE,
+    [`roles[${WEBSITE_EDITOR}]`]: WEBSITE_EDITOR,
+    [`roles[${VIDEO_META_EDITOR}]`]: VIDEO_META_EDITOR,
+    [`roles[${VIDEO_CONTENT_EDITOR}]`]: VIDEO_CONTENT_EDITOR,
+    form_token: mainToken,
+    form_id: "user_profile_form",
+  });
+  if (!step1.includes(SUCCESS_PHRASE)) {
+    throw new WebsiteError(0, `Reactivation step 1 failed for user ${userId}`);
+  }
+
+  // Step 2: clear the passive flag on the BSS adatok tab.
+  const bssHtml = await websiteGet(session, `/user/${userId}/edit/BSS adatok`);
+  const $bss = parseHtml(bssHtml);
+  const joined = $bss("input#edit-profile-BSS-join-year").attr("value") ?? "";
+  const bssToken = getFormToken(bssHtml, "edit-user-profile-form-form-token");
+
+  const step2 = await websitePost(session, `/user/${userId}/edit/BSS adatok`, {
+    profile_passive: 0,
+    profile_BSS_join_year: joined,
+    form_token: bssToken,
+    form_id: "user_profile_form",
+  });
+  if (!step2.includes(SUCCESS_PHRASE)) {
+    throw new WebsiteError(0, `Reactivation step 2 failed for user ${userId}`);
+  }
+}
+
 export type UpdateWebsiteUserInput = {
   fullname?: string;
   nickname?: string;

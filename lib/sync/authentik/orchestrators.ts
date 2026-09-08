@@ -94,6 +94,13 @@ export async function orchestrateDeactivate(
   return runAuthentikJob(prisma, memberId, "DEACTIVATE_USER", {});
 }
 
+export async function orchestrateReactivate(
+  prisma: PrismaClient,
+  memberId: string,
+): Promise<SyncResult> {
+  return runAuthentikJob(prisma, memberId, "REACTIVATE_USER", {});
+}
+
 export async function orchestrateStatusChange(
   prisma: PrismaClient,
   memberId: string,

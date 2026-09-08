@@ -9,6 +9,7 @@ const {
   mockRemoveUserFromGroup,
   mockUpdateWebsiteUser,
   mockDeactivateWebsiteUser,
+  mockReactivateWebsiteUser,
   mockCaptureSyncJobFailure,
 } = vi.hoisted(() => ({
   mockCreateUser: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockRemoveUserFromGroup: vi.fn(),
   mockUpdateWebsiteUser: vi.fn(),
   mockDeactivateWebsiteUser: vi.fn(),
+  mockReactivateWebsiteUser: vi.fn(),
   mockCaptureSyncJobFailure: vi.fn(),
 }));
 
@@ -29,6 +31,7 @@ vi.mock("@/lib/website/users", () => ({
   createWebsiteUser: vi.fn(),
   updateWebsiteUser: mockUpdateWebsiteUser,
   deactivateWebsiteUser: mockDeactivateWebsiteUser,
+  reactivateWebsiteUser: mockReactivateWebsiteUser,
 }));
 
 vi.mock("@/lib/authentik/users", () => ({
@@ -55,6 +58,7 @@ beforeEach(async () => {
   mockRemoveUserFromGroup.mockResolvedValue(undefined);
   mockUpdateWebsiteUser.mockResolvedValue(undefined);
   mockDeactivateWebsiteUser.mockResolvedValue(undefined);
+  mockReactivateWebsiteUser.mockResolvedValue(undefined);
 
   const prisma = getTestPrisma();
   await prisma.member.upsert({
@@ -215,6 +219,27 @@ describe("executeSyncJob", () => {
     });
   });
 
+  it("dispatches REACTIVATE_USER back to the users path", async () => {
+    const prisma = getTestPrisma();
+    mockUpdateUser.mockResolvedValue({ pk: 42, is_active: true });
+
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "REACTIVATE_USER",
+        memberId: MEMBER_ID,
+        payload: {},
+      },
+    });
+
+    await executeSyncJob(prisma, job.id);
+
+    expect(mockUpdateUser).toHaveBeenCalledWith(42, {
+      is_active: true,
+      path: "users",
+    });
+  });
+
   it("dispatches ADD_TO_GROUP with payload groupUuid and resolved pk", async () => {
     const prisma = getTestPrisma();
     const job = await prisma.syncJob.create({
@@ -302,6 +327,22 @@ describe("executeSyncJob — WEBSITE target", () => {
     await executeSyncJob(prisma, job.id);
 
     expect(mockDeactivateWebsiteUser).toHaveBeenCalledWith("9001");
+  });
+
+  it("resolves the uid for REACTIVATE_USER too", async () => {
+    const prisma = getTestPrisma();
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "WEBSITE",
+        operation: "REACTIVATE_USER",
+        memberId: MEMBER_ID,
+        payload: {},
+      },
+    });
+
+    await executeSyncJob(prisma, job.id);
+
+    expect(mockReactivateWebsiteUser).toHaveBeenCalledWith("9001");
   });
 
   it("persists a FAILED job when the member has no linked website account", async () => {

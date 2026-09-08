@@ -58,3 +58,15 @@ export async function orchestrateDeactivateWebsiteUser(
     payload: {},
   });
 }
+
+export async function orchestrateReactivateWebsiteUser(
+  prisma: PrismaClient,
+  memberId: string,
+): Promise<SyncResult> {
+  return runSyncJob(prisma, {
+    target: "WEBSITE",
+    operation: "REACTIVATE_USER",
+    memberId,
+    payload: {},
+  });
+}

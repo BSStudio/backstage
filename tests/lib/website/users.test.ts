@@ -22,6 +22,7 @@ import {
   createWebsiteUser,
   deactivateWebsiteUser,
   getWebsiteUserId,
+  reactivateWebsiteUser,
   updateWebsiteUser,
 } from "@/lib/website/users";
 
@@ -265,6 +266,65 @@ describe("deactivateWebsiteUser", () => {
     await expect(deactivateWebsiteUser(USER_ID)).rejects.toThrow(
       "Deactivation step 2 failed for user 42",
     );
+  });
+});
+
+// ─── reactivateWebsiteUser ───────────────────────────────────────────────────
+
+describe("reactivateWebsiteUser", () => {
+  it("restores the roles and the active flag, then clears passive", async () => {
+    await reactivateWebsiteUser(USER_ID);
+
+    expect(postTo(`/user/${USER_ID}/edit`)).toEqual({
+      name: "jkovacs",
+      mail: "jkovacs@bss.hu",
+      status: 1,
+      "roles[8]": 8,
+      "roles[5]": 5,
+      "roles[4]": 4,
+      form_token: "tok-profile",
+      form_id: "user_profile_form",
+    });
+
+    expect(postTo(`/user/${USER_ID}/edit/BSS adatok`)).toEqual({
+      profile_passive: 0,
+      profile_BSS_join_year: "2025 ősz",
+      form_token: "tok-profile",
+      form_id: "user_profile_form",
+    });
+  });
+
+  it("throws when step 1 does not confirm", async () => {
+    mockWebsitePost.mockResolvedValueOnce("<p>Hiba</p>");
+
+    await expect(reactivateWebsiteUser(USER_ID)).rejects.toThrow(
+      "Reactivation step 1 failed for user 42",
+    );
+    expect(mockWebsitePost).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws when step 2 does not confirm", async () => {
+    mockWebsitePost
+      .mockResolvedValueOnce(SUCCESS)
+      .mockResolvedValueOnce("<p>Hiba</p>");
+
+    await expect(reactivateWebsiteUser(USER_ID)).rejects.toThrow(
+      "Reactivation step 2 failed for user 42",
+    );
+  });
+
+  it("falls back to empty name, mail and join year when the forms are bare", async () => {
+    mockWebsiteGet.mockResolvedValue(PROFILE_TOKEN);
+
+    await reactivateWebsiteUser(USER_ID);
+
+    expect(postTo(`/user/${USER_ID}/edit`)).toMatchObject({
+      name: "",
+      mail: "",
+    });
+    expect(postTo(`/user/${USER_ID}/edit/BSS adatok`)).toMatchObject({
+      profile_BSS_join_year: "",
+    });
   });
 });
 
