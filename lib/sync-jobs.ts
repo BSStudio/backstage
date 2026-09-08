@@ -33,6 +33,7 @@ export const SYNC_OPERATION_LABELS: Record<SyncOperation, string> = {
   CREATE_USER: "Felhasználó létrehozás",
   UPDATE_USER: "Felhasználó módosítás",
   DEACTIVATE_USER: "Felhasználó deaktiválás",
+  REACTIVATE_USER: "Felhasználó újraaktiválás",
   ADD_TO_GROUP: "Csoporthoz adás",
   REMOVE_FROM_GROUP: "Csoportból törlés",
 };
