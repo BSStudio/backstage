@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   COMPUTER_ONLINE_WINDOW_MS,
+  COMPUTER_REFRESH_MS,
   COMPUTER_TONE_STYLE,
   COMPUTER_TONES,
   computerGauges,
@@ -26,6 +27,13 @@ describe("formatComputerName", () => {
   it("is the slug as the studio writes it", () => {
     expect(formatComputerName("nle4")).toBe("NLE4");
     expect(formatComputerName("stream-pc")).toBe("STREAM-PC");
+  });
+});
+
+describe("COMPUTER_REFRESH_MS", () => {
+  it("redraws an open page faster than a machine can fall out of the window", () => {
+    // Refreshing slower would let the page go on calling a machine online well after it stopped.
+    expect(COMPUTER_REFRESH_MS).toBeLessThan(COMPUTER_ONLINE_WINDOW_MS);
   });
 });
 

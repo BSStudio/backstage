@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { ComputerCard } from "@/components/computer-card";
 import { Card } from "@/components/ui/card";
+import { COMPUTER_REFRESH_MS } from "@/lib/computers";
 import { canAdminister } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { listComputers } from "@/lib/services/computers";
@@ -16,6 +18,8 @@ export default async function ComputersPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <AutoRefresh intervalMs={COMPUTER_REFRESH_MS} />
+
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Számítógépek</h1>
         <p className="text-muted-foreground">

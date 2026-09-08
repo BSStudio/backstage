@@ -1,8 +1,8 @@
 import type { ComputerMetadata } from "@/lib/services/computer-schemas";
 
-// The agent pings every minute; three missed in a row, so one slow request does not empty
-// the page.
 export const COMPUTER_ONLINE_WINDOW_MS = 3 * 60_000;
+
+export const COMPUTER_REFRESH_MS = 30_000;
 
 export const COMPUTER_STATUSES = ["ONLINE", "OFFLINE"] as const;
 
