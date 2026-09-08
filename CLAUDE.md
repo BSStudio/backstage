@@ -1226,6 +1226,16 @@ findable by SYSTEM in a way `pwsh.exe` is not. SYSTEM is what makes the agent in
 is signed in and out of reach of a standard user. A local administrator can still stop it, and the
 README says so rather than implying otherwise.
 
+**Uninstalling and reinstalling the agent kill the running process explicitly.**
+`Unregister-ScheduledTask` removes the task definition and leaves the `powershell.exe` it started
+running, and `-DisallowHardTerminate` — there so a member cannot stop the agent — means asking the
+task to stop may not end it either. The agent is an endless loop holding its id, its URL and its
+token in memory, so a survivor keeps pinging from a machine with nothing installed on it, and a
+reinstall stacks a second one alongside reporting a different id. The installer matches on the
+install path *and* an owner of `S-1-5-18`: an administrator who pasted a snippet naming that path
+has it in their own shell's command line, and matching on text alone kills the console the
+uninstall is being typed into.
+
 **Studio leaders history lives on the wiki.** Not an in-app page — the sidebar links to
 `https://wiki.bsstudio.hu/doc/studiovezetok-AdWWlRMuAI`. Edits are rare, pre-2010 entries lack
 contact details, and the wiki already provides editing and audit.

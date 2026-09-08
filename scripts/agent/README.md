@@ -86,6 +86,7 @@ recover, naming how many were missed.
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/BSStudio/backstage/main/scripts/agent/bootstrap.ps1))) -Uninstall
 ```
 
-Removes the task, the folder and the event source. Delete the service account in Authentik to
-revoke the credential, and delete the machine from `/computers` — otherwise it sits there offline
-forever.
+Kills the running agent — unregistering the task alone leaves it looping with its id and its token
+in memory — then removes the task, the folder and the event source. Delete the service account in
+Authentik to revoke the credential, and delete the machine from `/computers` — otherwise it sits
+there offline forever.

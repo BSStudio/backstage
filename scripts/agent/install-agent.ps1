@@ -20,11 +20,36 @@ $ErrorActionPreference = 'Stop'
 $InstallDir = "$env:ProgramData\BSS\backstage-agent"
 $TaskName = 'BSS Backstage Agent'
 $EventSource = 'BackstageAgent'
+$AgentScript = 'backstage-agent.ps1'
+
+# Unregistering the task does not stop the powershell.exe it already started, and
+# -DisallowHardTerminate means asking the task to stop may not either. The agent is an endless
+# loop holding its config, its id and its token in memory, so a survivor keeps pinging from a
+# machine with nothing installed on it — and a reinstall stacks a second one alongside, the two
+# reporting whatever id each was started with.
+# The owner is checked as well as the path: an administrator who pasted a snippet naming the
+# install directory has it in their own shell's command line, and matching on text alone kills
+# the console the uninstall is being typed into. S-1-5-18 is SYSTEM, and unlike the account name
+# it is not localised.
+function Stop-RunningAgents {
+    Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" |
+        Where-Object {
+            if (-not ($_.CommandLine -and $_.CommandLine -like "*$InstallDir\$AgentScript*")) { return $false }
+            $sid = (Invoke-CimMethod -InputObject $_ -MethodName GetOwnerSid).Sid
+            # An owner that will not resolve is treated as a match rather than skipped: only the
+            # install path reaches here, and a console can always read its own owner, so this
+            # cannot fall back onto the administrator running the uninstall.
+            $sid -eq 'S-1-5-18' -or [string]::IsNullOrEmpty($sid)
+        } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+}
 
 # ─── Uninstall ───────────────────────────────────────────────────────────────
 
 if ($Uninstall) {
+    # Unregister first, so nothing relaunches what is about to be killed.
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+    Stop-RunningAgents
     Remove-Item -Path $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
     Remove-EventLog -Source $EventSource -ErrorAction SilentlyContinue
     Write-Host "Removed. Delete the service account in Authentik to revoke its credential."
@@ -60,6 +85,9 @@ $secret = [Runtime.InteropServices.Marshal]::PtrToStringUni(
 if ([string]::IsNullOrWhiteSpace($secret)) { throw 'The app password is required.' }
 
 # ─── Files ───────────────────────────────────────────────────────────────────
+
+# Before the script it is running is overwritten, and before a second copy can outlive this one.
+Stop-RunningAgents
 
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 
