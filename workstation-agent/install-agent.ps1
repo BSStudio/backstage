@@ -84,8 +84,11 @@ if ($ComputerId -cnotmatch '^[a-z0-9][a-z0-9-]{1,31}$') {
 }
 
 $secure = Read-Host "App password for $Username" -AsSecureString
-$secret = [Runtime.InteropServices.Marshal]::PtrToStringUni(
-    [Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($secure))
+# The unmanaged copy is zeroed and freed rather than left behind: it is the whole credential,
+# and an unfreed buffer stays readable in this elevated session's heap until it exits.
+$ptr = [Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($secure)
+try { $secret = [Runtime.InteropServices.Marshal]::PtrToStringUni($ptr) }
+finally { [Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($ptr) }
 if ([string]::IsNullOrWhiteSpace($secret)) { throw 'The app password is required.' }
 
 # ─── Files ───────────────────────────────────────────────────────────────────
