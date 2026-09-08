@@ -35,7 +35,11 @@ function Stop-RunningAgents {
     Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" |
         Where-Object {
             if (-not ($_.CommandLine -and $_.CommandLine -like "*$InstallDir\$AgentScript*")) { return $false }
-            $sid = (Invoke-CimMethod -InputObject $_ -MethodName GetOwnerSid).Sid
+            # A process that exits between the enumeration and this call raises a terminating
+            # CimException under $ErrorActionPreference = 'Stop', which would abort the install
+            # or the uninstall around it rather than skip one row.
+            $sid = $null
+            try { $sid = (Invoke-CimMethod -InputObject $_ -MethodName GetOwnerSid).Sid } catch { }
             # An owner that will not resolve is treated as a match rather than skipped: only the
             # install path reaches here, and a console can always read its own owner, so this
             # cannot fall back onto the administrator running the uninstall.
@@ -85,6 +89,10 @@ $secret = [Runtime.InteropServices.Marshal]::PtrToStringUni(
 if ([string]::IsNullOrWhiteSpace($secret)) { throw 'The app password is required.' }
 
 # ─── Files ───────────────────────────────────────────────────────────────────
+
+# Unregistered before it is killed, or the repeating trigger relaunches the agent onto the
+# half-written config and secret below. Register-ScheduledTask puts the task back at the end.
+Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
 
 # Before the script it is running is overwritten, and before a second copy can outlive this one.
 Stop-RunningAgents
