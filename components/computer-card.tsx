@@ -86,9 +86,16 @@ export function ComputerCard({
         </div>
       )}
 
-      <span className="mt-auto text-xs text-muted-foreground">
-        Utolsó ping: {formatLastSeen(computer.lastSeenAt)}
-      </span>
+      <div className="mt-auto flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+        <span className="shrink-0">
+          Utolsó ping: {formatLastSeen(computer.lastSeenAt)}
+        </span>
+        {computer.metadata.agentVersion && (
+          <span className="truncate" title={computer.metadata.agentVersion}>
+            Agent: {computer.metadata.agentVersion}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

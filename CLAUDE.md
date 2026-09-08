@@ -89,8 +89,9 @@ too. Each gets an `APP_LINK_CREATED` audit entry, which is what puts the new act
 the `targetLabel` column on `/admin/audit` without having to create an app first.
 
 Four `Computer` rows cover every state a card renders: `nle4` in use, `nle6` signed in but
-locked (which the portal reads as free), `nle5` online but reporting no occupancy at all —
-what an agent whose session lookup failed sends — and `nle7` offline. A
+locked (which the portal reads as free), `nle3` online but reporting no occupancy at all —
+what an agent whose session lookup failed sends — and `nle7` offline on an older agent
+version. A
 `COMPUTER_DELETED` audit entry for a retired `NLE5` gives `/admin/audit` the new action to render.
 
 The scripts refuse to run against a database whose host is not local unless passed `--force`.
@@ -1229,7 +1230,7 @@ window would keep calling it online — and a test asserts that.
 
 **An offline machine renders no gauges and no occupancy.** Those are its last readings rather than
 its current ones, and a stale bar reads exactly like a live one. Offline collapses to the name,
-the badge and when it last pinged — everything still true.
+the badge, when it last pinged and which agent it is running — everything still true.
 
 **The agent is Windows PowerShell 5.1 under a SYSTEM scheduled task.** 5.1 is a Windows component
 present on every box at a fixed path; PowerShell 7 is a separately installed app that would become
