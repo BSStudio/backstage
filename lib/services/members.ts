@@ -505,6 +505,11 @@ export async function archiveMember(
     }),
   ]);
 
+  // A position does not survive its holder leaving. Ending it here keeps the profile
+  // from rendering a title nothing backs, and reactivation from having to decide
+  // whether to hand it back — a returning member is given one again by hand.
+  const { syncErrors: roleErrors } = await removeRole(prisma, member.id, actor);
+
   const results: SyncResult[] = await Promise.all([
     orchestrateDeactivate(prisma, member.id),
     orchestrateDeactivateWebsiteUser(prisma, member.id),
@@ -516,7 +521,7 @@ export async function archiveMember(
     );
   }
 
-  return { syncErrors: collectSyncErrors(results) };
+  return { syncErrors: [...roleErrors, ...collectSyncErrors(results)] };
 }
 
 // Idempotent: a member who is not archived is left alone rather than refused, so a
@@ -551,9 +556,9 @@ export async function reactivateMember(
   ]);
 
   // The status group is re-added even though archiving never removed it, in case the
-  // account was tidied up by hand in the meantime; add_user is idempotent. The
-  // leadership groups are deliberately not, surviving LeadershipRole row or not —
-  // handing back a position is a decision, not cleanup.
+  // account was tidied up by hand in the meantime; add_user is idempotent. No leadership
+  // group comes back: archiving ended the position, and a returning member is given one
+  // again by hand.
   const results: SyncResult[] = await Promise.all([
     orchestrateReactivate(prisma, member.id),
     orchestrateAddToGroup(prisma, member.id, getStatusGroupUuid(member.status)),
@@ -599,6 +604,11 @@ export async function batchArchive(
     }),
   ]);
 
+  // Same as archiveMember: the position does not outlive the membership.
+  const roleResults = await Promise.all(
+    members.map((m) => removeRole(prisma, m.id, actor)),
+  );
+
   const syncResults = await Promise.all(
     members.flatMap((m) => [
       orchestrateDeactivate(prisma, m.id),
@@ -608,7 +618,13 @@ export async function batchArchive(
         : []),
     ]),
   );
-  return { count: members.length, syncErrors: collectSyncErrors(syncResults) };
+  return {
+    count: members.length,
+    syncErrors: [
+      ...roleResults.flatMap((r) => r.syncErrors),
+      ...collectSyncErrors(syncResults),
+    ],
+  };
 }
 
 export async function batchUpdateStatus(

@@ -1125,6 +1125,69 @@ describe("archiveMember", () => {
     });
   });
 
+  it("ends the leadership position and takes back its groups", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: ["role-group-uuid"],
+      },
+    });
+
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(
+      await prisma.leadershipRole.findUnique({
+        where: { memberId: MEMBER_ID },
+      }),
+    ).toBeNull();
+    expect(mockOrchestrateRemoveFromGroup.mock.calls.map((c) => c[2])).toEqual([
+      LEADERSHIP_UUID,
+      "role-group-uuid",
+    ]);
+
+    const timeline = await prisma.timelineEntry.findMany({
+      where: { memberId: MEMBER_ID },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(timeline.map((t) => t.action)).toEqual([
+      "MEMBER_ARCHIVED",
+      "ROLE_REMOVED",
+    ]);
+  });
+
+  it("leaves a member without a position alone", async () => {
+    const prisma = getTestPrisma();
+
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(mockOrchestrateRemoveFromGroup).not.toHaveBeenCalled();
+    const timeline = await prisma.timelineEntry.findMany({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(timeline.map((t) => t.action)).toEqual(["MEMBER_ARCHIVED"]);
+  });
+
+  it("reports a failed role-group removal as a syncError", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: [],
+      },
+    });
+    mockOrchestrateRemoveFromGroup.mockResolvedValueOnce({
+      success: false,
+      error: "Authentik unreachable",
+    });
+
+    const result = await archiveMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.syncErrors).toContain("Authentik unreachable");
+  });
+
   it("returns syncErrors when Authentik deactivation fails", async () => {
     const prisma = getTestPrisma();
     mockOrchestrateDeactivate.mockResolvedValueOnce({
@@ -1270,8 +1333,17 @@ describe("reactivateMember", () => {
     expect(mockOrchestrateAddToGroup.mock.calls[0][2]).toBe("group-m");
   });
 
-  it("never hands back the leadership groups", async () => {
+  it("adds the status group and nothing else", async () => {
     const prisma = await archived();
+
+    await reactivateMember(prisma, MEMBER_ID, ACTOR);
+
+    const groups = mockOrchestrateAddToGroup.mock.calls.map((c) => c[2]);
+    expect(groups).toEqual(["group-cc"]);
+  });
+
+  it("does not hand back a position archiving ended", async () => {
+    const prisma = getTestPrisma();
     await prisma.leadershipRole.create({
       data: {
         memberId: MEMBER_ID,
@@ -1279,12 +1351,27 @@ describe("reactivateMember", () => {
         authentikGroupIds: ["role-group-uuid"],
       },
     });
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    vi.clearAllMocks();
+    mockOrchestrateReactivate.mockResolvedValue({
+      success: true,
+      result: null,
+    });
+    mockOrchestrateAddToGroup.mockResolvedValue({
+      success: true,
+      result: null,
+    });
+    mockOrchestrateReactivateWebsiteUser.mockResolvedValue(websiteOk);
 
     await reactivateMember(prisma, MEMBER_ID, ACTOR);
 
+    expect(
+      await prisma.leadershipRole.findUnique({
+        where: { memberId: MEMBER_ID },
+      }),
+    ).toBeNull();
     const groups = mockOrchestrateAddToGroup.mock.calls.map((c) => c[2]);
-    expect(groups).not.toContain(LEADERSHIP_UUID);
-    expect(groups).not.toContain("role-group-uuid");
+    expect(groups).toEqual(["group-cc"]);
   });
 
   it("leaves a member who is not archived alone", async () => {
@@ -1328,6 +1415,29 @@ describe("reactivateMember", () => {
 // ─── batchArchive ───────────────────────────────────────────────────────────
 
 describe("batchArchive", () => {
+  it("ends every archived member's position", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: ["role-group-uuid"],
+      },
+    });
+
+    await batchArchive(prisma, [MEMBER_ID], ACTOR);
+
+    expect(
+      await prisma.leadershipRole.findUnique({
+        where: { memberId: MEMBER_ID },
+      }),
+    ).toBeNull();
+    expect(mockOrchestrateRemoveFromGroup.mock.calls.map((c) => c[2])).toEqual([
+      LEADERSHIP_UUID,
+      "role-group-uuid",
+    ]);
+  });
+
   it("archives multiple members with per-member timeline and audit log", async () => {
     const prisma = getTestPrisma();
     const id2 = crypto.randomUUID();
