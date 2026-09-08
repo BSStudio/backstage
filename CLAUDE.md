@@ -525,7 +525,9 @@ changes require leader/admin. Timeline entry only on status change.
 address in place. A query parameter because a DELETE body is undefined territory that proxies
 drop. Archiving is undone by `reactivateMemberAction`, a Server Action with no REST route of its
 own — nothing outside Backstage reactivates anybody, and DELETE was only ever a route because it
-is the natural verb for the archive.
+is the natural verb for the archive. A second archive answers 200 having changed nothing, except
+`?removeFromGoogleGroup=true`, which still takes the address off the list — see Architectural
+decisions.
 
 `PUT /api/members/[id]/roles` — assign/update a leadership role (leader/admin). `label` +
 `authentikGroupIds`. Identical label and groups is a no-op returning 200 with no audit entry. New
@@ -1014,14 +1016,19 @@ already deletes the row, snapshots it to the timeline and takes back both the co
 group and the role-specific ones. A returning member is given a position again by hand, which is
 the rarer case and the one a leader should decide deliberately.
 
-**Reactivation is idempotent, not refused.** `reactivateMember` returns a member who is not
-archived unchanged rather than throwing — the same shape as `PUT /roles` treating an identical
-role as a no-op. A stale tab or a double click would otherwise write a second `MEMBER_REACTIVATED`
+**Archiving and reactivation are idempotent, not refused.** `reactivateMember` returns a member
+who is not archived unchanged rather than throwing, and `archiveMember` does the same for one
+already archived — the same shape as `PUT /roles` treating an identical role as a no-op. A stale
+tab or a double click would otherwise move `archivedAt`, or write a second `MEMBER_REACTIVATED`
 audit entry and a second round of sync jobs.
 
-It re-adds the status group even though archiving never removed it, because the Authentik account
-may have been tidied up by hand in between and `add_user` is idempotent. That is cleanup; the
-leadership groups are a decision, which is why they are not in the same list.
+Reactivation re-adds the status group even though archiving never removed it, because the
+Authentik account may have been tidied up by hand in between and `add_user` is idempotent. That
+is cleanup; the leadership groups are a decision, which is why they are not in the same list.
+
+The archive keeps one exception: `?removeFromGoogleGroup=true` runs on an already archived member.
+The checkbox defaults to off and the archive button is gone once a member is archived, so a leader
+who left it unchecked would otherwise have no way back to the removal but the reconciliation page.
 
 **No REST routes for admin resources.** Sync jobs, the audit log and the Google Group
 reconciliation are read through their services from server components; mutations go through Server
