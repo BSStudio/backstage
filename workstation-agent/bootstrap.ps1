@@ -11,7 +11,7 @@ param(
     [string]$ClientId,
     [string]$Username,
     [string]$ComputerId,
-    [int]$IntervalSeconds = 60,
+    [ValidateRange(30, 3600)][int]$IntervalSeconds = 60,
     [switch]$Uninstall
 )
 

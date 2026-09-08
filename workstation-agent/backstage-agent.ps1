@@ -232,9 +232,13 @@ catch {
     exit 1
 }
 
+# Floored rather than trusted: 0 sleeps not at all and turns the loop into a ping flood the
+# rate limiter answers 429 to forever, and a negative value throws out of Start-Sleep — which
+# sits outside the try below, so the agent would die until the five-minute trigger restarted it
+# into the same crash.
 $interval = 60
 if ($config.PSObject.Properties.Name -contains 'intervalSeconds') {
-    $interval = [int]$config.intervalSeconds
+    $interval = [Math]::Max(30, [int]$config.intervalSeconds)
 }
 if ($config.PSObject.Properties.Name -contains 'agentVersion') {
     $script:AgentVersion = $config.agentVersion
