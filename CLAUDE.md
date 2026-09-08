@@ -146,8 +146,8 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `components/` — shared pieces above the primitives: `page-nav.tsx` (admin list pagination),
   `status-badge.tsx` (`StatusBadge` / `ArchivedBadge`), `archive-dialog.tsx` (the archive
   confirmation and its mailing-list checkbox), `app-link-card.tsx` (one row on /apps),
-  `computer-card.tsx` (one workstation on /computers), `portal-shell.tsx` (the authenticated
-  frame)
+  `computer-card.tsx` (one workstation on /computers), `auto-refresh.tsx` (re-runs a page's
+  server components on a timer), `portal-shell.tsx` (the authenticated frame)
 - `components/dashboard/` — the widgets `/` composes, one file per source: `calendar.tsx`
   (`HeroEvent` + `UpcomingEvents`, two server components sharing one `cache()`d read),
   `profile-card.tsx` (which also exports the member read the page's greeting reuses),
@@ -1188,6 +1188,23 @@ name and the verdict sit in one block. Colour is what carries the answer at a gl
 is what carries it for everyone else, so neither stands alone. It lives in `lib/computers.ts`
 rather than in the two components because the dashboard and `/computers` must not be able to
 disagree about what free means.
+
+**Pages that draw from the clock refresh themselves with `router.refresh()`, not a polling
+client.** `/computers` and the dashboard both resolve online, offline, "N perce" and the hero's
+countdown *at render time*, so a tab left open does not merely miss new pings — it goes on
+asserting readings it drew hours ago. `AutoRefresh` re-runs the server components every
+`COMPUTER_REFRESH_MS`, which keeps the read in `listComputers` behind `pageActor()` and needs no
+`GET /api/computers`; SWR and TanStack both want a Route Handler, which is the surface that
+decision above declines to add. It stops while the tab is hidden and refreshes once on the way
+back, because a hidden tab has nobody reading it and a returning one is stale by however long it
+was away.
+
+A refresh re-runs the whole route, so the dashboard pays for its other widgets to update machine
+status. That is affordable rather than free: the profile and app-link reads are small, and the
+calendar is served from its own process-wide cache rather than calling Google. Machine status is
+simply the fastest-moving thing on the page, so it sets the cadence. The interval has to stay
+under `COMPUTER_ONLINE_WINDOW_MS` — a page redrawing slower than a machine can fall out of the
+window would keep calling it online — and a test asserts that.
 
 **An offline machine renders no gauges and no occupancy.** Those are its last readings rather than
 its current ones, and a stale bar reads exactly like a live one. Offline collapses to the name,
