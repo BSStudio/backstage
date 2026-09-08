@@ -408,15 +408,17 @@ The handler mounts Better Auth's whole router, so `hooks.before` 404s every path
 linking and `/update-user` — which without `input: false` would let a member set their own `role` —
 belong to Authentik.
 
-`proxy.ts` lets `/login`, `/api/auth`, `/api/usernames`, `/api/health` and `/monitoring` through,
-and turns everything else away when no session cookie is present. Only a `GET` or `HEAD` outside
-`/api/` is redirected to `/login` with the original path as `callbackUrl`; everything else — an API
-call, a Server Action `POST` on an expired session, a phone probing for a collection — gets a 401
-JSON body. The rule is the method rather than the path prefix because only a browser navigation can
-act on a redirect: anything else resolves with the login HTML under a 200 and cannot tell that apart
-from a real answer. Its matcher excludes static assets and image extensions — which is why avatar
-URLs are readable without auth. `/api/usernames` is public to the proxy because it carries a bearer
-token instead of a session cookie; the route itself does the authenticating.
+`proxy.ts` lets `/login`, `/api/auth`, `/api/usernames`, `/api/health`, `/monitoring` and the
+workstation agent's ping through, and turns everything else away when no session cookie is
+present. Only a `GET` or `HEAD` outside `/api/` is redirected to `/login` with the original path as
+`callbackUrl`; everything else — an API call, a Server Action `POST` on an expired session, a phone
+probing for a collection — gets a 401 JSON body. The rule is the method rather than the path prefix
+because only a browser navigation can act on a redirect: anything else resolves with the login HTML
+under a 200 and cannot tell that apart from a real answer. Its matcher excludes static assets and
+image extensions — which is why avatar URLs are readable without auth. `/api/usernames` is public
+to the proxy because it carries a bearer token instead of a session cookie; the route itself does
+the authenticating. The agent's ping is public for the same reason, but as a pattern rather than a
+prefix — a `GET /api/computers` added later must not inherit the exemption from its neighbour.
 
 CardDAV is checked ahead of all of that, and by method as well as by path: a WebDAV verb reaches
 `handleCardDav` wherever it is aimed, because a client hunting for a collection points them at
