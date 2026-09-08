@@ -494,6 +494,7 @@ async function endLeadership(
   }
 }
 
+// Idempotent like reactivateMember: a second click must not move archivedAt.
 export async function archiveMember(
   prisma: PrismaClient,
   id: string,
@@ -507,6 +508,7 @@ export async function archiveMember(
     include: { leadershipRole: true },
   });
   if (!member) throw new NotFoundError();
+  if (member.archived) return { syncErrors: [] };
 
   await prisma.$transaction([
     prisma.member.update({

@@ -1125,6 +1125,24 @@ describe("archiveMember", () => {
     });
   });
 
+  it("leaves an already archived member alone", async () => {
+    const prisma = getTestPrisma();
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    const first = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
+    vi.clearAllMocks();
+
+    const result = await archiveMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.syncErrors).toEqual([]);
+    expect(mockOrchestrateDeactivate).not.toHaveBeenCalled();
+    expect(mockOrchestrateDeactivateWebsiteUser).not.toHaveBeenCalled();
+
+    const member = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
+    expect(member?.archivedAt).toEqual(first?.archivedAt);
+    expect(await prisma.timelineEntry.count()).toBe(1);
+    expect(await prisma.auditLog.count()).toBe(1);
+  });
+
   it("ends the leadership position and takes back its groups", async () => {
     const prisma = getTestPrisma();
     await prisma.leadershipRole.create({
