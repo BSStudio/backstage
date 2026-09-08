@@ -18,7 +18,8 @@ export const ComputerMetadataSchema = z.object({
   // The lock or sign-in screen is up. Reported rather than resolved into "free" here, so
   // changing what counts as free does not mean reinstalling every agent.
   locked: z.boolean().optional(),
-  agentVersion: z.string().trim().max(40).optional(),
+  // A branch ref, not just a tag: bootstrap.ps1 passes -Ref through verbatim.
+  agentVersion: z.string().trim().max(120).optional(),
 });
 
 export const PingComputerSchema = z.object({
