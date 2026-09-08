@@ -66,8 +66,8 @@ export function computerVerdict(computer: {
   if (loggedInUser === undefined)
     return { tone: "IDLE", label: "Online", user: null };
 
-  // A locked session counts as free: signed in, but nobody is at the machine.
-  if (loggedInUser === null || locked)
+  // A locked session counts as free: signed in, but nobody is at the machine
+  if (!loggedInUser || locked)
     return { tone: "FREE", label: "Szabad", user: null };
 
   return {

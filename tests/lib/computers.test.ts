@@ -116,6 +116,14 @@ describe("computerVerdict", () => {
     );
   });
 
+  it("is free when the reported name came back empty", () => {
+    expect(computerVerdict(online({ loggedInUser: "" }))).toEqual({
+      tone: "FREE",
+      label: "Szabad",
+      user: null,
+    });
+  });
+
   it("says only online when the agent does not report the field", () => {
     expect(computerVerdict(online({}))).toEqual({
       tone: "IDLE",
