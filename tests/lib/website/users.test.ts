@@ -427,6 +427,7 @@ describe("updateWebsiteUser", () => {
 
     expect(postTo(BSS_TAB)).toEqual({
       profile_BSS_state: "öregtag",
+      profile_passive: 0,
       profile_BSS_is_leader: 0,
       profile_BSS_is_in_BSS_HQ: 1,
       profile_BSS_HQ_role: "Főszerkesztő",
@@ -434,6 +435,23 @@ describe("updateWebsiteUser", () => {
       form_token: "tok-profile",
       form_id: "user_profile_form",
     });
+  });
+
+  it("keeps an archived member passive", async () => {
+    mockWebsiteGet.mockImplementation((_session, path: string) =>
+      Promise.resolve(
+        path === BSS_TAB
+          ? PAGES[BSS_TAB].replace(
+              '<input id="edit-profile-passive">',
+              '<input id="edit-profile-passive" checked="checked">',
+            )
+          : PAGES[path],
+      ),
+    );
+
+    await updateWebsiteUser(USER_ID, { position: "öregtag" });
+
+    expect(postTo(BSS_TAB)).toMatchObject({ profile_passive: 1 });
   });
 
   it("sets the leader flag and clears the HQ role for Stúdióvezető", async () => {

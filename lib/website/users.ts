@@ -349,6 +349,8 @@ export async function updateWebsiteUser(
 
     const data = {
       profile_BSS_state: input.position ?? current.position,
+      // The post replaces the whole tab, so omitting the flag would un-archive the member.
+      profile_passive: Number(current.passive),
       profile_BSS_is_leader: Number(isLeader),
       profile_BSS_is_in_BSS_HQ: Number(hasRole),
       profile_BSS_HQ_role: isLeader ? "" : effectiveRole,
