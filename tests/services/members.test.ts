@@ -10,9 +10,11 @@ const {
   mockOrchestrateCreateWebsiteUser,
   mockOrchestrateUpdateWebsiteUser,
   mockOrchestrateDeactivateWebsiteUser,
+  mockOrchestrateReactivateWebsiteUser,
   mockOrchestrateAddToGoogleGroup,
   mockOrchestrateRemoveFromGoogleGroup,
   mockOrchestrateAddToAlumniGroup,
+  mockOrchestrateReactivate,
 } = vi.hoisted(() => ({
   mockCreateAuthentikUser: vi.fn(),
   mockOrchestrateDeactivate: vi.fn(),
@@ -23,14 +25,17 @@ const {
   mockOrchestrateCreateWebsiteUser: vi.fn(),
   mockOrchestrateUpdateWebsiteUser: vi.fn(),
   mockOrchestrateDeactivateWebsiteUser: vi.fn(),
+  mockOrchestrateReactivateWebsiteUser: vi.fn(),
   mockOrchestrateAddToGoogleGroup: vi.fn(),
   mockOrchestrateRemoveFromGoogleGroup: vi.fn(),
   mockOrchestrateAddToAlumniGroup: vi.fn(),
+  mockOrchestrateReactivate: vi.fn(),
 }));
 
 vi.mock("@/lib/sync/authentik/orchestrators", () => ({
   createAuthentikUser: mockCreateAuthentikUser,
   orchestrateDeactivate: mockOrchestrateDeactivate,
+  orchestrateReactivate: mockOrchestrateReactivate,
   orchestrateUpdateAttributes: mockOrchestrateUpdateAttributes,
   orchestrateStatusChange: mockOrchestrateStatusChange,
   orchestrateAddToGroup: mockOrchestrateAddToGroup,
@@ -56,6 +61,7 @@ vi.mock("@/lib/sync/website/orchestrators", () => ({
   orchestrateCreateWebsiteUser: mockOrchestrateCreateWebsiteUser,
   orchestrateUpdateWebsiteUser: mockOrchestrateUpdateWebsiteUser,
   orchestrateDeactivateWebsiteUser: mockOrchestrateDeactivateWebsiteUser,
+  orchestrateReactivateWebsiteUser: mockOrchestrateReactivateWebsiteUser,
 }));
 
 vi.mock("@/lib/sync/google/orchestrators", () => ({
@@ -76,6 +82,7 @@ import {
   getMember,
   listAuthentikGroups,
   listMembers,
+  reactivateMember,
   removeMemberAvatar,
   removeRole,
   updateMember,
@@ -96,6 +103,8 @@ const LEADERSHIP_UUID = "leadership-group-uuid";
 beforeEach(async () => {
   vi.clearAllMocks();
   vi.stubEnv("AUTHENTIK_GROUP_LEADERSHIP_UUID", LEADERSHIP_UUID);
+  vi.stubEnv("AUTHENTIK_GROUP_CANDIDATE_CANDIDATE", "group-cc");
+  vi.stubEnv("AUTHENTIK_GROUP_MEMBER", "group-m");
   nextAuthentikUuid = 0;
   mockCreateAuthentikUser.mockImplementation((data: { email: string }) => {
     nextAuthentikUuid++;
@@ -125,6 +134,8 @@ beforeEach(async () => {
   mockOrchestrateCreateWebsiteUser.mockResolvedValue(websiteOk);
   mockOrchestrateUpdateWebsiteUser.mockResolvedValue(websiteOk);
   mockOrchestrateDeactivateWebsiteUser.mockResolvedValue(websiteOk);
+  mockOrchestrateReactivateWebsiteUser.mockResolvedValue(websiteOk);
+  mockOrchestrateReactivate.mockResolvedValue({ success: true, result: null });
   mockOrchestrateAddToGoogleGroup.mockResolvedValue(websiteOk);
   mockOrchestrateRemoveFromGoogleGroup.mockResolvedValue(websiteOk);
   mockOrchestrateAddToAlumniGroup.mockResolvedValue(websiteOk);
@@ -1188,6 +1199,132 @@ describe("archiveMember", () => {
   });
 });
 
+// ─── reactivateMember ───────────────────────────────────────────────────────
+
+describe("reactivateMember", () => {
+  async function archived() {
+    const prisma = getTestPrisma();
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    vi.clearAllMocks();
+    mockOrchestrateReactivate.mockResolvedValue({
+      success: true,
+      result: null,
+    });
+    mockOrchestrateAddToGroup.mockResolvedValue({
+      success: true,
+      result: null,
+    });
+    mockOrchestrateReactivateWebsiteUser.mockResolvedValue(websiteOk);
+    return prisma;
+  }
+
+  it("throws NotFoundError for non-existent member", async () => {
+    await expect(
+      reactivateMember(getTestPrisma(), "non-existent", ACTOR),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it("clears the archive flags and writes timeline and audit entries", async () => {
+    const prisma = await archived();
+
+    const result = await reactivateMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.syncErrors).toEqual([]);
+
+    const member = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
+    expect(member?.archived).toBe(false);
+    expect(member?.archivedAt).toBeNull();
+
+    const timeline = await prisma.timelineEntry.findMany({
+      where: { memberId: MEMBER_ID },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(timeline.map((t) => t.action)).toEqual([
+      "MEMBER_ARCHIVED",
+      "MEMBER_REACTIVATED",
+    ]);
+
+    const audit = await prisma.auditLog.findMany({
+      where: { targetId: MEMBER_ID, action: "MEMBER_REACTIVATED" },
+    });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      actorId: ACTOR.id,
+      diff: { archived: { old: true, new: false } },
+    });
+  });
+
+  it("re-enables both accounts and re-adds the status group", async () => {
+    const prisma = await archived();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: { status: "MEMBER" },
+    });
+
+    await reactivateMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(mockOrchestrateReactivate).toHaveBeenCalledTimes(1);
+    expect(mockOrchestrateReactivate.mock.calls[0][1]).toBe(MEMBER_ID);
+    expect(mockOrchestrateReactivateWebsiteUser).toHaveBeenCalledTimes(1);
+    expect(mockOrchestrateAddToGroup).toHaveBeenCalledTimes(1);
+    expect(mockOrchestrateAddToGroup.mock.calls[0][2]).toBe("group-m");
+  });
+
+  it("never hands back the leadership groups", async () => {
+    const prisma = await archived();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: ["role-group-uuid"],
+      },
+    });
+
+    await reactivateMember(prisma, MEMBER_ID, ACTOR);
+
+    const groups = mockOrchestrateAddToGroup.mock.calls.map((c) => c[2]);
+    expect(groups).not.toContain(LEADERSHIP_UUID);
+    expect(groups).not.toContain("role-group-uuid");
+  });
+
+  it("leaves a member who is not archived alone", async () => {
+    const prisma = getTestPrisma();
+
+    const result = await reactivateMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.syncErrors).toEqual([]);
+    expect(mockOrchestrateReactivate).not.toHaveBeenCalled();
+    expect(mockOrchestrateReactivateWebsiteUser).not.toHaveBeenCalled();
+    expect(mockOrchestrateAddToGroup).not.toHaveBeenCalled();
+    expect(
+      await prisma.auditLog.count({
+        where: { targetId: MEMBER_ID, action: "MEMBER_REACTIVATED" },
+      }),
+    ).toBe(0);
+  });
+
+  it("returns syncErrors from every target that failed, DB write kept", async () => {
+    const prisma = await archived();
+    mockOrchestrateReactivate.mockResolvedValueOnce({
+      success: false,
+      error: "Authentik unreachable",
+    });
+    mockOrchestrateReactivateWebsiteUser.mockResolvedValueOnce({
+      success: false,
+      error: "Reactivation step 1 failed for user 9002",
+    });
+
+    const result = await reactivateMember(prisma, MEMBER_ID, ACTOR);
+
+    expect(result.syncErrors).toEqual([
+      "Authentik unreachable",
+      "Reactivation step 1 failed for user 9002",
+    ]);
+    const member = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
+    expect(member?.archived).toBe(false);
+  });
+});
+
 // ─── batchArchive ───────────────────────────────────────────────────────────
 
 describe("batchArchive", () => {
@@ -1945,6 +2082,12 @@ describe("member management guards", () => {
   it("rejects a member archiving anyone, themselves included", async () => {
     await expect(
       archiveMember(getTestPrisma(), MEMBER_ID, MEMBER_ACTOR),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("rejects a member reactivating anyone", async () => {
+    await expect(
+      reactivateMember(getTestPrisma(), MEMBER_ID, MEMBER_ACTOR),
     ).rejects.toThrow(ForbiddenError);
   });
 

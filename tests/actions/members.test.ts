@@ -5,6 +5,7 @@ const mockGetSession = vi.fn();
 const mockCreateMember = vi.fn();
 const mockUpdateMember = vi.fn();
 const mockArchiveMember = vi.fn();
+const mockReactivateMember = vi.fn();
 const mockBatchArchive = vi.fn();
 const mockBatchUpdateStatus = vi.fn();
 const mockAssignRole = vi.fn();
@@ -17,6 +18,7 @@ beforeEach(() => {
   mockCreateMember.mockReset();
   mockUpdateMember.mockReset();
   mockArchiveMember.mockReset();
+  mockReactivateMember.mockReset();
   mockBatchArchive.mockReset();
   mockBatchUpdateStatus.mockReset();
   mockAssignRole.mockReset();
@@ -30,6 +32,7 @@ beforeEach(() => {
     createMember: mockCreateMember,
     updateMember: mockUpdateMember,
     archiveMember: mockArchiveMember,
+    reactivateMember: mockReactivateMember,
     batchArchive: mockBatchArchive,
     batchUpdateStatus: mockBatchUpdateStatus,
     assignRole: mockAssignRole,
@@ -205,6 +208,73 @@ describe("archiveMemberAction", () => {
       expect.anything(),
       { removeFromGoogleGroup: true },
     );
+  });
+});
+
+// ─── reactivateMemberAction ─────────────────────────────────────────────────
+
+describe("reactivateMemberAction", () => {
+  it("returns error when not authenticated", async () => {
+    mockGetSession.mockResolvedValue(null);
+    const { reactivateMemberAction } = await import("@/lib/actions/members");
+    const result = await reactivateMemberAction("id");
+    expect(result).toEqual({
+      success: false,
+      error: "Jogosulatlan hozzáférés",
+    });
+  });
+
+  it("maps ForbiddenError from service", async () => {
+    const { ForbiddenError } = await import("@/lib/errors");
+    mockGetSession.mockResolvedValue(session("MEMBER"));
+    mockReactivateMember.mockRejectedValue(new ForbiddenError());
+    const { reactivateMemberAction } = await import("@/lib/actions/members");
+    const result = await reactivateMemberAction("id");
+    expect(result).toEqual({
+      success: false,
+      error: "Hozzáférés megtagadva",
+    });
+  });
+
+  it("maps NotFoundError from service", async () => {
+    const { NotFoundError } = await import("@/lib/errors");
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockReactivateMember.mockRejectedValue(new NotFoundError());
+    const { reactivateMemberAction } = await import("@/lib/actions/members");
+    const result = await reactivateMemberAction("bad-id");
+    expect(result).toEqual({ success: false, error: "Nem található" });
+  });
+
+  it("returns success and revalidates every list the member reappears on", async () => {
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockReactivateMember.mockResolvedValue({ syncErrors: [] });
+    const { reactivateMemberAction } = await import("@/lib/actions/members");
+
+    const result = await reactivateMemberAction("m-1");
+
+    expect(result).toEqual({
+      success: true,
+      data: { archived: false },
+      syncErrors: [],
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members/archived");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/members/m-1");
+  });
+
+  it("passes the sync errors through", async () => {
+    mockGetSession.mockResolvedValue(session("ADMIN"));
+    mockReactivateMember.mockResolvedValue({
+      syncErrors: ["Authentik unreachable"],
+    });
+    const { reactivateMemberAction } = await import("@/lib/actions/members");
+
+    const result = await reactivateMemberAction("m-1");
+
+    expect(result).toMatchObject({
+      success: true,
+      syncErrors: ["Authentik unreachable"],
+    });
   });
 });
 

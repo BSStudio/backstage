@@ -15,12 +15,16 @@ import {
   CreateMemberSchema,
   UpdateMemberSchema,
 } from "@/lib/services/member-schemas";
-import { getLeadershipGroupUuid } from "@/lib/sync/authentik/group-mapping";
+import {
+  getLeadershipGroupUuid,
+  getStatusGroupUuid,
+} from "@/lib/sync/authentik/group-mapping";
 import {
   buildAuthentikAttributes,
   createAuthentikUser,
   orchestrateAddToGroup,
   orchestrateDeactivate,
+  orchestrateReactivate,
   orchestrateRemoveFromGroup,
   orchestrateStatusChange,
   orchestrateUpdateAttributes,
@@ -35,6 +39,7 @@ import { getWebsiteStatusLabel } from "@/lib/sync/website/group-mapping";
 import {
   orchestrateCreateWebsiteUser,
   orchestrateDeactivateWebsiteUser,
+  orchestrateReactivateWebsiteUser,
   orchestrateUpdateWebsiteUser,
 } from "@/lib/sync/website/orchestrators";
 import type { UpdateWebsiteUserInput } from "@/lib/website/users";
@@ -510,6 +515,50 @@ export async function archiveMember(
       await orchestrateRemoveFromGoogleGroup(prisma, member.id, member.email),
     );
   }
+
+  return { syncErrors: collectSyncErrors(results) };
+}
+
+// Idempotent: a member who is not archived is left alone rather than refused, so a
+// second click cannot write a second audit entry or a second round of sync jobs.
+export async function reactivateMember(
+  prisma: PrismaClient,
+  id: string,
+  actor: Actor,
+) {
+  ensureCanManageMembers(actor);
+
+  const member = await prisma.member.findUnique({ where: { id } });
+  if (!member) throw new NotFoundError();
+  if (!member.archived) return { syncErrors: [] };
+
+  await prisma.$transaction([
+    prisma.member.update({
+      where: { id },
+      data: { archived: false, archivedAt: null },
+    }),
+    prisma.timelineEntry.create({
+      data: { memberId: member.id, action: "MEMBER_REACTIVATED" },
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        targetId: member.id,
+        action: "MEMBER_REACTIVATED",
+        diff: { archived: { old: true, new: false } },
+      },
+    }),
+  ]);
+
+  // The status group is re-added even though archiving never removed it, in case the
+  // account was tidied up by hand in the meantime; add_user is idempotent. The
+  // leadership groups are deliberately not, surviving LeadershipRole row or not —
+  // handing back a position is a decision, not cleanup.
+  const results: SyncResult[] = await Promise.all([
+    orchestrateReactivate(prisma, member.id),
+    orchestrateAddToGroup(prisma, member.id, getStatusGroupUuid(member.status)),
+    orchestrateReactivateWebsiteUser(prisma, member.id),
+  ]);
 
   return { syncErrors: collectSyncErrors(results) };
 }

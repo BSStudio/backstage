@@ -15,6 +15,7 @@ import {
   batchArchive,
   batchUpdateStatus,
   createMember,
+  reactivateMember,
   removeRole,
   updateMember,
 } from "@/lib/services/members";
@@ -69,6 +70,23 @@ export async function archiveMemberAction(
     const { syncErrors } = await archiveMember(prisma, id, actor, options);
     revalidatePath("/members");
     return { success: true, data: { archived: true }, syncErrors };
+  } catch (error) {
+    return mapActionError(error);
+  }
+}
+
+export async function reactivateMemberAction(
+  id: string,
+): Promise<ActionResult> {
+  const actor = await sessionActor();
+  if (!actor) return UNAUTHORIZED;
+
+  try {
+    const { syncErrors } = await reactivateMember(prisma, id, actor);
+    revalidatePath("/members");
+    revalidatePath("/members/archived");
+    revalidatePath(`/members/${id}`);
+    return { success: true, data: { archived: false }, syncErrors };
   } catch (error) {
     return mapActionError(error);
   }
