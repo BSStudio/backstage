@@ -36,7 +36,6 @@ export function DeleteComputerButton({
         return;
       }
       toast.success(`${name} törölve`);
-      setOpen(false);
       router.refresh();
     });
   }
