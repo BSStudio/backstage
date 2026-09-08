@@ -19,8 +19,13 @@ $ErrorActionPreference = 'Stop'
 
 $Repo = 'BSStudio/backstage'
 
-# Windows PowerShell 5.1 still negotiates TLS 1.0 by default, which GitHub refuses.
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+# Windows PowerShell 5.1 on an older .NET still enumerates TLS 1.0, which GitHub refuses.
+# SystemDefault (0) is left alone rather than overwritten: it is what lets Windows negotiate
+# TLS 1.3, and assigning Tls12 over it would pin this process below what the OS already offers.
+if ([Net.ServicePointManager]::SecurityProtocol -ne 0) {
+    [Net.ServicePointManager]::SecurityProtocol =
+        [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+}
 
 # This script arrives through `iex` and so runs under any policy, but the installer it fetches
 # is a file, and a workstation's default policy is Restricted. Process scope dies with this

@@ -15,8 +15,14 @@ $ErrorActionPreference = 'Stop'
 $script:AgentVersion = 'dev'
 $EventSource = 'BackstageAgent'
 
-# Windows PowerShell 5.1 still negotiates TLS 1.0 by default, which no current origin accepts.
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+# Windows PowerShell 5.1 on an older .NET still enumerates TLS 1.0, which no current origin
+# accepts. SystemDefault (0) is left alone rather than overwritten: it is what lets Windows
+# negotiate TLS 1.3, and assigning Tls12 over it would pin this process below what the OS
+# already offers. Anything else has 1.2 added to it rather than replaced by it.
+if ([Net.ServicePointManager]::SecurityProtocol -ne 0) {
+    [Net.ServicePointManager]::SecurityProtocol =
+        [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+}
 
 $script:Token = $null
 $script:TokenExpiresAt = [DateTime]::MinValue
