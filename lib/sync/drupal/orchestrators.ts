@@ -1,11 +1,11 @@
 import type { PrismaClient } from "@/app/generated/prisma/client";
 import {
   buildJoinYearFromSemester,
-  type UpdateWebsiteUserInput,
-} from "@/lib/website/users";
+  type UpdateDrupalUserInput,
+} from "@/lib/drupal/users";
 import { runSyncJob, type SyncResult } from "../executor";
 
-export interface CreateWebsiteUserOrchestratorInput {
+export interface CreateDrupalUserOrchestratorInput {
   username: string;
   fullname: string;
   nickname: string;
@@ -14,13 +14,13 @@ export interface CreateWebsiteUserOrchestratorInput {
   joinedSemester: string;
 }
 
-export async function orchestrateCreateWebsiteUser(
+export async function orchestrateCreateDrupalUser(
   prisma: PrismaClient,
   memberId: string,
-  data: CreateWebsiteUserOrchestratorInput,
+  data: CreateDrupalUserOrchestratorInput,
 ): Promise<SyncResult> {
   return runSyncJob(prisma, {
-    target: "WEBSITE",
+    target: "DRUPAL",
     operation: "CREATE_USER",
     memberId,
     payload: {
@@ -34,37 +34,37 @@ export async function orchestrateCreateWebsiteUser(
   });
 }
 
-export async function orchestrateUpdateWebsiteUser(
+export async function orchestrateUpdateDrupalUser(
   prisma: PrismaClient,
   memberId: string,
-  fields: UpdateWebsiteUserInput,
+  fields: UpdateDrupalUserInput,
 ): Promise<SyncResult> {
   return runSyncJob(prisma, {
-    target: "WEBSITE",
+    target: "DRUPAL",
     operation: "UPDATE_USER",
     memberId,
     payload: { ...fields },
   });
 }
 
-export async function orchestrateDeactivateWebsiteUser(
+export async function orchestrateDeactivateDrupalUser(
   prisma: PrismaClient,
   memberId: string,
 ): Promise<SyncResult> {
   return runSyncJob(prisma, {
-    target: "WEBSITE",
+    target: "DRUPAL",
     operation: "DEACTIVATE_USER",
     memberId,
     payload: {},
   });
 }
 
-export async function orchestrateReactivateWebsiteUser(
+export async function orchestrateReactivateDrupalUser(
   prisma: PrismaClient,
   memberId: string,
 ): Promise<SyncResult> {
   return runSyncJob(prisma, {
-    target: "WEBSITE",
+    target: "DRUPAL",
     operation: "REACTIVATE_USER",
     memberId,
     payload: {},

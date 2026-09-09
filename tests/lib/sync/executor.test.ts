@@ -7,9 +7,9 @@ const {
   mockGetUserPk,
   mockAddUserToGroup,
   mockRemoveUserFromGroup,
-  mockUpdateWebsiteUser,
-  mockDeactivateWebsiteUser,
-  mockReactivateWebsiteUser,
+  mockUpdateDrupalUser,
+  mockDeactivateDrupalUser,
+  mockReactivateDrupalUser,
   mockCaptureSyncJobFailure,
 } = vi.hoisted(() => ({
   mockCreateUser: vi.fn(),
@@ -17,9 +17,9 @@ const {
   mockGetUserPk: vi.fn(),
   mockAddUserToGroup: vi.fn(),
   mockRemoveUserFromGroup: vi.fn(),
-  mockUpdateWebsiteUser: vi.fn(),
-  mockDeactivateWebsiteUser: vi.fn(),
-  mockReactivateWebsiteUser: vi.fn(),
+  mockUpdateDrupalUser: vi.fn(),
+  mockDeactivateDrupalUser: vi.fn(),
+  mockReactivateDrupalUser: vi.fn(),
   mockCaptureSyncJobFailure: vi.fn(),
 }));
 
@@ -27,11 +27,11 @@ vi.mock("@/lib/observability/capture", () => ({
   captureSyncJobFailure: mockCaptureSyncJobFailure,
 }));
 
-vi.mock("@/lib/website/users", () => ({
-  createWebsiteUser: vi.fn(),
-  updateWebsiteUser: mockUpdateWebsiteUser,
-  deactivateWebsiteUser: mockDeactivateWebsiteUser,
-  reactivateWebsiteUser: mockReactivateWebsiteUser,
+vi.mock("@/lib/drupal/users", () => ({
+  createDrupalUser: vi.fn(),
+  updateDrupalUser: mockUpdateDrupalUser,
+  deactivateDrupalUser: mockDeactivateDrupalUser,
+  reactivateDrupalUser: mockReactivateDrupalUser,
 }));
 
 vi.mock("@/lib/authentik/users", () => ({
@@ -56,9 +56,9 @@ beforeEach(async () => {
   mockGetUserPk.mockResolvedValue(42);
   mockAddUserToGroup.mockResolvedValue(undefined);
   mockRemoveUserFromGroup.mockResolvedValue(undefined);
-  mockUpdateWebsiteUser.mockResolvedValue(undefined);
-  mockDeactivateWebsiteUser.mockResolvedValue(undefined);
-  mockReactivateWebsiteUser.mockResolvedValue(undefined);
+  mockUpdateDrupalUser.mockResolvedValue(undefined);
+  mockDeactivateDrupalUser.mockResolvedValue(undefined);
+  mockReactivateDrupalUser.mockResolvedValue(undefined);
 
   const prisma = getTestPrisma();
   await prisma.member.upsert({
@@ -70,7 +70,7 @@ beforeEach(async () => {
       lastName: "Member",
       email: "test@example.com",
       joinedSemester: "2025/2026/1",
-      websiteUserId: "9001",
+      drupalUserId: "9001",
     },
   });
   await prisma.member.upsert({
@@ -293,12 +293,12 @@ describe("executeSyncJob", () => {
   });
 });
 
-describe("executeSyncJob — WEBSITE target", () => {
+describe("executeSyncJob — DRUPAL target", () => {
   it("resolves the Drupal uid from the member record at execute time", async () => {
     const prisma = getTestPrisma();
     const job = await prisma.syncJob.create({
       data: {
-        target: "WEBSITE",
+        target: "DRUPAL",
         operation: "UPDATE_USER",
         memberId: MEMBER_ID,
         payload: { nickname: "Tesi" },
@@ -308,7 +308,7 @@ describe("executeSyncJob — WEBSITE target", () => {
     const result = await executeSyncJob(prisma, job.id);
 
     expect(result).toEqual({ success: true, result: { userId: "9001" } });
-    expect(mockUpdateWebsiteUser).toHaveBeenCalledWith("9001", {
+    expect(mockUpdateDrupalUser).toHaveBeenCalledWith("9001", {
       nickname: "Tesi",
     });
   });
@@ -317,7 +317,7 @@ describe("executeSyncJob — WEBSITE target", () => {
     const prisma = getTestPrisma();
     const job = await prisma.syncJob.create({
       data: {
-        target: "WEBSITE",
+        target: "DRUPAL",
         operation: "DEACTIVATE_USER",
         memberId: MEMBER_ID,
         payload: {},
@@ -326,14 +326,14 @@ describe("executeSyncJob — WEBSITE target", () => {
 
     await executeSyncJob(prisma, job.id);
 
-    expect(mockDeactivateWebsiteUser).toHaveBeenCalledWith("9001");
+    expect(mockDeactivateDrupalUser).toHaveBeenCalledWith("9001");
   });
 
   it("resolves the uid for REACTIVATE_USER too", async () => {
     const prisma = getTestPrisma();
     const job = await prisma.syncJob.create({
       data: {
-        target: "WEBSITE",
+        target: "DRUPAL",
         operation: "REACTIVATE_USER",
         memberId: MEMBER_ID,
         payload: {},
@@ -342,14 +342,14 @@ describe("executeSyncJob — WEBSITE target", () => {
 
     await executeSyncJob(prisma, job.id);
 
-    expect(mockReactivateWebsiteUser).toHaveBeenCalledWith("9001");
+    expect(mockReactivateDrupalUser).toHaveBeenCalledWith("9001");
   });
 
-  it("persists a FAILED job when the member has no linked website account", async () => {
+  it("persists a FAILED job when the member has no linked Drupal account", async () => {
     const prisma = getTestPrisma();
     const job = await prisma.syncJob.create({
       data: {
-        target: "WEBSITE",
+        target: "DRUPAL",
         operation: "UPDATE_USER",
         memberId: UNLINKED_MEMBER_ID,
         payload: { nickname: "Newbie" },
@@ -362,7 +362,7 @@ describe("executeSyncJob — WEBSITE target", () => {
       success: false,
       error: "Member Unlinked: nincs összekötött weboldal-fiók",
     });
-    expect(mockUpdateWebsiteUser).not.toHaveBeenCalled();
+    expect(mockUpdateDrupalUser).not.toHaveBeenCalled();
 
     const updated = await prisma.syncJob.findUnique({ where: { id: job.id } });
     expect(updated?.status).toBe("FAILED");
@@ -372,7 +372,7 @@ describe("executeSyncJob — WEBSITE target", () => {
     const prisma = getTestPrisma();
     const job = await prisma.syncJob.create({
       data: {
-        target: "WEBSITE",
+        target: "DRUPAL",
         operation: "UPDATE_USER",
         memberId: UNLINKED_MEMBER_ID,
         payload: { nickname: "Newbie" },
@@ -383,13 +383,13 @@ describe("executeSyncJob — WEBSITE target", () => {
 
     await prisma.member.update({
       where: { id: UNLINKED_MEMBER_ID },
-      data: { websiteUserId: "9042" },
+      data: { drupalUserId: "9042" },
     });
 
     const retry = await executeSyncJob(prisma, job.id);
 
     expect(retry.success).toBe(true);
-    expect(mockUpdateWebsiteUser).toHaveBeenCalledWith("9042", {
+    expect(mockUpdateDrupalUser).toHaveBeenCalledWith("9042", {
       nickname: "Newbie",
     });
     const updated = await prisma.syncJob.findUnique({ where: { id: job.id } });

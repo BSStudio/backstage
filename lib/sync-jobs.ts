@@ -25,7 +25,7 @@ export const SYNC_STATUS_VARIANT: Record<SyncJobStatus, string> = {
 
 export const SYNC_TARGET_LABELS: Record<SyncTarget, string> = {
   AUTHENTIK: "Authentik",
-  WEBSITE: "Honlap",
+  DRUPAL: "Régi honlap",
   GOOGLE_GROUP: "Google Group",
 };
 

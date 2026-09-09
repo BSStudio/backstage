@@ -15,7 +15,7 @@ async function devSetup(): Promise<void> {
     await copyFile(".env.example", ".env");
     loadEnv({ path: ".env" });
     info("Created .env from .env.example.");
-    info("Authentik and website values are placeholders — fill them for SSO.");
+    info("Authentik and Drupal values are placeholders — fill them for SSO.");
   }
 
   if (hasFlag("--no-docker")) {

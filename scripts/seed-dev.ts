@@ -127,9 +127,9 @@ function buildMember(
       dormRoom: seed.dormRoom,
       status: seed.status,
       joinedSemester,
-      // Only some members are linked to the legacy website — the gap is what makes a
-      // FAILED website job realistic to reproduce locally.
-      websiteUserId: index % 3 === 0 ? String(1200 + index) : null,
+      // Only some members are linked to the Drupal site — the gap is what makes a
+      // FAILED Drupal job realistic to reproduce locally.
+      drupalUserId: index % 3 === 0 ? String(1200 + index) : null,
       archived: archivedAt !== null,
       archivedAt,
       createdAt: joinedAt,
@@ -160,7 +160,7 @@ function buildDevMember(devUser: DevUser): BuiltMember {
       dormRoom: null,
       status: devUser.status,
       joinedSemester,
-      websiteUserId: null,
+      drupalUserId: null,
       archived: false,
       archivedAt: null,
       createdAt: joinedAt,
@@ -392,9 +392,9 @@ function buildSyncJobs(
       });
     }
 
-    if (row.websiteUserId) {
+    if (row.drupalUserId) {
       created.push({
-        target: "WEBSITE",
+        target: "DRUPAL",
         operation: "CREATE_USER",
         memberId: row.id,
         payload: {
@@ -406,7 +406,7 @@ function buildSyncJobs(
         },
         status: "SUCCESS",
         attempts: 1,
-        result: { uid: row.websiteUserId },
+        result: { uid: row.drupalUserId },
         createdAt: joinedAt,
         updatedAt: joinedAt,
       });
@@ -456,7 +456,7 @@ function buildFailedSyncJobs(
     (m) =>
       m.row.id !== devUser.id && !m.archivedAt && m.row.status === "MEMBER",
   );
-  const unlinked = active.find((m) => !m.row.websiteUserId);
+  const unlinked = active.find((m) => !m.row.drupalUserId);
   const failedAt = new Date(NOW.getTime() - 2 * 24 * 60 * 60 * 1000);
 
   // The Authentik failure is the dev user's: everyone else is skipped before a call is
@@ -481,7 +481,7 @@ function buildFailedSyncJobs(
   ];
   if (unlinked) {
     jobs.push({
-      target: "WEBSITE",
+      target: "DRUPAL",
       operation: "UPDATE_USER",
       memberId: unlinked.row.id,
       payload: {
@@ -491,7 +491,7 @@ function buildFailedSyncJobs(
       status: "FAILED",
       attempts: 1,
       result: {
-        error: "Member has no websiteUserId — cannot target the account",
+        error: "Member has no drupalUserId — cannot target the account",
       },
       createdAt: failedAt,
       updatedAt: failedAt,

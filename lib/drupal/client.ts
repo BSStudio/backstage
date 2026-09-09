@@ -1,22 +1,22 @@
 import * as cheerio from "cheerio";
 
-export class WebsiteError extends Error {
+export class DrupalError extends Error {
   constructor(
     public status: number,
     message: string,
   ) {
-    super(`Website API error: ${message}`);
-    this.name = "WebsiteError";
+    super(`Drupal API error: ${message}`);
+    this.name = "DrupalError";
   }
 }
 
 function getConfig() {
-  const baseUrl = process.env.WEBSITE_URL;
-  const username = process.env.WEBSITE_ADMIN_USERNAME;
-  const password = process.env.WEBSITE_ADMIN_PASSWORD;
+  const baseUrl = process.env.DRUPAL_URL;
+  const username = process.env.DRUPAL_ADMIN_USERNAME;
+  const password = process.env.DRUPAL_ADMIN_PASSWORD;
   if (!baseUrl || !username || !password) {
     throw new Error(
-      "Missing WEBSITE_URL, WEBSITE_ADMIN_USERNAME or WEBSITE_ADMIN_PASSWORD environment variables",
+      "Missing DRUPAL_URL, DRUPAL_ADMIN_USERNAME or DRUPAL_ADMIN_PASSWORD environment variables",
     );
   }
   return { baseUrl: baseUrl.replace(/\/+$/, ""), username, password };
@@ -72,15 +72,15 @@ async function fetchWithCookies(
     currentInit = { method: "GET" };
   }
 
-  throw new WebsiteError(0, `Too many redirects following ${url}`);
+  throw new DrupalError(0, `Too many redirects following ${url}`);
 }
 
-export interface WebsiteSession {
+export interface DrupalSession {
   baseUrl: string;
   jar: CookieJar;
 }
 
-export async function loginWebsite(): Promise<WebsiteSession> {
+export async function loginDrupal(): Promise<DrupalSession> {
   const { baseUrl, username, password } = getConfig();
   const jar = new CookieJar();
 
@@ -96,28 +96,28 @@ export async function loginWebsite(): Promise<WebsiteSession> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
 
-  if (!res.ok) throw new WebsiteError(res.status, `Login HTTP ${res.status}`);
+  if (!res.ok) throw new DrupalError(res.status, `Login HTTP ${res.status}`);
 
   const text = await res.text();
   if (text.includes("Nem megfelelő felhasználói név vagy jelszó.")) {
-    throw new WebsiteError(401, "Invalid website admin credentials");
+    throw new DrupalError(401, "Invalid Drupal admin credentials");
   }
 
   return { baseUrl, jar };
 }
 
-export async function websiteGet(
-  session: WebsiteSession,
+export async function drupalGet(
+  session: DrupalSession,
   path: string,
 ): Promise<string> {
   const res = await fetchWithCookies(session.jar, `${session.baseUrl}${path}`);
   if (!res.ok)
-    throw new WebsiteError(res.status, `GET ${path} HTTP ${res.status}`);
+    throw new DrupalError(res.status, `GET ${path} HTTP ${res.status}`);
   return res.text();
 }
 
-export async function websitePost(
-  session: WebsiteSession,
+export async function drupalPost(
+  session: DrupalSession,
   path: string,
   data: Record<string, string | number>,
 ): Promise<string> {
@@ -131,7 +131,7 @@ export async function websitePost(
   });
 
   if (!res.ok)
-    throw new WebsiteError(res.status, `POST ${path} HTTP ${res.status}`);
+    throw new DrupalError(res.status, `POST ${path} HTTP ${res.status}`);
   return res.text();
 }
 
@@ -139,7 +139,7 @@ export function getFormToken(html: string, tokenId: string): string {
   const $ = cheerio.load(html);
   const token = $(`input#${tokenId}`).attr("value");
   if (!token) {
-    throw new WebsiteError(0, `Form token not found: ${tokenId}`);
+    throw new DrupalError(0, `Form token not found: ${tokenId}`);
   }
   return token;
 }

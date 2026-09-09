@@ -22,7 +22,7 @@ enum MembershipStatus {
 
 enum SyncTarget {
   AUTHENTIK
-  WEBSITE
+  DRUPAL
   GOOGLE_GROUP
 }
 
@@ -112,7 +112,7 @@ model Member {
   joinedSemester      String                // e.g. "2025/2026/1"
 
   // External system links
-  websiteUserId       String?               // Drupal numeric uid on bsstudio.hu
+  drupalUserId        String?               // Drupal numeric uid on bsstudio.hu
 
   // Soft delete / archive
   archived            Boolean               @default(false)

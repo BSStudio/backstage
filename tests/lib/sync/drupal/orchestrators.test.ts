@@ -2,34 +2,34 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getTestPrisma } from "../../../setup";
 
 const {
-  mockCreateWebsiteUser,
-  mockUpdateWebsiteUser,
-  mockDeactivateWebsiteUser,
-  mockReactivateWebsiteUser,
+  mockCreateDrupalUser,
+  mockUpdateDrupalUser,
+  mockDeactivateDrupalUser,
+  mockReactivateDrupalUser,
 } = vi.hoisted(() => ({
-  mockCreateWebsiteUser: vi.fn(),
-  mockUpdateWebsiteUser: vi.fn(),
-  mockDeactivateWebsiteUser: vi.fn(),
-  mockReactivateWebsiteUser: vi.fn(),
+  mockCreateDrupalUser: vi.fn(),
+  mockUpdateDrupalUser: vi.fn(),
+  mockDeactivateDrupalUser: vi.fn(),
+  mockReactivateDrupalUser: vi.fn(),
 }));
 
-vi.mock("@/lib/website/users", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/website/users")>()),
-  createWebsiteUser: mockCreateWebsiteUser,
-  updateWebsiteUser: mockUpdateWebsiteUser,
-  deactivateWebsiteUser: mockDeactivateWebsiteUser,
-  reactivateWebsiteUser: mockReactivateWebsiteUser,
+vi.mock("@/lib/drupal/users", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/drupal/users")>()),
+  createDrupalUser: mockCreateDrupalUser,
+  updateDrupalUser: mockUpdateDrupalUser,
+  deactivateDrupalUser: mockDeactivateDrupalUser,
+  reactivateDrupalUser: mockReactivateDrupalUser,
 }));
 
 import {
-  orchestrateCreateWebsiteUser,
-  orchestrateDeactivateWebsiteUser,
-  orchestrateReactivateWebsiteUser,
-  orchestrateUpdateWebsiteUser,
-} from "@/lib/sync/website/orchestrators";
+  orchestrateCreateDrupalUser,
+  orchestrateDeactivateDrupalUser,
+  orchestrateReactivateDrupalUser,
+  orchestrateUpdateDrupalUser,
+} from "@/lib/sync/drupal/orchestrators";
 
 const MEMBER_ID = "uuid-member-1";
-const WEBSITE_UID = "9001";
+const DRUPAL_UID = "9001";
 
 const CREATE_INPUT = {
   username: "jkovacs",
@@ -49,13 +49,13 @@ async function jobsFor(memberId: string) {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  mockCreateWebsiteUser.mockResolvedValue({
-    userId: WEBSITE_UID,
+  mockCreateDrupalUser.mockResolvedValue({
+    userId: DRUPAL_UID,
     username: "jkovacs",
   });
-  mockUpdateWebsiteUser.mockResolvedValue(undefined);
-  mockDeactivateWebsiteUser.mockResolvedValue(undefined);
-  mockReactivateWebsiteUser.mockResolvedValue(undefined);
+  mockUpdateDrupalUser.mockResolvedValue(undefined);
+  mockDeactivateDrupalUser.mockResolvedValue(undefined);
+  mockReactivateDrupalUser.mockResolvedValue(undefined);
 
   await getTestPrisma().member.upsert({
     where: { id: MEMBER_ID },
@@ -66,16 +66,16 @@ beforeEach(async () => {
       lastName: "Kovács",
       email: "jkovacs@bss.hu",
       joinedSemester: "2025/2026/1",
-      websiteUserId: WEBSITE_UID,
+      drupalUserId: DRUPAL_UID,
     },
   });
 });
 
-describe("orchestrateCreateWebsiteUser", () => {
+describe("orchestrateCreateDrupalUser", () => {
   it("creates a CREATE_USER job with the semester converted to a join year", async () => {
     const prisma = getTestPrisma();
 
-    const result = await orchestrateCreateWebsiteUser(
+    const result = await orchestrateCreateDrupalUser(
       prisma,
       MEMBER_ID,
       CREATE_INPUT,
@@ -83,9 +83,9 @@ describe("orchestrateCreateWebsiteUser", () => {
 
     expect(result).toEqual({
       success: true,
-      result: { userId: WEBSITE_UID, username: "jkovacs" },
+      result: { userId: DRUPAL_UID, username: "jkovacs" },
     });
-    expect(mockCreateWebsiteUser).toHaveBeenCalledWith({
+    expect(mockCreateDrupalUser).toHaveBeenCalledWith({
       username: "jkovacs",
       fullname: "Kovács János",
       nickname: "Jani",
@@ -96,20 +96,16 @@ describe("orchestrateCreateWebsiteUser", () => {
 
     const [job] = await jobsFor(MEMBER_ID);
     expect(job).toMatchObject({
-      target: "WEBSITE",
+      target: "DRUPAL",
       operation: "CREATE_USER",
       status: "SUCCESS",
       attempts: 1,
     });
-    expect(job.result).toEqual({ userId: WEBSITE_UID, username: "jkovacs" });
+    expect(job.result).toEqual({ userId: DRUPAL_UID, username: "jkovacs" });
   });
 
   it("never persists a password in the job payload", async () => {
-    await orchestrateCreateWebsiteUser(
-      getTestPrisma(),
-      MEMBER_ID,
-      CREATE_INPUT,
-    );
+    await orchestrateCreateDrupalUser(getTestPrisma(), MEMBER_ID, CREATE_INPUT);
 
     const [job] = await jobsFor(MEMBER_ID);
     // jsonb does not preserve key order, so compare as a set.
@@ -124,11 +120,11 @@ describe("orchestrateCreateWebsiteUser", () => {
   });
 
   it("persists a FAILED job when the Drupal create fails", async () => {
-    mockCreateWebsiteUser.mockRejectedValue(
+    mockCreateDrupalUser.mockRejectedValue(
       new Error("User creation failed for jkovacs"),
     );
 
-    const result = await orchestrateCreateWebsiteUser(
+    const result = await orchestrateCreateDrupalUser(
       getTestPrisma(),
       MEMBER_ID,
       CREATE_INPUT,
@@ -144,16 +140,16 @@ describe("orchestrateCreateWebsiteUser", () => {
   });
 });
 
-describe("orchestrateUpdateWebsiteUser", () => {
+describe("orchestrateUpdateDrupalUser", () => {
   it("stores only the changed fields and resolves the uid from the member", async () => {
-    const result = await orchestrateUpdateWebsiteUser(
+    const result = await orchestrateUpdateDrupalUser(
       getTestPrisma(),
       MEMBER_ID,
       { nickname: "Janó", position: "stúdiós" },
     );
 
-    expect(result).toEqual({ success: true, result: { userId: WEBSITE_UID } });
-    expect(mockUpdateWebsiteUser).toHaveBeenCalledWith(WEBSITE_UID, {
+    expect(result).toEqual({ success: true, result: { userId: DRUPAL_UID } });
+    expect(mockUpdateDrupalUser).toHaveBeenCalledWith(DRUPAL_UID, {
       nickname: "Janó",
       position: "stúdiós",
     });
@@ -164,11 +160,11 @@ describe("orchestrateUpdateWebsiteUser", () => {
   });
 
   it("persists a FAILED job when the Drupal update fails", async () => {
-    mockUpdateWebsiteUser.mockRejectedValue(
+    mockUpdateDrupalUser.mockRejectedValue(
       new Error("Update BSS adatok failed for 9001"),
     );
 
-    const result = await orchestrateUpdateWebsiteUser(
+    const result = await orchestrateUpdateDrupalUser(
       getTestPrisma(),
       MEMBER_ID,
       { position: "öregtag" },
@@ -182,15 +178,15 @@ describe("orchestrateUpdateWebsiteUser", () => {
   });
 });
 
-describe("orchestrateDeactivateWebsiteUser", () => {
+describe("orchestrateDeactivateDrupalUser", () => {
   it("creates an empty-payload DEACTIVATE_USER job", async () => {
-    const result = await orchestrateDeactivateWebsiteUser(
+    const result = await orchestrateDeactivateDrupalUser(
       getTestPrisma(),
       MEMBER_ID,
     );
 
-    expect(result).toEqual({ success: true, result: { userId: WEBSITE_UID } });
-    expect(mockDeactivateWebsiteUser).toHaveBeenCalledWith(WEBSITE_UID);
+    expect(result).toEqual({ success: true, result: { userId: DRUPAL_UID } });
+    expect(mockDeactivateDrupalUser).toHaveBeenCalledWith(DRUPAL_UID);
 
     const [job] = await jobsFor(MEMBER_ID);
     expect(job.operation).toBe("DEACTIVATE_USER");
@@ -198,11 +194,11 @@ describe("orchestrateDeactivateWebsiteUser", () => {
   });
 
   it("persists a FAILED job when the Drupal deactivation fails", async () => {
-    mockDeactivateWebsiteUser.mockRejectedValue(
+    mockDeactivateDrupalUser.mockRejectedValue(
       new Error("Deactivation step 1 failed for user 9001"),
     );
 
-    const result = await orchestrateDeactivateWebsiteUser(
+    const result = await orchestrateDeactivateDrupalUser(
       getTestPrisma(),
       MEMBER_ID,
     );
@@ -215,15 +211,15 @@ describe("orchestrateDeactivateWebsiteUser", () => {
   });
 });
 
-describe("orchestrateReactivateWebsiteUser", () => {
+describe("orchestrateReactivateDrupalUser", () => {
   it("creates an empty-payload REACTIVATE_USER job", async () => {
-    const result = await orchestrateReactivateWebsiteUser(
+    const result = await orchestrateReactivateDrupalUser(
       getTestPrisma(),
       MEMBER_ID,
     );
 
-    expect(result).toEqual({ success: true, result: { userId: WEBSITE_UID } });
-    expect(mockReactivateWebsiteUser).toHaveBeenCalledWith(WEBSITE_UID);
+    expect(result).toEqual({ success: true, result: { userId: DRUPAL_UID } });
+    expect(mockReactivateDrupalUser).toHaveBeenCalledWith(DRUPAL_UID);
 
     const [job] = await jobsFor(MEMBER_ID);
     expect(job.operation).toBe("REACTIVATE_USER");
@@ -231,11 +227,11 @@ describe("orchestrateReactivateWebsiteUser", () => {
   });
 
   it("persists a FAILED job when the Drupal reactivation fails", async () => {
-    mockReactivateWebsiteUser.mockRejectedValue(
+    mockReactivateDrupalUser.mockRejectedValue(
       new Error("Reactivation step 1 failed for user 9001"),
     );
 
-    const result = await orchestrateReactivateWebsiteUser(
+    const result = await orchestrateReactivateDrupalUser(
       getTestPrisma(),
       MEMBER_ID,
     );

@@ -1,30 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockLoginWebsite, mockWebsiteGet, mockWebsitePost } = vi.hoisted(
-  () => ({
-    mockLoginWebsite: vi.fn(),
-    mockWebsiteGet: vi.fn(),
-    mockWebsitePost: vi.fn(),
-  }),
-);
+const { mockLoginDrupal, mockDrupalGet, mockDrupalPost } = vi.hoisted(() => ({
+  mockLoginDrupal: vi.fn(),
+  mockDrupalGet: vi.fn(),
+  mockDrupalPost: vi.fn(),
+}));
 
-// Only the transport is mocked — getFormToken/parseHtml/WebsiteError stay real
+// Only the transport is mocked — getFormToken/parseHtml/DrupalError stay real
 // so the tests exercise the actual Drupal HTML scraping.
-vi.mock("@/lib/website/client", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/website/client")>()),
-  loginWebsite: mockLoginWebsite,
-  websiteGet: mockWebsiteGet,
-  websitePost: mockWebsitePost,
+vi.mock("@/lib/drupal/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/drupal/client")>()),
+  loginDrupal: mockLoginDrupal,
+  drupalGet: mockDrupalGet,
+  drupalPost: mockDrupalPost,
 }));
 
 import {
   buildJoinYearFromSemester,
-  createWebsiteUser,
-  deactivateWebsiteUser,
-  getWebsiteUserId,
-  reactivateWebsiteUser,
-  updateWebsiteUser,
-} from "@/lib/website/users";
+  createDrupalUser,
+  deactivateDrupalUser,
+  getDrupalUserId,
+  reactivateDrupalUser,
+  updateDrupalUser,
+} from "@/lib/drupal/users";
 
 const USER_ID = "42";
 const SUCCESS = "<p>A változtatások mentése megtörtént.</p>";
@@ -61,18 +59,18 @@ const PAGES: Record<string, string> = {
 
 /** Payload of the POST to `path`, or undefined if that tab was never submitted. */
 function postTo(path: string): Record<string, string | number> | undefined {
-  return mockWebsitePost.mock.calls.find((c) => c[1] === path)?.[2];
+  return mockDrupalPost.mock.calls.find((c) => c[1] === path)?.[2];
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockLoginWebsite.mockResolvedValue({ baseUrl: "https://web.example.com" });
-  mockWebsiteGet.mockImplementation((_session, path: string) => {
+  mockLoginDrupal.mockResolvedValue({ baseUrl: "https://web.example.com" });
+  mockDrupalGet.mockImplementation((_session, path: string) => {
     const page = PAGES[path];
     if (page === undefined) throw new Error(`unexpected GET ${path}`);
     return Promise.resolve(page);
   });
-  mockWebsitePost.mockResolvedValue(SUCCESS);
+  mockDrupalPost.mockResolvedValue(SUCCESS);
 });
 
 // ─── buildJoinYearFromSemester ───────────────────────────────────────────────
@@ -87,7 +85,7 @@ describe("buildJoinYearFromSemester", () => {
   });
 });
 
-// ─── createWebsiteUser ───────────────────────────────────────────────────────
+// ─── createDrupalUser ───────────────────────────────────────────────────────
 
 const CREATE_INPUT = {
   username: "jkovacs",
@@ -102,13 +100,13 @@ function createdMarker(username: string) {
   return `Az új felhasználó fiók <a href="/user/${username}"><em>${username}</em></a> néven létrejött.`;
 }
 
-describe("createWebsiteUser", () => {
+describe("createDrupalUser", () => {
   beforeEach(() => {
-    mockWebsitePost.mockResolvedValue(createdMarker("jkovacs"));
+    mockDrupalPost.mockResolvedValue(createdMarker("jkovacs"));
   });
 
   it("submits the register form and returns the scraped uid", async () => {
-    const result = await createWebsiteUser(CREATE_INPUT);
+    const result = await createDrupalUser(CREATE_INPUT);
 
     expect(result).toEqual({ userId: "42", username: "jkovacs" });
 
@@ -133,38 +131,38 @@ describe("createWebsiteUser", () => {
   });
 
   it("mints a matching random password pair that differs per call", async () => {
-    await createWebsiteUser(CREATE_INPUT);
+    await createDrupalUser(CREATE_INPUT);
     const first = postTo("/admin/user/user/create");
     expect(first?.["pass[pass1]"]).toBe(first?.["pass[pass2]"]);
     expect(String(first?.["pass[pass1]"]).length).toBeGreaterThan(0);
 
-    mockWebsitePost.mockClear();
-    await createWebsiteUser(CREATE_INPUT);
+    mockDrupalPost.mockClear();
+    await createDrupalUser(CREATE_INPUT);
     const second = postTo("/admin/user/user/create");
 
     expect(second?.["pass[pass1]"]).not.toBe(first?.["pass[pass1]"]);
   });
 
   it("throws when the success marker is absent", async () => {
-    mockWebsitePost.mockResolvedValue("<p>Hiba történt.</p>");
+    mockDrupalPost.mockResolvedValue("<p>Hiba történt.</p>");
 
-    await expect(createWebsiteUser(CREATE_INPUT)).rejects.toThrow(
+    await expect(createDrupalUser(CREATE_INPUT)).rejects.toThrow(
       "User creation failed for jkovacs",
     );
   });
 
   it("throws when the profile page has no edit link", async () => {
-    mockWebsiteGet.mockImplementation((_s, path: string) =>
+    mockDrupalGet.mockImplementation((_s, path: string) =>
       Promise.resolve(path === "/user/jkovacs" ? "<p>nincs</p>" : PAGES[path]),
     );
 
-    await expect(createWebsiteUser(CREATE_INPUT)).rejects.toThrow(
+    await expect(createDrupalUser(CREATE_INPUT)).rejects.toThrow(
       "Edit link not found for user jkovacs",
     );
   });
 
   it("throws when the edit link has no numeric uid", async () => {
-    mockWebsiteGet.mockImplementation((_s, path: string) =>
+    mockDrupalGet.mockImplementation((_s, path: string) =>
       Promise.resolve(
         path === "/user/jkovacs"
           ? '<a href="/profile/settings">Szerkesztés</a>'
@@ -172,34 +170,34 @@ describe("createWebsiteUser", () => {
       ),
     );
 
-    await expect(createWebsiteUser(CREATE_INPUT)).rejects.toThrow(
+    await expect(createDrupalUser(CREATE_INPUT)).rejects.toThrow(
       "User ID not parseable from /profile/settings",
     );
   });
 });
 
-// ─── getWebsiteUserId ────────────────────────────────────────────────────────
+// ─── getDrupalUserId ────────────────────────────────────────────────────────
 
-describe("getWebsiteUserId", () => {
+describe("getDrupalUserId", () => {
   it("logs in and scrapes the uid from the profile page", async () => {
-    await expect(getWebsiteUserId("jkovacs")).resolves.toBe("42");
-    expect(mockLoginWebsite).toHaveBeenCalledTimes(1);
+    await expect(getDrupalUserId("jkovacs")).resolves.toBe("42");
+    expect(mockLoginDrupal).toHaveBeenCalledTimes(1);
   });
 
   it("URL-encodes the username", async () => {
-    mockWebsiteGet.mockResolvedValue('<a href="/user/7/edit">Szerkesztés</a>');
+    mockDrupalGet.mockResolvedValue('<a href="/user/7/edit">Szerkesztés</a>');
 
-    await getWebsiteUserId("a b");
+    await getDrupalUserId("a b");
 
-    expect(mockWebsiteGet.mock.calls[0][1]).toBe("/user/a%20b");
+    expect(mockDrupalGet.mock.calls[0][1]).toBe("/user/a%20b");
   });
 });
 
-// ─── deactivateWebsiteUser ───────────────────────────────────────────────────
+// ─── deactivateDrupalUser ───────────────────────────────────────────────────
 
-describe("deactivateWebsiteUser", () => {
+describe("deactivateDrupalUser", () => {
   it("drops privileged roles then marks the user passive", async () => {
-    await deactivateWebsiteUser(USER_ID);
+    await deactivateDrupalUser(USER_ID);
 
     // Step 1 re-submits the main form with no roles[] keys, which clears them.
     const step1 = postTo(`/user/${USER_ID}/edit`);
@@ -219,16 +217,16 @@ describe("deactivateWebsiteUser", () => {
   });
 
   it("throws when step 1 does not confirm", async () => {
-    mockWebsitePost.mockResolvedValueOnce("<p>Hiba</p>");
+    mockDrupalPost.mockResolvedValueOnce("<p>Hiba</p>");
 
-    await expect(deactivateWebsiteUser(USER_ID)).rejects.toThrow(
+    await expect(deactivateDrupalUser(USER_ID)).rejects.toThrow(
       "Deactivation step 1 failed for user 42",
     );
-    expect(mockWebsitePost).toHaveBeenCalledTimes(1);
+    expect(mockDrupalPost).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to an empty join year when the field is absent", async () => {
-    mockWebsiteGet.mockImplementation((_s, path: string) =>
+    mockDrupalGet.mockImplementation((_s, path: string) =>
       Promise.resolve(
         path === `/user/${USER_ID}/edit/BSS adatok`
           ? PROFILE_TOKEN
@@ -236,7 +234,7 @@ describe("deactivateWebsiteUser", () => {
       ),
     );
 
-    await deactivateWebsiteUser(USER_ID);
+    await deactivateDrupalUser(USER_ID);
 
     expect(postTo(`/user/${USER_ID}/edit/BSS adatok`)).toMatchObject({
       profile_BSS_join_year: "",
@@ -244,13 +242,13 @@ describe("deactivateWebsiteUser", () => {
   });
 
   it("falls back to empty name and mail when the main form is bare", async () => {
-    mockWebsiteGet.mockImplementation((_s, path: string) =>
+    mockDrupalGet.mockImplementation((_s, path: string) =>
       Promise.resolve(
         path === `/user/${USER_ID}/edit` ? PROFILE_TOKEN : PAGES[path],
       ),
     );
 
-    await deactivateWebsiteUser(USER_ID);
+    await deactivateDrupalUser(USER_ID);
 
     expect(postTo(`/user/${USER_ID}/edit`)).toMatchObject({
       name: "",
@@ -259,21 +257,21 @@ describe("deactivateWebsiteUser", () => {
   });
 
   it("throws when step 2 does not confirm", async () => {
-    mockWebsitePost
+    mockDrupalPost
       .mockResolvedValueOnce(SUCCESS)
       .mockResolvedValueOnce("<p>Hiba</p>");
 
-    await expect(deactivateWebsiteUser(USER_ID)).rejects.toThrow(
+    await expect(deactivateDrupalUser(USER_ID)).rejects.toThrow(
       "Deactivation step 2 failed for user 42",
     );
   });
 });
 
-// ─── reactivateWebsiteUser ───────────────────────────────────────────────────
+// ─── reactivateDrupalUser ───────────────────────────────────────────────────
 
-describe("reactivateWebsiteUser", () => {
+describe("reactivateDrupalUser", () => {
   it("restores the roles and leaves the account status alone", async () => {
-    await reactivateWebsiteUser(USER_ID);
+    await reactivateDrupalUser(USER_ID);
 
     expect(postTo(`/user/${USER_ID}/edit`)).toEqual({
       name: "jkovacs",
@@ -294,28 +292,28 @@ describe("reactivateWebsiteUser", () => {
   });
 
   it("throws when step 1 does not confirm", async () => {
-    mockWebsitePost.mockResolvedValueOnce("<p>Hiba</p>");
+    mockDrupalPost.mockResolvedValueOnce("<p>Hiba</p>");
 
-    await expect(reactivateWebsiteUser(USER_ID)).rejects.toThrow(
+    await expect(reactivateDrupalUser(USER_ID)).rejects.toThrow(
       "Reactivation step 1 failed for user 42",
     );
-    expect(mockWebsitePost).toHaveBeenCalledTimes(1);
+    expect(mockDrupalPost).toHaveBeenCalledTimes(1);
   });
 
   it("throws when step 2 does not confirm", async () => {
-    mockWebsitePost
+    mockDrupalPost
       .mockResolvedValueOnce(SUCCESS)
       .mockResolvedValueOnce("<p>Hiba</p>");
 
-    await expect(reactivateWebsiteUser(USER_ID)).rejects.toThrow(
+    await expect(reactivateDrupalUser(USER_ID)).rejects.toThrow(
       "Reactivation step 2 failed for user 42",
     );
   });
 
   it("falls back to empty name, mail and join year when the forms are bare", async () => {
-    mockWebsiteGet.mockResolvedValue(PROFILE_TOKEN);
+    mockDrupalGet.mockResolvedValue(PROFILE_TOKEN);
 
-    await reactivateWebsiteUser(USER_ID);
+    await reactivateDrupalUser(USER_ID);
 
     expect(postTo(`/user/${USER_ID}/edit`)).toMatchObject({
       name: "",
@@ -327,25 +325,25 @@ describe("reactivateWebsiteUser", () => {
   });
 });
 
-// ─── updateWebsiteUser ───────────────────────────────────────────────────────
+// ─── updateDrupalUser ───────────────────────────────────────────────────────
 
 const PERSONAL_TAB = `/user/${USER_ID}/edit/Személyes adatok`;
 const CONTACT_TAB = `/user/${USER_ID}/edit/Elérhetőségek`;
 const BSS_TAB = `/user/${USER_ID}/edit/BSS adatok`;
 
-describe("updateWebsiteUser", () => {
+describe("updateDrupalUser", () => {
   it("posts nothing when the input is empty", async () => {
-    await updateWebsiteUser(USER_ID, {});
-    expect(mockWebsitePost).not.toHaveBeenCalled();
+    await updateDrupalUser(USER_ID, {});
+    expect(mockDrupalPost).not.toHaveBeenCalled();
   });
 
   it("treats every missing profile field as empty or false", async () => {
     // A Drupal account whose optional profile fields were never filled in.
-    mockWebsiteGet.mockImplementation((_s, path: string) =>
+    mockDrupalGet.mockImplementation((_s, path: string) =>
       Promise.resolve(path.endsWith("/edit") ? PROFILE_TOKEN : ""),
     );
 
-    await updateWebsiteUser(USER_ID, {
+    await updateDrupalUser(USER_ID, {
       fullname: "Kovács János",
       email: "jkovacs@bss.hu",
       inSch: true,
@@ -368,12 +366,12 @@ describe("updateWebsiteUser", () => {
   });
 
   it("logs in once for the whole update", async () => {
-    await updateWebsiteUser(USER_ID, { fullname: "Kovács J." });
-    expect(mockLoginWebsite).toHaveBeenCalledTimes(1);
+    await updateDrupalUser(USER_ID, { fullname: "Kovács J." });
+    expect(mockLoginDrupal).toHaveBeenCalledTimes(1);
   });
 
   it("preserves the untouched sibling field on the personal tab", async () => {
-    await updateWebsiteUser(USER_ID, { fullname: "Kovács J." });
+    await updateDrupalUser(USER_ID, { fullname: "Kovács J." });
 
     expect(postTo(PERSONAL_TAB)).toEqual({
       profile_fullname: "Kovács J.",
@@ -386,7 +384,7 @@ describe("updateWebsiteUser", () => {
   });
 
   it("updates the nickname alone", async () => {
-    await updateWebsiteUser(USER_ID, { nickname: "Janó" });
+    await updateDrupalUser(USER_ID, { nickname: "Janó" });
 
     expect(postTo(PERSONAL_TAB)).toMatchObject({
       profile_fullname: "Kovács János",
@@ -395,7 +393,7 @@ describe("updateWebsiteUser", () => {
   });
 
   it("updates email and mobile, keeping the current in-sch flag", async () => {
-    await updateWebsiteUser(USER_ID, {
+    await updateDrupalUser(USER_ID, {
       email: "uj@bss.hu",
       mobile: "+36209999999",
     });
@@ -408,7 +406,7 @@ describe("updateWebsiteUser", () => {
   });
 
   it("submits the contact tab when only inSch flips", async () => {
-    await updateWebsiteUser(USER_ID, { inSch: false });
+    await updateDrupalUser(USER_ID, { inSch: false });
 
     expect(postTo(CONTACT_TAB)).toMatchObject({
       profile_email: "jkovacs@bss.hu",
@@ -418,12 +416,12 @@ describe("updateWebsiteUser", () => {
   });
 
   it("skips the contact tab when inSch already matches", async () => {
-    await updateWebsiteUser(USER_ID, { inSch: true });
+    await updateDrupalUser(USER_ID, { inSch: true });
     expect(postTo(CONTACT_TAB)).toBeUndefined();
   });
 
   it("updates the position and keeps the existing role", async () => {
-    await updateWebsiteUser(USER_ID, { position: "öregtag" });
+    await updateDrupalUser(USER_ID, { position: "öregtag" });
 
     expect(postTo(BSS_TAB)).toEqual({
       profile_BSS_state: "öregtag",
@@ -438,7 +436,7 @@ describe("updateWebsiteUser", () => {
   });
 
   it("keeps an archived member passive", async () => {
-    mockWebsiteGet.mockImplementation((_session, path: string) =>
+    mockDrupalGet.mockImplementation((_session, path: string) =>
       Promise.resolve(
         path === BSS_TAB
           ? PAGES[BSS_TAB].replace(
@@ -449,13 +447,13 @@ describe("updateWebsiteUser", () => {
       ),
     );
 
-    await updateWebsiteUser(USER_ID, { position: "öregtag" });
+    await updateDrupalUser(USER_ID, { position: "öregtag" });
 
     expect(postTo(BSS_TAB)).toMatchObject({ profile_passive: 1 });
   });
 
   it("sets the leader flag and clears the HQ role for Stúdióvezető", async () => {
-    await updateWebsiteUser(USER_ID, { role: "Stúdióvezető" });
+    await updateDrupalUser(USER_ID, { role: "Stúdióvezető" });
 
     expect(postTo(BSS_TAB)).toMatchObject({
       profile_BSS_is_leader: 1,
@@ -465,7 +463,7 @@ describe("updateWebsiteUser", () => {
   });
 
   it("sets a non-leader role as an HQ role", async () => {
-    await updateWebsiteUser(USER_ID, { role: "Gyártásvezető" });
+    await updateDrupalUser(USER_ID, { role: "Gyártásvezető" });
 
     expect(postTo(BSS_TAB)).toMatchObject({
       profile_BSS_is_leader: 0,
@@ -475,7 +473,7 @@ describe("updateWebsiteUser", () => {
   });
 
   it("clears both flags when the role is removed", async () => {
-    await updateWebsiteUser(USER_ID, { role: "" });
+    await updateDrupalUser(USER_ID, { role: "" });
 
     expect(postTo(BSS_TAB)).toMatchObject({
       profile_BSS_is_leader: 0,
@@ -485,12 +483,12 @@ describe("updateWebsiteUser", () => {
   });
 
   it("skips the BSS tab when the role is re-submitted unchanged", async () => {
-    await updateWebsiteUser(USER_ID, { role: "Főszerkesztő" });
+    await updateDrupalUser(USER_ID, { role: "Főszerkesztő" });
     expect(postTo(BSS_TAB)).toBeUndefined();
   });
 
   it("keeps an existing Stúdióvezető marked as leader on an unrelated edit", async () => {
-    mockWebsiteGet.mockImplementation((_s, path: string) =>
+    mockDrupalGet.mockImplementation((_s, path: string) =>
       Promise.resolve(
         path === BSS_TAB
           ? PAGES[path].replace("Főszerkesztő", "Stúdióvezető")
@@ -498,7 +496,7 @@ describe("updateWebsiteUser", () => {
       ),
     );
 
-    await updateWebsiteUser(USER_ID, { joined: "2024 tavasz" });
+    await updateDrupalUser(USER_ID, { joined: "2024 tavasz" });
 
     expect(postTo(BSS_TAB)).toMatchObject({
       profile_BSS_is_leader: 1,
@@ -513,9 +511,9 @@ describe("updateWebsiteUser", () => {
     ["Elérhetőségek", { email: "x@bss.hu" }],
     ["BSS adatok", { position: "öregtag" }],
   ])("throws when the %s tab does not confirm", async (tab, input) => {
-    mockWebsitePost.mockResolvedValue("<p>Hiba</p>");
+    mockDrupalPost.mockResolvedValue("<p>Hiba</p>");
 
-    await expect(updateWebsiteUser(USER_ID, input)).rejects.toThrow(
+    await expect(updateDrupalUser(USER_ID, input)).rejects.toThrow(
       `Update ${tab} failed for 42`,
     );
   });

@@ -29,27 +29,27 @@ export function mockSession(
 
 const ok: SyncResult = { success: true, result: null };
 
-export function mockWebsiteOrchestrators() {
-  const orchestrateCreateWebsiteUser = vi.fn(
+export function mockDrupalOrchestrators() {
+  const orchestrateCreateDrupalUser = vi.fn(
     async (): Promise<SyncResult> => ok,
   );
-  const orchestrateUpdateWebsiteUser = vi.fn(
+  const orchestrateUpdateDrupalUser = vi.fn(
     async (): Promise<SyncResult> => ok,
   );
-  const orchestrateDeactivateWebsiteUser = vi.fn(
+  const orchestrateDeactivateDrupalUser = vi.fn(
     async (): Promise<SyncResult> => ok,
   );
 
-  vi.doMock("@/lib/sync/website/orchestrators", () => ({
-    orchestrateCreateWebsiteUser,
-    orchestrateUpdateWebsiteUser,
-    orchestrateDeactivateWebsiteUser,
+  vi.doMock("@/lib/sync/drupal/orchestrators", () => ({
+    orchestrateCreateDrupalUser,
+    orchestrateUpdateDrupalUser,
+    orchestrateDeactivateDrupalUser,
   }));
 
   return {
-    orchestrateCreateWebsiteUser,
-    orchestrateUpdateWebsiteUser,
-    orchestrateDeactivateWebsiteUser,
+    orchestrateCreateDrupalUser,
+    orchestrateUpdateDrupalUser,
+    orchestrateDeactivateDrupalUser,
   };
 }
 

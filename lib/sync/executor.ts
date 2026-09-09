@@ -6,8 +6,8 @@ import type {
 import { Prisma } from "@/app/generated/prisma/client";
 import { captureSyncJobFailure } from "@/lib/observability/capture";
 import { authentikHandlers } from "./authentik/operations";
+import { drupalHandlers } from "./drupal/operations";
 import { googleGroupHandlers } from "./google/operations";
-import { websiteHandlers } from "./website/operations";
 
 export type OperationHandler = (
   payload: Record<string, unknown>,
@@ -21,7 +21,7 @@ export type OperationHandlers = Partial<
 
 const HANDLERS_BY_TARGET: Record<SyncTarget, OperationHandlers> = {
   AUTHENTIK: authentikHandlers,
-  WEBSITE: websiteHandlers,
+  DRUPAL: drupalHandlers,
   GOOGLE_GROUP: googleGroupHandlers,
 };
 

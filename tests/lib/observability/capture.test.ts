@@ -25,7 +25,7 @@ describe("captureSyncJobFailure", () => {
     captureSyncJobFailure(error, {
       jobId: "job-1",
       memberId: "uuid-member-1",
-      target: "WEBSITE",
+      target: "DRUPAL",
       operation: "CREATE_USER",
       attempts: 2,
     });
@@ -34,7 +34,7 @@ describe("captureSyncJobFailure", () => {
       level: "error",
       tags: {
         "sync.job_id": "job-1",
-        "sync.target": "WEBSITE",
+        "sync.target": "DRUPAL",
         "sync.operation": "CREATE_USER",
         "member.id": "uuid-member-1",
       },

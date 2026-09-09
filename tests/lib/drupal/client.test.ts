@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  DrupalError,
+  drupalGet,
+  drupalPost,
   getFormToken,
-  loginWebsite,
+  loginDrupal,
   parseHtml,
-  WebsiteError,
-  websiteGet,
-  websitePost,
-} from "@/lib/website/client";
+} from "@/lib/drupal/client";
 
 const mockFetch = vi.fn();
 
@@ -23,14 +23,14 @@ function redirect(location: string | null) {
 
 async function login() {
   mockFetch.mockResolvedValueOnce(html("<html>ok</html>"));
-  return loginWebsite();
+  return loginDrupal();
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubEnv("WEBSITE_URL", "https://web.example.com");
-  vi.stubEnv("WEBSITE_ADMIN_USERNAME", "admin");
-  vi.stubEnv("WEBSITE_ADMIN_PASSWORD", "s3cret");
+  vi.stubEnv("DRUPAL_URL", "https://web.example.com");
+  vi.stubEnv("DRUPAL_ADMIN_USERNAME", "admin");
+  vi.stubEnv("DRUPAL_ADMIN_PASSWORD", "s3cret");
   vi.stubGlobal("fetch", mockFetch);
 });
 
@@ -43,27 +43,27 @@ afterEach(() => {
 
 describe("config", () => {
   it.each([
-    ["WEBSITE_URL"],
-    ["WEBSITE_ADMIN_USERNAME"],
-    ["WEBSITE_ADMIN_PASSWORD"],
+    ["DRUPAL_URL"],
+    ["DRUPAL_ADMIN_USERNAME"],
+    ["DRUPAL_ADMIN_PASSWORD"],
   ])("throws when %s is missing", async (name) => {
     vi.stubEnv(name, "");
-    await expect(loginWebsite()).rejects.toThrow(
-      "Missing WEBSITE_URL, WEBSITE_ADMIN_USERNAME or WEBSITE_ADMIN_PASSWORD",
+    await expect(loginDrupal()).rejects.toThrow(
+      "Missing DRUPAL_URL, DRUPAL_ADMIN_USERNAME or DRUPAL_ADMIN_PASSWORD",
     );
   });
 
   it("strips trailing slashes from the base URL", async () => {
-    vi.stubEnv("WEBSITE_URL", "https://web.example.com///");
+    vi.stubEnv("DRUPAL_URL", "https://web.example.com///");
     const session = await login();
     expect(session.baseUrl).toBe("https://web.example.com");
     expect(mockFetch.mock.calls[0][0]).toBe("https://web.example.com/user");
   });
 });
 
-// ─── loginWebsite ────────────────────────────────────────────────────────────
+// ─── loginDrupal ────────────────────────────────────────────────────────────
 
-describe("loginWebsite", () => {
+describe("loginDrupal", () => {
   it("posts the Drupal login form", async () => {
     await login();
 
@@ -78,7 +78,7 @@ describe("loginWebsite", () => {
 
   it("throws on a non-ok login response", async () => {
     mockFetch.mockResolvedValueOnce(new Response("nope", { status: 500 }));
-    await expect(loginWebsite()).rejects.toThrow("Login HTTP 500");
+    await expect(loginDrupal()).rejects.toThrow("Login HTTP 500");
   });
 
   it("throws on the Hungarian bad-credentials phrase", async () => {
@@ -86,10 +86,10 @@ describe("loginWebsite", () => {
       html("<p>Nem megfelelő felhasználói név vagy jelszó.</p>"),
     );
 
-    const error = await loginWebsite().catch((e) => e);
-    expect(error).toBeInstanceOf(WebsiteError);
+    const error = await loginDrupal().catch((e) => e);
+    expect(error).toBeInstanceOf(DrupalError);
     expect(error.status).toBe(401);
-    expect(error.message).toContain("Invalid website admin credentials");
+    expect(error.message).toContain("Invalid Drupal admin credentials");
   });
 });
 
@@ -105,10 +105,10 @@ describe("cookie jar", () => {
         ]),
       }),
     );
-    const session = await loginWebsite();
+    const session = await loginDrupal();
 
     mockFetch.mockResolvedValueOnce(html("page"));
-    await websiteGet(session, "/user/42/edit");
+    await drupalGet(session, "/user/42/edit");
 
     expect(mockFetch.mock.calls[1][1].headers.Cookie).toBe(
       "SESSabc=xyz; extra=1",
@@ -118,7 +118,7 @@ describe("cookie jar", () => {
   it("sends no Cookie header before any cookie is set", async () => {
     const session = await login();
     mockFetch.mockResolvedValueOnce(html("page"));
-    await websiteGet(session, "/x");
+    await drupalGet(session, "/x");
 
     expect(mockFetch.mock.calls[1][1].headers.Cookie).toBeUndefined();
   });
@@ -132,10 +132,10 @@ describe("cookie jar", () => {
         ]),
       }),
     );
-    const session = await loginWebsite();
+    const session = await loginDrupal();
 
     mockFetch.mockResolvedValueOnce(html("page"));
-    await websiteGet(session, "/x");
+    await drupalGet(session, "/x");
 
     expect(mockFetch.mock.calls[1][1].headers.Cookie).toBe("good=1");
   });
@@ -144,15 +144,15 @@ describe("cookie jar", () => {
     mockFetch.mockResolvedValueOnce(
       html("ok", { headers: { "set-cookie": "SESS=first" } }),
     );
-    const session = await loginWebsite();
+    const session = await loginDrupal();
 
     mockFetch.mockResolvedValueOnce(
       html("page", { headers: { "set-cookie": "SESS=second" } }),
     );
-    await websiteGet(session, "/x");
+    await drupalGet(session, "/x");
 
     mockFetch.mockResolvedValueOnce(html("page"));
-    await websiteGet(session, "/y");
+    await drupalGet(session, "/y");
 
     expect(mockFetch.mock.calls[2][1].headers.Cookie).toBe("SESS=second");
   });
@@ -166,7 +166,7 @@ describe("redirect handling", () => {
       .mockResolvedValueOnce(redirect("/user/42"))
       .mockResolvedValueOnce(html("landed"));
 
-    await loginWebsite();
+    await loginDrupal();
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(mockFetch.mock.calls[1][0]).toBe("https://web.example.com/user/42");
@@ -179,7 +179,7 @@ describe("redirect handling", () => {
       .mockResolvedValueOnce(redirect("https://other.example.com/landing"))
       .mockResolvedValueOnce(html("landed"));
 
-    await loginWebsite();
+    await loginDrupal();
 
     expect(mockFetch.mock.calls[1][0]).toBe(
       "https://other.example.com/landing",
@@ -199,7 +199,7 @@ describe("redirect handling", () => {
       )
       .mockResolvedValueOnce(html("landed"));
 
-    await loginWebsite();
+    await loginDrupal();
 
     expect(mockFetch.mock.calls[1][1].headers.Cookie).toBe("SESS=hop");
   });
@@ -207,27 +207,27 @@ describe("redirect handling", () => {
   it("returns the 3xx response when Location is absent", async () => {
     mockFetch.mockResolvedValueOnce(redirect(null));
 
-    // 302 is not ok, so loginWebsite surfaces it rather than looping.
-    await expect(loginWebsite()).rejects.toThrow("Login HTTP 302");
+    // 302 is not ok, so loginDrupal surfaces it rather than looping.
+    await expect(loginDrupal()).rejects.toThrow("Login HTTP 302");
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it("gives up after MAX_REDIRECTS hops", async () => {
     mockFetch.mockImplementation(() => Promise.resolve(redirect("/loop")));
 
-    await expect(loginWebsite()).rejects.toThrow("Too many redirects");
+    await expect(loginDrupal()).rejects.toThrow("Too many redirects");
     expect(mockFetch).toHaveBeenCalledTimes(6);
   });
 });
 
-// ─── websiteGet / websitePost ────────────────────────────────────────────────
+// ─── drupalGet / drupalPost ────────────────────────────────────────────────
 
-describe("websiteGet", () => {
+describe("drupalGet", () => {
   it("returns the response body", async () => {
     const session = await login();
     mockFetch.mockResolvedValueOnce(html("<p>hello</p>"));
 
-    await expect(websiteGet(session, "/user/42/edit")).resolves.toBe(
+    await expect(drupalGet(session, "/user/42/edit")).resolves.toBe(
       "<p>hello</p>",
     );
     expect(mockFetch.mock.calls[1][0]).toBe(
@@ -239,18 +239,18 @@ describe("websiteGet", () => {
     const session = await login();
     mockFetch.mockResolvedValueOnce(new Response("nope", { status: 404 }));
 
-    await expect(websiteGet(session, "/missing")).rejects.toThrow(
+    await expect(drupalGet(session, "/missing")).rejects.toThrow(
       "GET /missing HTTP 404",
     );
   });
 });
 
-describe("websitePost", () => {
+describe("drupalPost", () => {
   it("form-encodes the payload and stringifies numbers", async () => {
     const session = await login();
     mockFetch.mockResolvedValueOnce(html("saved"));
 
-    await websitePost(session, "/user/42/edit", {
+    await drupalPost(session, "/user/42/edit", {
       name: "jkovacs",
       profile_passive: 1,
     });
@@ -269,7 +269,7 @@ describe("websitePost", () => {
     const session = await login();
     mockFetch.mockResolvedValueOnce(new Response("nope", { status: 403 }));
 
-    await expect(websitePost(session, "/user/42/edit", {})).rejects.toThrow(
+    await expect(drupalPost(session, "/user/42/edit", {})).rejects.toThrow(
       "POST /user/42/edit HTTP 403",
     );
   });
@@ -306,11 +306,11 @@ describe("parseHtml", () => {
   });
 });
 
-describe("WebsiteError", () => {
+describe("DrupalError", () => {
   it("prefixes the message and keeps the status", () => {
-    const error = new WebsiteError(404, "not found");
-    expect(error.name).toBe("WebsiteError");
+    const error = new DrupalError(404, "not found");
+    expect(error.name).toBe("DrupalError");
     expect(error.status).toBe(404);
-    expect(error.message).toBe("Website API error: not found");
+    expect(error.message).toBe("Drupal API error: not found");
   });
 });
