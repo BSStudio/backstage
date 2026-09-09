@@ -1,8 +1,6 @@
-import { MonitorDown } from "lucide-react";
 import type { Metadata } from "next";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { ComputerCard } from "@/components/computer-card";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { COMPUTER_REFRESH_MS } from "@/lib/computers";
 import { canAdminister } from "@/lib/permissions";
@@ -11,6 +9,7 @@ import { isRdpConfigured } from "@/lib/rdp";
 import { listComputers } from "@/lib/services/computers";
 import { pageActor } from "@/lib/session";
 import { DeleteComputerButton } from "./delete-computer-button";
+import { RdpDownloadButton } from "./rdp-download-button";
 
 export const metadata: Metadata = { title: "Számítógépek - Backstage" };
 
@@ -46,15 +45,7 @@ export default async function ComputersPage() {
               action={
                 <div className="flex items-center">
                   {canConnect && (
-                    <Button asChild variant="ghost" size="icon">
-                      <a
-                        href={`/api/computers/${computer.id}/rdp`}
-                        aria-label={`${computer.name} – RDP-fájl letöltése`}
-                        title="RDP-fájl letöltése"
-                      >
-                        <MonitorDown className="size-4" />
-                      </a>
-                    </Button>
+                    <RdpDownloadButton id={computer.id} name={computer.name} />
                   )}
                   {canManage && (
                     <DeleteComputerButton
