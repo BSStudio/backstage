@@ -17,6 +17,16 @@ describe("isRdpConfigured", () => {
     expect(isRdpConfigured()).toBe(false);
   });
 
+  it("is false when the host suffix is only whitespace", () => {
+    vi.stubEnv("COMPUTER_RDP_HOST_SUFFIX", "   ");
+    expect(isRdpConfigured()).toBe(false);
+  });
+
+  it("is false when the port is unusable, so no button leads to a 500", () => {
+    vi.stubEnv("COMPUTER_RDP_PORT", "tcp/3389");
+    expect(isRdpConfigured()).toBe(false);
+  });
+
   it("is true once the host suffix is set", () => {
     expect(isRdpConfigured()).toBe(true);
   });
@@ -46,6 +56,11 @@ describe("rdpConfig", () => {
     expect(() => rdpConfig()).toThrow("COMPUTER_RDP_HOST_SUFFIX");
   });
 
+  it("throws when the host suffix is whitespace an edited env file left behind", () => {
+    vi.stubEnv("COMPUTER_RDP_HOST_SUFFIX", "   ");
+    expect(() => rdpConfig()).toThrow("COMPUTER_RDP_HOST_SUFFIX");
+  });
+
   it("defaults to 3389 when no port is configured", () => {
     vi.stubEnv("COMPUTER_RDP_PORT", undefined);
     expect(rdpConfig().port).toBe(3389);
@@ -56,6 +71,8 @@ describe("rdpConfig", () => {
     ["fractional", "3389.5"],
     ["below the range", "0"],
     ["above the range", "70000"],
+    ["hexadecimal", "0x0d3d"],
+    ["exponent", "1e3"],
   ])("throws on a %s port", (_label, value) => {
     vi.stubEnv("COMPUTER_RDP_PORT", value);
     expect(() => rdpConfig()).toThrow("COMPUTER_RDP_PORT");

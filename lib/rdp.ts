@@ -7,6 +7,9 @@ const DEFAULT_PORT = 3389;
 // characters anyway.
 const USERNAME_PATTERN = /^[A-Za-z0-9._-]+$/;
 
+// Everything else `Number` accepts — hex, exponents — is a typo rather than a port.
+const PORT_PATTERN = /^\d+$/;
+
 // The file is read by mstsc on Windows, not by anything here.
 const LINE_ENDING = "\r\n";
 
@@ -17,23 +20,28 @@ export interface RdpConfig {
 }
 
 export function isRdpConfigured(): boolean {
-  return Boolean(process.env.COMPUTER_RDP_HOST_SUFFIX);
+  try {
+    rdpConfig();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function rdpConfig(): RdpConfig {
-  const hostSuffix = process.env.COMPUTER_RDP_HOST_SUFFIX;
+  const hostSuffix = process.env.COMPUTER_RDP_HOST_SUFFIX?.trim();
   if (!hostSuffix) {
     throw new Error("Missing COMPUTER_RDP_HOST_SUFFIX environment variable");
   }
 
-  const rawPort = process.env.COMPUTER_RDP_PORT;
+  const rawPort = process.env.COMPUTER_RDP_PORT?.trim();
   const port = rawPort ? Number(rawPort) : DEFAULT_PORT;
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  if ((rawPort && !PORT_PATTERN.test(rawPort)) || port < 1 || port > 65535) {
     throw new Error(`Invalid COMPUTER_RDP_PORT: ${rawPort}`);
   }
 
   return {
-    hostSuffix: hostSuffix.trim(),
+    hostSuffix,
     port,
     adDomain: process.env.COMPUTER_RDP_AD_DOMAIN?.trim() || null,
   };
