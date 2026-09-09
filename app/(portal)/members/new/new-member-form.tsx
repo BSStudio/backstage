@@ -119,6 +119,8 @@ export function NewMemberForm() {
                   label="Telefonszám"
                   type="tel"
                   placeholder="+36 30 123 4567"
+                  required
+                  hint="Nemzetközi formátumban, országhívószámmal."
                 />
               )}
             </form.AppField>

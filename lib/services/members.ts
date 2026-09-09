@@ -13,7 +13,7 @@ import {
 } from "@/lib/permissions";
 import {
   CreateMemberSchema,
-  UpdateMemberSchema,
+  updateMemberSchema,
 } from "@/lib/services/member-schemas";
 import { getLeadershipGroupUuid } from "@/lib/sync/authentik/group-mapping";
 import {
@@ -51,7 +51,7 @@ export type {
 export {
   AssignRoleSchema,
   CreateMemberSchema,
-  UpdateMemberSchema,
+  updateMemberSchema,
 } from "@/lib/services/member-schemas";
 
 const AUTHENTIK_SYNCED_FIELDS = new Set([
@@ -136,7 +136,7 @@ export async function createMember(
     firstName: data.firstName,
     lastName: data.lastName,
     email: data.email,
-    mobile: data.mobile ?? null,
+    mobile: data.mobile,
     status,
   });
 
@@ -151,7 +151,7 @@ export async function createMember(
         lastName: data.lastName,
         nickname: data.nickname || null,
         email: data.email,
-        mobile: data.mobile || null,
+        mobile: data.mobile,
         university: data.university || null,
         major: data.major || null,
         dormRoom: data.dormRoom || null,
@@ -197,7 +197,7 @@ export async function createMember(
     fullname: `${data.lastName} ${data.firstName}`.trim(),
     nickname: data.nickname ?? data.firstName,
     email: data.email,
-    mobile: data.mobile ?? "",
+    mobile: data.mobile,
     joinedSemester,
   });
   if (websiteResult.success) {
@@ -323,7 +323,7 @@ export async function updateMember(
   ensureCanModifyMember(actor, member.id);
   const isLeaderOrAdmin = canManageMembers(actor.role);
 
-  const parsed = UpdateMemberSchema.safeParse(input);
+  const parsed = updateMemberSchema(member.id).safeParse(input);
   if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
 
   const raw = { ...parsed.data };

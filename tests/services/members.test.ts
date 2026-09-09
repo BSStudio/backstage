@@ -91,6 +91,7 @@ import {
   updateMember,
   uploadMemberAvatar,
 } from "@/lib/services/members";
+import { localMemberId } from "@/types";
 import { getTestPrisma } from "../setup";
 
 const ACTOR: Actor = { id: "test-actor-id", role: "LEADER" };
@@ -374,7 +375,12 @@ describe("createMember", () => {
 
     const { member } = await createMember(
       prisma,
-      { firstName: "New", lastName: "Member", email: "new@test.com" },
+      {
+        firstName: "New",
+        lastName: "Member",
+        email: "new@test.com",
+        mobile: "+36301234567",
+      },
       ACTOR,
     );
 
@@ -402,7 +408,12 @@ describe("createMember", () => {
 
     const { username } = await createMember(
       prisma,
-      { firstName: "János", lastName: "Kovács", email: "janos@test.com" },
+      {
+        firstName: "János",
+        lastName: "Kovács",
+        email: "janos@test.com",
+        mobile: "+36301234567",
+      },
       ACTOR,
     );
 
@@ -421,7 +432,12 @@ describe("createMember", () => {
 
     const { member, syncErrors } = await createMember(
       prisma,
-      { firstName: "New", lastName: "Member", email: "new@test.com" },
+      {
+        firstName: "New",
+        lastName: "Member",
+        email: "new@test.com",
+        mobile: "+36301234567",
+      },
       ACTOR,
     );
 
@@ -452,6 +468,70 @@ describe("createMember", () => {
     ).rejects.toThrow(ValidationError);
   });
 
+  it("reports a missing mobile as required", async () => {
+    const prisma = getTestPrisma();
+    const error = await createMember(
+      prisma,
+      { firstName: "A", lastName: "B", email: "a@test.com" },
+      ACTOR,
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).details).toMatchObject({
+      properties: {
+        mobile: { errors: ["A telefonszám megadása kötelező"] },
+      },
+    });
+  });
+
+  it("rejects a mobile with no country code", async () => {
+    const prisma = getTestPrisma();
+    const error = await createMember(
+      prisma,
+      {
+        firstName: "A",
+        lastName: "B",
+        email: "a@test.com",
+        mobile: "06301234567",
+      },
+      ACTOR,
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).details).toMatchObject({
+      properties: {
+        mobile: {
+          errors: [
+            "A telefonszámot nemzetközi formátumban, országhívószámmal kell megadni (például +36301234567)",
+          ],
+        },
+      },
+    });
+    expect(mockCreateAuthentikUser).not.toHaveBeenCalled();
+  });
+
+  it("keeps a foreign number and strips its separators", async () => {
+    const prisma = getTestPrisma();
+    const { member } = await createMember(
+      prisma,
+      {
+        firstName: "Zuzana",
+        lastName: "Nováková",
+        email: "zuzana@test.com",
+        mobile: "+421 903/123-456",
+      },
+      ACTOR,
+    );
+
+    expect(member.mobile).toBe("+421903123456");
+    expect(mockCreateAuthentikUser.mock.calls[0][0]).toMatchObject({
+      mobile: "+421903123456",
+    });
+    expect(mockOrchestrateCreateWebsiteUser.mock.calls[0][2]).toMatchObject({
+      mobile: "+421903123456",
+    });
+  });
+
   it("reports an empty email as missing rather than malformed", async () => {
     const prisma = getTestPrisma();
     const error = await createMember(
@@ -470,7 +550,12 @@ describe("createMember", () => {
     const prisma = getTestPrisma();
     const { member } = await createMember(
       prisma,
-      { firstName: "A", lastName: "B", email: "  padded@test.com  " },
+      {
+        firstName: "A",
+        lastName: "B",
+        email: "  padded@test.com  ",
+        mobile: "+36301234567",
+      },
       ACTOR,
     );
 
@@ -511,7 +596,7 @@ describe("createMember", () => {
         lastName: "User",
         email: "minimal@test.com",
         nickname: "",
-        mobile: "",
+        mobile: "+36301234567",
         university: "",
         major: "",
         dormRoom: "",
@@ -520,7 +605,6 @@ describe("createMember", () => {
     );
 
     expect(member.nickname).toBeNull();
-    expect(member.mobile).toBeNull();
     expect(member.university).toBeNull();
     expect(member.major).toBeNull();
     expect(member.dormRoom).toBeNull();
@@ -534,6 +618,7 @@ describe("createMember", () => {
         firstName: "Test",
         lastName: "User",
         email: "extra@test.com",
+        mobile: "+36301234567",
         unknownField: "should be ignored",
       },
       ACTOR,
@@ -546,7 +631,12 @@ describe("createMember", () => {
     const prisma = getTestPrisma();
     const { syncErrors } = await createMember(
       prisma,
-      { firstName: "New", lastName: "Member", email: "new@test.com" },
+      {
+        firstName: "New",
+        lastName: "Member",
+        email: "new@test.com",
+        mobile: "+36301234567",
+      },
       ACTOR,
     );
 
@@ -566,7 +656,12 @@ describe("createMember", () => {
 
     const { member, syncErrors } = await createMember(
       prisma,
-      { firstName: "New", lastName: "Member", email: "new@test.com" },
+      {
+        firstName: "New",
+        lastName: "Member",
+        email: "new@test.com",
+        mobile: "+36301234567",
+      },
       ACTOR,
     );
 
@@ -974,15 +1069,86 @@ describe("updateMember", () => {
     const prisma = getTestPrisma();
     await prisma.member.update({
       where: { id: MEMBER_ID },
-      data: { mobile: "+36301234567", nickname: "Jani" },
+      data: { nickname: "Jani" },
     });
 
-    await updateMember(prisma, MEMBER_ID, { mobile: "", nickname: "" }, ACTOR);
+    await updateMember(prisma, MEMBER_ID, { nickname: "" }, ACTOR);
 
     expect(mockOrchestrateUpdateWebsiteUser.mock.calls[0][2]).toEqual({
-      mobile: "",
       // Drupal has no nickname fallback, so the first name stands in.
       nickname: "Target",
+    });
+  });
+
+  it("refuses to clear the mobile of a member with an Authentik account", async () => {
+    const prisma = getTestPrisma();
+    const error = await updateMember(
+      prisma,
+      MEMBER_ID,
+      { mobile: "" },
+      ACTOR,
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).details).toMatchObject({
+      properties: {
+        mobile: { errors: ["A telefonszám megadása kötelező"] },
+      },
+    });
+  });
+
+  it("clears the mobile of a member with no Authentik account", async () => {
+    const prisma = getTestPrisma();
+    const id = localMemberId();
+    await prisma.member.create({
+      data: {
+        id,
+        firstName: "Helyi",
+        lastName: "Tag",
+        email: "helyi@test.com",
+        mobile: "+36301234567",
+        joinedSemester: "2025/2026/1",
+      },
+    });
+
+    const { member } = await updateMember(prisma, id, { mobile: "" }, ACTOR);
+
+    expect(member.mobile).toBeNull();
+    expect(mockOrchestrateUpdateWebsiteUser.mock.calls[0][2]).toEqual({
+      mobile: "",
+    });
+  });
+
+  it("normalises the separators out of an updated mobile", async () => {
+    const prisma = getTestPrisma();
+    const { member } = await updateMember(
+      prisma,
+      MEMBER_ID,
+      { mobile: "+421 903 123 456" },
+      ACTOR,
+    );
+
+    expect(member.mobile).toBe("+421903123456");
+  });
+
+  it("rejects a mobile with no country code", async () => {
+    const prisma = getTestPrisma();
+    const error = await updateMember(
+      prisma,
+      MEMBER_ID,
+      { mobile: "06301234567" },
+      ACTOR,
+    ).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).details).toMatchObject({
+      properties: {
+        mobile: {
+          errors: [
+            "A telefonszámot nemzetközi formátumban, országhívószámmal kell megadni (például +36301234567)",
+          ],
+        },
+      },
     });
   });
 
