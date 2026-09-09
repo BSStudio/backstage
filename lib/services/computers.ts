@@ -7,6 +7,7 @@ import {
 } from "@/lib/computers";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { type Actor, ensureCanAdminister } from "@/lib/permissions";
+import { buildRdpFile, isRdpConfigured } from "@/lib/rdp";
 import {
   ComputerIdSchema,
   type ComputerMetadata,
@@ -114,4 +115,22 @@ export async function deleteComputer(
   ]);
 
   return { deleted: true };
+}
+
+/** Takes no actor for the same reason `listComputers` does not: any member may sit down at one. */
+export async function buildComputerRdp(
+  prisma: PrismaClient,
+  id: string,
+  username: string | null,
+): Promise<{ filename: string; content: string }> {
+  // A deployment with no workstation DNS configured has no such endpoint to speak of.
+  if (!isRdpConfigured()) throw new NotFoundError();
+
+  const computer = await prisma.computer.findUnique({ where: { id } });
+  if (!computer) throw new NotFoundError();
+
+  return {
+    filename: `${formatComputerName(computer.id)}.rdp`,
+    content: buildRdpFile(computer.id, username),
+  };
 }

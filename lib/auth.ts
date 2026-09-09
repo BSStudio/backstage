@@ -44,6 +44,10 @@ export const auth = betterAuth({
         required: false,
         returned: false,
       },
+      authentikUsername: {
+        type: "string",
+        required: false,
+      },
     },
   },
 
@@ -97,6 +101,7 @@ export const auth = betterAuth({
               firstName: profile.given_name,
               lastName: profile.family_name,
               authentikSub: profile.sub,
+              authentikUsername: profile.preferred_username,
             } as Record<string, unknown>;
           },
         },
