@@ -23,11 +23,15 @@ import {
   updateMemberAction,
 } from "@/lib/actions/members";
 import {
-  EditMemberFormSchema,
+  editMemberFormSchema,
   RoleFormSchema,
 } from "@/lib/services/member-schemas";
 import { toastSync } from "@/lib/toast";
-import { MEMBERSHIP_STATUS_LABELS, MEMBERSHIP_STATUSES } from "@/types";
+import {
+  hasAuthentikAccount,
+  MEMBERSHIP_STATUS_LABELS,
+  MEMBERSHIP_STATUSES,
+} from "@/types";
 import type { AuthentikGroupOption, MemberData, RoleData } from "./types";
 
 const STATUS_OPTIONS: FieldOption<MembershipStatus>[] = MEMBERSHIP_STATUSES.map(
@@ -94,7 +98,7 @@ function EditForms({
       dormRoom: member.dormRoom ?? "",
       status: member.status,
     },
-    validators: { onChange: EditMemberFormSchema },
+    validators: { onChange: editMemberFormSchema(member.id) },
     onSubmit: async ({ value }) => {
       const { status, email, ...profile } = value;
       const result = await updateMemberAction(member.id, {
@@ -189,7 +193,14 @@ function EditForms({
           </profileForm.AppField>
         )}
         <profileForm.AppField name="mobile">
-          {(field) => <field.TextField label="Telefonszám" type="tel" />}
+          {(field) => (
+            <field.TextField
+              label="Telefonszám"
+              type="tel"
+              required={hasAuthentikAccount(member.id)}
+              hint="Nemzetközi formátumban, országhívószámmal: +36301234567"
+            />
+          )}
         </profileForm.AppField>
         <div className="grid grid-cols-2 gap-4">
           <profileForm.AppField name="university">

@@ -136,7 +136,12 @@ describe("POST /api/members", () => {
     mockSession({ id: ACTOR_ID, role: "LEADER" });
     const { POST } = await import("@/app/api/members/route");
     const res = await POST(
-      postReq({ firstName: "New", lastName: "Member", email: "new@test.com" }),
+      postReq({
+        firstName: "New",
+        lastName: "Member",
+        email: "new@test.com",
+        mobile: "+36301234567",
+      }),
     );
     expect(res.status).toBe(201);
   });
@@ -150,7 +155,12 @@ describe("POST /api/members", () => {
 
     const { POST } = await import("@/app/api/members/route");
     const res = await POST(
-      postReq({ firstName: "New", lastName: "Member", email: "new@test.com" }),
+      postReq({
+        firstName: "New",
+        lastName: "Member",
+        email: "new@test.com",
+        mobile: "+36301234567",
+      }),
     );
 
     expect(res.status).toBe(207);

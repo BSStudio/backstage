@@ -510,15 +510,17 @@ phone can be cut off, but never mint one. Both actions are audited.
 `GET /api/members` — list; `?archived=true` includes archived (default excludes). Includes
 `leadershipRole`, ordered by status then lastName.
 
-`POST /api/members` — create (leader/admin). Requires `firstName`, `lastName`, `email`; optional
-`nickname`, `mobile`, `university`, `major`, `dormRoom`. Status defaults to
+`POST /api/members` — create (leader/admin). Requires `firstName`, `lastName`, `email`, `mobile`
+(E.164, see Architectural decisions); optional
+`nickname`, `university`, `major`, `dormRoom`. Status defaults to
 `MEMBER_CANDIDATE_CANDIDATE`, `joinedSemester` from `currentSemester()`. Writes a `TimelineEntry`
 and an `AuditLog`.
 
 `GET /api/members/[id]` — member with `leadershipRole` and full `timeline` (newest first).
 
 `PATCH /api/members/[id]` — members may edit themselves, leaders/admins anyone. Status **and email**
-changes require leader/admin. Timeline entry only on status change.
+changes require leader/admin. `mobile` may be cleared only on a member with no Authentik account.
+Timeline entry only on status change.
 
 `DELETE /api/members/[id]` — soft archive (leader/admin): sets `archived` + `archivedAt`.
 `?removeFromGoogleGroup=true` also takes the member off the mailing list; anything else leaves the
@@ -1085,6 +1087,27 @@ verified is not ours to set unilaterally. The guard lives in `updateMember`, so 
 the Server Action are both covered; the edit sheet hides the field via `canChangeEmail` rather than
 relying on that. Self-service returns once the address can be confirmed before it reaches
 Authentik.
+
+**A phone number is mandatory wherever there is an Authentik account, and is stored in one
+spelling.** The number is a managed Authentik attribute, which the studio's other applications read
+off the directory the same way they read the email claim — as an identity attribute they consume
+rather than validate. One canonical spelling is the whole point: a number written four ways across
+the systems this syncs to is a number nothing downstream can match on, and E.164 is the only format
+that carries a country code unambiguously. Sometimes-absent is the same problem in a different
+shape, since an attribute that may be missing is one every consumer has to special-case.
+
+Members with no Authentik account are the exception, because nothing reads attributes they do not
+have. The prefixed id is what decides, and `updateMemberSchema(memberId)` and
+`editMemberFormSchema(memberId)` in `member-schemas.ts` both resolve it through
+`hasAuthentikAccount`, so the service and the edit sheet cannot disagree about who may go without
+one.
+
+Separators are stripped rather than rejected — a pasted `+36 30 123 4567` is the same number — but
+a missing country code is **not** guessed. Members carry Slovak and Romanian numbers as well as
+Hungarian ones, so mapping a leading `06` to `+36` would turn a Slovak `0903…` into a valid-looking
+Hungarian one: a wrong number that passes every check downstream, which is worse than the error the
+member sees instead. The pattern excludes a leading zero after the `+` for the same reason — no
+country code starts with one.
 
 **Save is disabled until something changes.** Edit forms subscribe to TanStack Form's
 `isDefaultValue`, so reverting an edit re-disables the button. The role checkbox group keeps its
