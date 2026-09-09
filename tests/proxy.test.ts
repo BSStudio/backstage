@@ -46,15 +46,18 @@ describe("proxy", () => {
     expect(mockGetSessionCookie).not.toHaveBeenCalled();
   });
 
-  // The exemption is the ping path, not the prefix: a read route added beside it must not
-  // inherit it.
-  it("still guards the rest of the computer routes", async () => {
-    mockGetSessionCookie.mockReturnValue(null);
+  // The exemption is the ping path, not the prefix: a route added beside it must not inherit
+  // it, and the .rdp download shares even the [id] segment.
+  it.each(["/api/computers", "/api/computers/nle4/rdp"])(
+    "still guards %s",
+    async (path) => {
+      mockGetSessionCookie.mockReturnValue(null);
 
-    const response = await proxy(request("/api/computers"));
+      const response = await proxy(request(path));
 
-    expect(response.status).toBe(401);
-  });
+      expect(response.status).toBe(401);
+    },
+  );
 
   it("lets an authenticated request through", async () => {
     mockGetSessionCookie.mockReturnValue("a-session-token");

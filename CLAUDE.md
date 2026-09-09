@@ -134,6 +134,9 @@ The scripts refuse to run against a database whose host is not local unless pass
   `proxy.ts`, not `app/api/` — see Architectural decisions
 - `lib/rate-limit.ts` — in-memory fixed-window rate limiter. State is per process, so every limit
   it enforces is per replica; the single-replica deployment is what makes that correct
+- `lib/rdp.ts` — the `.rdp` file `/computers` hands out, and the three environment values that
+  shape it. Separate from `lib/computers.ts` because client components import that one and
+  would carry the environment read into the browser bundle
 - `lib/observability/` — `sentry.ts` (shared init options), `scrub.ts` (PII redaction),
   `capture.ts` (capture helpers), `logger.ts` (structured logging)
 - `lib/members.ts`, `lib/audit.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts`,
@@ -392,7 +395,9 @@ what arrives in an `iss` claim, which is why `requireApiClient` verifies against
 
 On login `mapProfileToUser` reads the `groups` claim and derives a role, and carries the Authentik
 `sub` in an `authentikSub` field; a `databaseHooks.user.create.before` hook promotes that to the
-user row `id`, so it matches the Member `id`. None of these `additionalFields` may carry
+user row `id`, so it matches the Member `id`. It also carries `preferred_username` into
+`authentikUsername`, which is the Authentik username and therefore the AD account name — the only
+place this app has one, and only for the length of a session. None of these `additionalFields` may carry
 `input: false` — better-auth strips such fields from the OAuth profile as well, which leaves every
 login unnamed, `MEMBER`, and keyed on a generated id.
 
@@ -557,6 +562,12 @@ plain `ALUMNI` are left out, `ACTIVE_ALUMNI` are not. Reads `APP_URL` to absolut
 `{ metadata }`. Answers **201** when the ping registered the machine and 200 afterwards. 10
 requests per minute per service account — an agent pings once a minute, so anything near that
 ceiling is a schedule misconfigured into a loop.
+
+`GET /api/computers/[id]/rdp` — an `.rdp` file for the signed-in member, served as an
+attachment named after the machine. Addresses the workstation at `<id>.<COMPUTER_RDP_HOST_SUFFIX>`
+on `COMPUTER_RDP_PORT` and prefills `COMPUTER_RDP_AD_DOMAIN\<their Authentik username>`; the
+password is never in the file. Answers 404 for a machine that has never pinged and for a
+deployment that names no host suffix, so an instance without one is a supported configuration.
 
 `GET /api/health` — container liveness. Public to the proxy and unauthenticated: it answers
 `{ status: "ok" }`, or 503 once the database round trip fails.
@@ -1043,6 +1054,9 @@ one route worth adding the day another studio app wants to render the same launc
 Computers too, and the write route does not imply the read one: the agent has to POST from off the
 server, but nothing outside Backstage reads machine status, so `/computers` reads the service
 directly. `GET /api/computers` arrives the day something does — a lobby display, say.
+`GET /api/computers/[id]/rdp` is not that route arriving early: it hands one caller a file rather
+than the list, and it is a route at all only because a browser download needs a URL to follow to a
+`Content-Disposition` — the same reason `app/avatars/[...path]/route.ts` is one.
 
 **Restricted reads go through a guarded service, never Prisma in the page.** Next.js is explicit
 that a layout cannot gate its segments — they render regardless and land in the RSC payload — so
@@ -1286,6 +1300,35 @@ window would keep calling it online — and a test asserts that.
 **An offline machine renders no gauges and no occupancy.** Those are its last readings rather than
 its current ones, and a stale bar reads exactly like a live one. Offline collapses to the name,
 the badge, when it last pinged and which agent it is running — everything still true.
+
+**An offline machine still offers its `.rdp` file.** A silent agent says the agent is silent; it
+says nothing about whether the workstation answers RDP. Withholding the download would be the
+portal asserting something it does not know, which is the same line `computerVerdict` walks when
+a missing `loggedInUser` reads as `Online` rather than `Szabad`.
+
+**The Authentik username is read off the login claim, never stored.** The `.rdp` file names an AD
+account, and AD carries the same username as Authentik — so the download needed a name this app
+had deliberately never kept. A column would duplicate a fact Authentik owns, the way an
+`authentikUserId` would duplicate `Member.id`, and nothing would write it back after a rename in
+the Authentik admin UI. Querying `/core/users/` for it works — `results[].username` is already in
+`CONTRACT` — and costs a round trip plus a second cache beside `suggestUsername`'s. Neither is
+needed: `preferred_username` arrives in the OIDC profile next to the `sub` already taken, so
+`mapProfileToUser` carries it into the session and `overrideUserInfo` re-maps it on every
+sign-in. A member with no Authentik account cannot sign in at all, so the case that would need a
+fallback never reaches the file.
+
+**Where the workstations answer is configuration, not repository content.** The public DNS suffix,
+the port and the AD domain are three environment values, and `.env.example` carries `example.hu`:
+this repository is public and none of the three is ours to publish. They never reach the client
+either — the page asks `isRdpConfigured()` for a boolean and the file is assembled in the route,
+so no hostname lands in an RSC payload. `COMPUTER_RDP_HOST_SUFFIX` unset drops the button rather
+than failing, the way an unset `GOOGLE_CALENDAR_ID` drops the calendar widget.
+
+**The file prefills a name and never a secret.** `prompt for credentials:i:1` is the whole of the
+authentication story — a password in an `.rdp` file would be a credential sitting in a downloads
+folder. The username is dropped rather than escaped when it does not match
+`/^[A-Za-z0-9._-]+$/`, because the file is line-oriented and a CRLF in that value would inject
+settings of its own.
 
 **The agent is Windows PowerShell 5.1 under a SYSTEM scheduled task.** 5.1 is a Windows component
 present on every box at a fixed path; PowerShell 7 is a separately installed app that would become
