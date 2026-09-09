@@ -6,6 +6,7 @@ import type {
 
 export const NO_AUTHENTIK_ACCOUNT_REASON = "Nincs Authentik-fiók";
 export const NO_GOOGLE_GROUP_CONFIG_REASON = "Nincs Google Group beállítva";
+export const NO_DRUPAL_CONFIG_REASON = "Nincs Drupal beállítva";
 
 export const SYNC_STATUS_LABELS: Record<SyncJobStatus, string> = {
   PENDING: "Függőben",

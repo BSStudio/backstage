@@ -652,7 +652,12 @@ is a grep rather than an audit:
 | Its one dependency | `cheerio` — nothing else parses HTML |
 | Its call sites | `DRUPAL_SYNCED_FIELDS` and the `orchestrate*DrupalUser` calls in `lib/services/members.ts` |
 
-That is the *deletion*, not the switch-off. Nothing has to be deleted to stop syncing.
+That is the *deletion*, and it is not the switch-off. **Clearing any of `DRUPAL_URL`,
+`DRUPAL_ADMIN_USERNAME` or `DRUPAL_ADMIN_PASSWORD` stops the sync** — `runDrupalJob` checks
+`isDrupalConfigured()` and passes `runSyncJob` a skip reason, so every job records as `SKIPPED`
+instead of failing on a `getConfig()` throw. The cutover is an environment change with no deploy
+behind it, and it is reversible by putting the values back. Deleting the code is the tidy-up
+afterwards.
 
 ### Google Workspace (Cloud Identity)
 
@@ -747,6 +752,11 @@ target. `REACTIVATE_USER` is the reverse of `DEACTIVATE_USER` on both targets an
 value with the Authentik one, the way `DEACTIVATE_USER` already does: Authentik goes back to
 `is_active` and the `users` path, Drupal gets its role boxes re-checked and `profile_passive`
 cleared.
+
+Drupal is skipped the same way when it is unconfigured. `runDrupalJob`
+(`lib/sync/drupal/orchestrators.ts`) is that target's choke point, and unlike a missing
+`drupalUserId` — which a backfill fixes, so it fails — absent credentials mean there is nothing to
+call and, after the cutover, never will be. See Retiring Drupal.
 
 Google Group specifics: `ADD_TO_GROUP` / `REMOVE_FROM_GROUP` on the `GOOGLE_GROUP` target, with
 `{ email, groupEmail }` as the payload — the list is in the payload because there are two of them.

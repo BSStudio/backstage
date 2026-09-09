@@ -27,6 +27,7 @@ import {
   orchestrateReactivateDrupalUser,
   orchestrateUpdateDrupalUser,
 } from "@/lib/sync/drupal/orchestrators";
+import { NO_DRUPAL_CONFIG_REASON } from "@/lib/sync-jobs";
 
 const MEMBER_ID = "uuid-member-1";
 const DRUPAL_UID = "9001";
@@ -49,6 +50,9 @@ async function jobsFor(memberId: string) {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  vi.stubEnv("DRUPAL_URL", "https://drupal.example.com");
+  vi.stubEnv("DRUPAL_ADMIN_USERNAME", "admin");
+  vi.stubEnv("DRUPAL_ADMIN_PASSWORD", "s3cret");
   mockCreateDrupalUser.mockResolvedValue({
     userId: DRUPAL_UID,
     username: "jkovacs",
@@ -241,5 +245,50 @@ describe("orchestrateReactivateDrupalUser", () => {
       error: "Reactivation step 1 failed for user 9001",
     });
     expect((await jobsFor(MEMBER_ID))[0].status).toBe("FAILED");
+  });
+});
+
+describe("without credentials", () => {
+  it.each([
+    ["DRUPAL_URL"],
+    ["DRUPAL_ADMIN_USERNAME"],
+    ["DRUPAL_ADMIN_PASSWORD"],
+  ])("skips the job instead of failing it when %s is unset", async (name) => {
+    const prisma = getTestPrisma();
+    vi.stubEnv(name, "");
+
+    const result = await orchestrateUpdateDrupalUser(prisma, MEMBER_ID, {
+      email: "new@bss.hu",
+    });
+
+    expect(result).toEqual({ success: true, result: null });
+    expect(mockUpdateDrupalUser).not.toHaveBeenCalled();
+
+    const [job] = await jobsFor(MEMBER_ID);
+    expect(job).toMatchObject({
+      target: "DRUPAL",
+      status: "SKIPPED",
+      attempts: 0,
+      result: { reason: NO_DRUPAL_CONFIG_REASON },
+    });
+  });
+
+  it("skips every operation, not just the update", async () => {
+    const prisma = getTestPrisma();
+    vi.stubEnv("DRUPAL_URL", "");
+
+    await orchestrateCreateDrupalUser(prisma, MEMBER_ID, CREATE_INPUT);
+    await orchestrateDeactivateDrupalUser(prisma, MEMBER_ID);
+    await orchestrateReactivateDrupalUser(prisma, MEMBER_ID);
+
+    const jobs = await jobsFor(MEMBER_ID);
+    expect(jobs.map((j) => [j.operation, j.status])).toEqual([
+      ["CREATE_USER", "SKIPPED"],
+      ["DEACTIVATE_USER", "SKIPPED"],
+      ["REACTIVATE_USER", "SKIPPED"],
+    ]);
+    expect(mockCreateDrupalUser).not.toHaveBeenCalled();
+    expect(mockDeactivateDrupalUser).not.toHaveBeenCalled();
+    expect(mockReactivateDrupalUser).not.toHaveBeenCalled();
   });
 });

@@ -22,6 +22,16 @@ function getConfig() {
   return { baseUrl: baseUrl.replace(/\/+$/, ""), username, password };
 }
 
+// Unsetting the credentials is how the site is switched off once the new one takes over:
+// the sync layer skips instead of calling, rather than failing on a getConfig() throw.
+export function isDrupalConfigured(): boolean {
+  return Boolean(
+    process.env.DRUPAL_URL &&
+      process.env.DRUPAL_ADMIN_USERNAME &&
+      process.env.DRUPAL_ADMIN_PASSWORD,
+  );
+}
+
 class CookieJar {
   private cookies = new Map<string, string>();
 
