@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { Actor } from "@/lib/permissions";
 import {
+  buildComputerRdp,
   deleteComputer,
   listComputers,
   recordComputerPing,
@@ -273,5 +274,46 @@ describe("deleteComputer", () => {
       deleteComputer(getTestPrisma(), "nle4", actor),
     ).rejects.toThrow(ForbiddenError);
     expect(await getTestPrisma().computer.count()).toBe(1);
+  });
+});
+
+describe("buildComputerRdp", () => {
+  beforeEach(async () => {
+    vi.stubEnv("COMPUTER_RDP_HOST_SUFFIX", "example.hu");
+    vi.stubEnv("COMPUTER_RDP_PORT", "13389");
+    vi.stubEnv("COMPUTER_RDP_AD_DOMAIN", "BSS");
+
+    await recordComputerPing(getTestPrisma(), "nle4", PING, AGENT);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("names the file after the machine and addresses it at the configured host", async () => {
+    const file = await buildComputerRdp(getTestPrisma(), "nle4", "jkovacs");
+
+    expect(file.filename).toBe("NLE4.rdp");
+    expect(file.content).toContain("full address:s:nle4.example.hu:13389");
+  });
+
+  it("prefills the account the caller asked with", async () => {
+    const file = await buildComputerRdp(getTestPrisma(), "nle4", "jkovacs");
+
+    expect(file.content).toContain("username:s:BSS\\jkovacs");
+  });
+
+  it("refuses a machine that has never pinged", async () => {
+    await expect(
+      buildComputerRdp(getTestPrisma(), "nle9", "jkovacs"),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it("refuses when the deployment names no workstation DNS", async () => {
+    vi.stubEnv("COMPUTER_RDP_HOST_SUFFIX", undefined);
+
+    await expect(
+      buildComputerRdp(getTestPrisma(), "nle4", "jkovacs"),
+    ).rejects.toThrow(NotFoundError);
   });
 });

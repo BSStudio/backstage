@@ -3,12 +3,13 @@ import { type Mock, vi } from "vitest";
 import type { SyncResult } from "@/lib/sync/executor";
 import type { UserRole } from "@/types";
 
-export function mockSession(overrides: { id?: string; role?: UserRole } = {}) {
-  const id = overrides.id ?? "test-user-id";
-  const role = overrides.role ?? "MEMBER";
+export function mockSession(
+  overrides: { id?: string; role?: UserRole; authentikUsername?: string } = {},
+) {
+  const { id = "test-user-id", role = "MEMBER", authentikUsername } = overrides;
 
   const session = {
-    user: { id, role },
+    user: { id, role, authentikUsername },
   };
 
   vi.doMock("@/lib/session", () => ({
