@@ -126,7 +126,10 @@ export async function buildComputerRdp(
   // A deployment with no workstation DNS configured has no such endpoint to speak of.
   if (!isRdpConfigured()) throw new NotFoundError();
 
-  const computer = await prisma.computer.findUnique({ where: { id } });
+  const computer = await prisma.computer.findUnique({
+    where: { id },
+    select: { id: true },
+  });
   if (!computer) throw new NotFoundError();
 
   return {
