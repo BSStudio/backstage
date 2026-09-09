@@ -35,13 +35,13 @@ const PAGES: Record<string, string> = {
   "/user/jkovacs": '<a href="/user/42/edit">Szerkesztés</a>',
   [`/user/${USER_ID}/edit`]: `
     <input id="edit-name" value="jkovacs">
-    <input id="edit-mail" value="jkovacs@bss.hu">
+    <input id="edit-mail" value="jkovacs@bsstudio.hu">
     ${PROFILE_TOKEN}`,
   [`/user/${USER_ID}/edit/Személyes adatok`]: `
     <input id="edit-profile-fullname" value="Kovács János">
     <input id="edit-profile-personal-nickname" value="Jani">`,
   [`/user/${USER_ID}/edit/Elérhetőségek`]: `
-    <input id="edit-profile-email" value="jkovacs@bss.hu">
+    <input id="edit-profile-email" value="jkovacs@bsstudio.hu">
     <input id="edit-profile-mobilephone-number" value="+36301234567">
     <input id="edit-profile-is-in-sch-this-semester" checked="checked">`,
   [`/user/${USER_ID}/edit/BSS adatok`]: `
@@ -91,7 +91,7 @@ const CREATE_INPUT = {
   username: "jkovacs",
   fullname: "Kovács János",
   nickname: "Jani",
-  email: "jkovacs@bss.hu",
+  email: "jkovacs@bsstudio.hu",
   mobile: "+36301234567",
   joinYear: "2025 ősz",
 };
@@ -113,14 +113,14 @@ describe("createDrupalUser", () => {
     const data = postTo("/admin/user/user/create");
     expect(data).toMatchObject({
       name: "jkovacs",
-      mail: "jkovacs@bss.hu",
+      mail: "jkovacs@bsstudio.hu",
       status: 1,
       "roles[8]": 8,
       "roles[5]": 5,
       "roles[4]": 4,
       profile_BSS_join_year: "2025 ősz",
       profile_BSS_state: "stúdiós-jelölt jelölt",
-      profile_email: "jkovacs@bss.hu",
+      profile_email: "jkovacs@bsstudio.hu",
       profile_mobilephone_number: "+36301234567",
       profile_fullname: "Kovács János",
       profile_personal_nickname: "Jani",
@@ -203,7 +203,7 @@ describe("deactivateDrupalUser", () => {
     const step1 = postTo(`/user/${USER_ID}/edit`);
     expect(step1).toEqual({
       name: "jkovacs",
-      mail: "jkovacs@bss.hu",
+      mail: "jkovacs@bsstudio.hu",
       form_token: "tok-profile",
       form_id: "user_profile_form",
     });
@@ -275,7 +275,7 @@ describe("reactivateDrupalUser", () => {
 
     expect(postTo(`/user/${USER_ID}/edit`)).toEqual({
       name: "jkovacs",
-      mail: "jkovacs@bss.hu",
+      mail: "jkovacs@bsstudio.hu",
       "roles[8]": 8,
       "roles[5]": 5,
       "roles[4]": 4,
@@ -345,7 +345,7 @@ describe("updateDrupalUser", () => {
 
     await updateDrupalUser(USER_ID, {
       fullname: "Kovács János",
-      email: "jkovacs@bss.hu",
+      email: "jkovacs@bsstudio.hu",
       inSch: true,
       position: "stúdiós",
     });
@@ -394,12 +394,12 @@ describe("updateDrupalUser", () => {
 
   it("updates email and mobile, keeping the current in-sch flag", async () => {
     await updateDrupalUser(USER_ID, {
-      email: "uj@bss.hu",
+      email: "uj@bsstudio.hu",
       mobile: "+36209999999",
     });
 
     expect(postTo(CONTACT_TAB)).toMatchObject({
-      profile_email: "uj@bss.hu",
+      profile_email: "uj@bsstudio.hu",
       profile_mobilephone_number: "+36209999999",
       profile_is_in_sch_this_semester: 1,
     });
@@ -409,7 +409,7 @@ describe("updateDrupalUser", () => {
     await updateDrupalUser(USER_ID, { inSch: false });
 
     expect(postTo(CONTACT_TAB)).toMatchObject({
-      profile_email: "jkovacs@bss.hu",
+      profile_email: "jkovacs@bsstudio.hu",
       profile_mobilephone_number: "+36301234567",
       profile_is_in_sch_this_semester: 0,
     });
@@ -508,7 +508,7 @@ describe("updateDrupalUser", () => {
 
   it.each([
     ["Személyes adatok", { fullname: "X" }],
-    ["Elérhetőségek", { email: "x@bss.hu" }],
+    ["Elérhetőségek", { email: "x@bsstudio.hu" }],
     ["BSS adatok", { position: "öregtag" }],
   ])("throws when the %s tab does not confirm", async (tab, input) => {
     mockDrupalPost.mockResolvedValue("<p>Hiba</p>");

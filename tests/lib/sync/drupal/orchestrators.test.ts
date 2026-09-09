@@ -36,7 +36,7 @@ const CREATE_INPUT = {
   username: "jkovacs",
   fullname: "Kovács János",
   nickname: "Jani",
-  email: "jkovacs@bss.hu",
+  email: "jkovacs@bsstudio.hu",
   mobile: "+36301234567",
   joinedSemester: "2025/2026/1",
 };
@@ -68,7 +68,7 @@ beforeEach(async () => {
       id: MEMBER_ID,
       firstName: "János",
       lastName: "Kovács",
-      email: "jkovacs@bss.hu",
+      email: "jkovacs@bsstudio.hu",
       joinedSemester: "2025/2026/1",
       drupalUserId: DRUPAL_UID,
     },
@@ -93,7 +93,7 @@ describe("orchestrateCreateDrupalUser", () => {
       username: "jkovacs",
       fullname: "Kovács János",
       nickname: "Jani",
-      email: "jkovacs@bss.hu",
+      email: "jkovacs@bsstudio.hu",
       mobile: "+36301234567",
       joinYear: "2025 ősz",
     });
@@ -258,7 +258,7 @@ describe("without credentials", () => {
     vi.stubEnv(name, "");
 
     const result = await orchestrateUpdateDrupalUser(prisma, MEMBER_ID, {
-      email: "new@bss.hu",
+      email: "new@bsstudio.hu",
     });
 
     expect(result).toEqual({ success: true, result: null });

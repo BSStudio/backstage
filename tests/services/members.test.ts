@@ -1046,7 +1046,7 @@ describe("updateMember", () => {
         firstName: "János",
         lastName: "Kovács",
         nickname: "Jani",
-        email: "jkovacs@bss.hu",
+        email: "jkovacs@bsstudio.hu",
         mobile: "+36301234567",
         status: "MEMBER",
       },
@@ -1059,7 +1059,7 @@ describe("updateMember", () => {
     expect(fields).toEqual({
       fullname: "Kovács János",
       nickname: "Jani",
-      email: "jkovacs@bss.hu",
+      email: "jkovacs@bsstudio.hu",
       mobile: "+36301234567",
       position: "stúdiós",
     });
