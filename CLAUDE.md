@@ -567,7 +567,9 @@ ceiling is a schedule misconfigured into a loop.
 attachment named after the machine. Addresses the workstation at `<id>.<COMPUTER_RDP_HOST_SUFFIX>`
 on `COMPUTER_RDP_PORT` and prefills `COMPUTER_RDP_AD_DOMAIN\<their Authentik username>`; the
 password is never in the file. Answers 404 for a machine that has never pinged and for a
-deployment that names no host suffix, so an instance without one is a supported configuration.
+deployment whose RDP configuration does not parse, so an instance without a host suffix is a
+supported configuration. `/computers` fetches it rather than linking to it, so a 404 raises a
+toast instead of navigating the member onto the route's JSON.
 
 `GET /api/health` — container liveness. Public to the proxy and unauthenticated: it answers
 `{ status: "ok" }`, or 503 once the database round trip fails.
@@ -1318,11 +1320,16 @@ sign-in. A member with no Authentik account cannot sign in at all, so the case t
 fallback never reaches the file.
 
 **Where the workstations answer is configuration, not repository content.** The public DNS suffix,
-the port and the AD domain are three environment values, and `.env.example` carries `example.hu`:
-this repository is public and none of the three is ours to publish. They never reach the client
-either — the page asks `isRdpConfigured()` for a boolean and the file is assembled in the route,
-so no hostname lands in an RSC payload. `COMPUTER_RDP_HOST_SUFFIX` unset drops the button rather
-than failing, the way an unset `GOOGLE_CALENDAR_ID` drops the calendar widget.
+the port and the AD domain are three environment values, and `.env.example` ships the suffix and
+the domain **empty**, naming `example.hu` only in the comment above them: this repository is
+public and none of the three is ours to publish. So a fresh `pnpm dev:setup` has the download
+switched off until somebody fills the suffix in. They never reach the client either — the page
+asks `isRdpConfigured()` for a boolean and the file is assembled in the route, so no hostname
+lands in an RSC payload. A suffix that is unset — or a configuration `rdpConfig()` refuses at all,
+an unusable `COMPUTER_RDP_PORT` included — drops the button rather than failing, the way an unset
+`GOOGLE_CALENDAR_ID` drops the calendar widget. That is why `isRdpConfigured()` runs the same
+parse the route does instead of testing the suffix for presence: a value only one of the two
+rejects would render a button that 500s on every click.
 
 **The file prefills a name and never a secret.** `prompt for credentials:i:1` is the whole of the
 authentication story — a password in an `.rdp` file would be a credential sitting in a downloads
