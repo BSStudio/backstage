@@ -27,7 +27,7 @@ import {
   orchestrateReactivateDrupalUser,
   orchestrateUpdateDrupalUser,
 } from "@/lib/sync/drupal/orchestrators";
-import { NO_DRUPAL_CONFIG_REASON } from "@/lib/sync-jobs";
+import { NOT_CONFIGURED_REASON } from "@/lib/sync-jobs";
 
 const MEMBER_ID = "uuid-member-1";
 const DRUPAL_UID = "9001";
@@ -269,7 +269,7 @@ describe("without credentials", () => {
       target: "DRUPAL",
       status: "SKIPPED",
       attempts: 0,
-      result: { reason: NO_DRUPAL_CONFIG_REASON },
+      result: { reason: NOT_CONFIGURED_REASON },
     });
   });
 

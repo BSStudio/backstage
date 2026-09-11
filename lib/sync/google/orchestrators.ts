@@ -7,7 +7,7 @@ import {
   getGroupEmail,
   isGoogleGroupConfigured,
 } from "@/lib/google/client";
-import { NO_GOOGLE_GROUP_CONFIG_REASON } from "@/lib/sync-jobs";
+import { NOT_CONFIGURED_REASON } from "@/lib/sync-jobs";
 import { runSyncJob, type SyncResult } from "../executor";
 
 function mainGroupEmail(): string | null {
@@ -33,7 +33,7 @@ async function runGoogleGroupJob(
       memberId,
       payload: { email, groupEmail },
     },
-    configured ? undefined : NO_GOOGLE_GROUP_CONFIG_REASON,
+    configured ? undefined : NOT_CONFIGURED_REASON,
   );
 }
 

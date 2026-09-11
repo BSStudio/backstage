@@ -5,8 +5,6 @@ import type {
 } from "@/app/generated/prisma/client";
 
 export const NO_AUTHENTIK_ACCOUNT_REASON = "Nincs Authentik-fiók";
-export const NO_GOOGLE_GROUP_CONFIG_REASON = "Nincs Google Group beállítva";
-export const NO_DRUPAL_CONFIG_REASON = "Nincs Drupal beállítva";
 export const NOT_CONFIGURED_REASON = "Nincs beállítva";
 
 export const SYNC_STATUS_LABELS: Record<SyncJobStatus, string> = {

@@ -7,7 +7,7 @@ import {
   buildJoinYearFromSemester,
   type UpdateDrupalUserInput,
 } from "@/lib/drupal/users";
-import { NO_DRUPAL_CONFIG_REASON } from "@/lib/sync-jobs";
+import { NOT_CONFIGURED_REASON } from "@/lib/sync-jobs";
 import { runSyncJob, type SyncResult } from "../executor";
 
 // Skipped rather than failed: with no credentials there is nothing to call, and once the new
@@ -22,7 +22,7 @@ async function runDrupalJob(
   return runSyncJob(
     prisma,
     { target: "DRUPAL", operation, memberId, payload },
-    isDrupalConfigured() ? undefined : NO_DRUPAL_CONFIG_REASON,
+    isDrupalConfigured() ? undefined : NOT_CONFIGURED_REASON,
   );
 }
 
