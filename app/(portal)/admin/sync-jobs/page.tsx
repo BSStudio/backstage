@@ -22,6 +22,8 @@ import {
   SYNC_STATUS_VARIANT,
   SYNC_TARGET_LABELS,
 } from "@/lib/sync-jobs";
+import { isWebsiteWebhookConfigured } from "@/lib/website/webhook";
+import { FullSyncButton } from "./full-sync-button";
 import { RetryButton } from "./retry-button";
 
 export const metadata: Metadata = { title: "Szinkronizáció - Backstage" };
@@ -40,6 +42,7 @@ export default async function SyncJobsPage({
 }) {
   const actor = await pageActor(canViewAdminArea);
   const canRetry = canAdminister(actor.role);
+  const canFullSync = canRetry && isWebsiteWebhookConfigured();
 
   const { page: pageParam } = await searchParams;
   const page = resolvePage(pageParam);
@@ -50,11 +53,14 @@ export default async function SyncJobsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Szinkronizáció</h1>
-        <p className="text-muted-foreground">
-          Külső rendszerekkel végzett műveletek naplója és újrapróbálkozás.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Szinkronizáció</h1>
+          <p className="text-muted-foreground">
+            Külső rendszerekkel végzett műveletek naplója és újrapróbálkozás.
+          </p>
+        </div>
+        {canFullSync && <FullSyncButton />}
       </div>
 
       <div className="rounded-md border">

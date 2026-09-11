@@ -13,6 +13,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   AVATAR_UPLOADED: "Profilkép feltöltés",
   AVATAR_REMOVED: "Profilkép törlés",
   GOOGLE_GROUP_SYNCED: "Google Group beolvasás",
+  WEBSITE_FULL_SYNC: "Teljes szinkronizálás",
   CARDDAV_TOKEN_CREATED: "CardDAV eszköz hozzáadás",
   CARDDAV_TOKEN_REVOKED: "CardDAV eszköz törlés",
   APP_LINK_CREATED: "Alkalmazás létrehozás",
@@ -35,6 +36,7 @@ export const AUDIT_ACTION_VARIANT: Record<AuditAction, string> = {
   AVATAR_UPLOADED: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
   AVATAR_REMOVED: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
   GOOGLE_GROUP_SYNCED: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
+  WEBSITE_FULL_SYNC: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
   CARDDAV_TOKEN_CREATED: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   CARDDAV_TOKEN_REVOKED:
     "bg-orange-500/15 text-orange-600 dark:text-orange-400",

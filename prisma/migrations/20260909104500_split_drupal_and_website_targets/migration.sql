@@ -10,3 +10,6 @@ ALTER TYPE "SyncTarget" ADD VALUE 'WEBSITE';
 
 -- AlterEnum
 ALTER TYPE "SyncOperation" ADD VALUE 'SYNC_MEMBER';
+
+-- AlterEnum
+ALTER TYPE "AuditAction" ADD VALUE 'WEBSITE_FULL_SYNC';
