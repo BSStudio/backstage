@@ -8,11 +8,13 @@ import { captureSyncJobFailure } from "@/lib/observability/capture";
 import { authentikHandlers } from "./authentik/operations";
 import { drupalHandlers } from "./drupal/operations";
 import { googleGroupHandlers } from "./google/operations";
+import { websiteHandlers } from "./website/operations";
 
 export type OperationHandler = (
   payload: Record<string, unknown>,
   memberId: string,
   prisma: PrismaClient,
+  jobId: string,
 ) => Promise<unknown>;
 
 export type OperationHandlers = Partial<
@@ -22,6 +24,7 @@ export type OperationHandlers = Partial<
 const HANDLERS_BY_TARGET: Record<SyncTarget, OperationHandlers> = {
   AUTHENTIK: authentikHandlers,
   DRUPAL: drupalHandlers,
+  WEBSITE: websiteHandlers,
   GOOGLE_GROUP: googleGroupHandlers,
 };
 
@@ -79,7 +82,7 @@ export async function executeSyncJob(
 
   try {
     const payload = job.payload as Record<string, unknown>;
-    const result = await handler(payload, job.memberId, prisma);
+    const result = await handler(payload, job.memberId, prisma, jobId);
     await prisma.syncJob.update({
       where: { id: jobId },
       data: {

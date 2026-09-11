@@ -23,6 +23,7 @@ enum MembershipStatus {
 enum SyncTarget {
   AUTHENTIK
   DRUPAL
+  WEBSITE
   GOOGLE_GROUP
 }
 
@@ -33,6 +34,7 @@ enum SyncOperation {
   REACTIVATE_USER
   ADD_TO_GROUP
   REMOVE_FROM_GROUP
+  SYNC_MEMBER
 }
 
 enum SyncJobStatus {
