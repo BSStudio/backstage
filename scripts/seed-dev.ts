@@ -3,7 +3,10 @@ import { createHash } from "node:crypto";
 import type { MembershipStatus, Prisma } from "../app/generated/prisma/client";
 import { hashCardDavToken } from "../lib/carddav/tokens";
 import prisma from "../lib/prisma";
-import { NO_AUTHENTIK_ACCOUNT_REASON } from "../lib/sync-jobs";
+import {
+  NO_AUTHENTIK_ACCOUNT_REASON,
+  NOT_CONFIGURED_REASON,
+} from "../lib/sync-jobs";
 import {
   currentSemester,
   deriveUsername,
@@ -70,6 +73,10 @@ async function seedDev(): Promise<void> {
       ...buildAuditLog(members, devUser),
       ...buildAppLinkAudit(devUser),
       ...buildComputerAudit(devUser),
+      ...buildWebsiteSyncAudit(
+        devUser,
+        members.filter((m) => !m.archivedAt).length,
+      ),
     ],
   });
   await prisma.syncJob.createMany({ data: buildSyncJobs(members, devUser) });
@@ -243,6 +250,34 @@ function buildComputerAudit(
   ];
 }
 
+// One full sync, so WEBSITE_FULL_SYNC and its null target render on /admin/audit.
+function buildWebsiteSyncAudit(
+  devUser: DevUser,
+  memberCount: number,
+): Prisma.AuditLogCreateManyInput[] {
+  return [
+    {
+      actorId: devUser.id,
+      targetLabel: "Honlap",
+      action: "WEBSITE_FULL_SYNC" as const,
+      diff: {
+        members: memberCount,
+        result: {
+          mode: "replace",
+          operationCount: memberCount,
+          created: 0,
+          updated: 3,
+          archived: 1,
+          restored: 0,
+          unchanged: memberCount - 3,
+          ignored: 0,
+        },
+      },
+      createdAt: daysAgo(4),
+    },
+  ];
+}
+
 // One entry per app so the audit page has the new action types to render.
 function buildAppLinkAudit(devUser: DevUser): Prisma.AuditLogCreateManyInput[] {
   return SEED_APP_LINKS.map((link, index) => ({
@@ -392,6 +427,32 @@ function buildSyncJobs(
       });
     }
 
+    // Both sites run in parallel, so every member carries a push to the new one too.
+    created.push({
+      target: "WEBSITE",
+      operation: "SYNC_MEMBER",
+      memberId: row.id,
+      payload: {},
+      status: "SUCCESS",
+      attempts: 1,
+      result: {
+        ok: true,
+        duplicate: false,
+        result: {
+          mode: "operations",
+          operationCount: 1,
+          created: 1,
+          updated: 0,
+          archived: 0,
+          restored: 0,
+          unchanged: 0,
+          ignored: 0,
+        },
+      },
+      createdAt: joinedAt,
+      updatedAt: joinedAt,
+    });
+
     if (row.drupalUserId) {
       created.push({
         target: "DRUPAL",
@@ -418,6 +479,7 @@ function buildSyncJobs(
     ...jobs,
     ...buildFailedSyncJobs(members, devUser),
     ...buildSkippedSyncJobs(members, devUser),
+    ...buildSkippedWebsiteJob(devUser),
   ];
 }
 
@@ -443,6 +505,26 @@ function buildSkippedSyncJobs(
       createdAt: skippedAt,
       updatedAt: skippedAt,
     }));
+}
+
+// A local .env usually has no webhook, which is the other reason a job is skipped.
+function buildSkippedWebsiteJob(
+  devUser: DevUser,
+): Prisma.SyncJobCreateManyInput[] {
+  const skippedAt = daysAgo(1);
+
+  return [
+    {
+      target: "WEBSITE",
+      operation: "SYNC_MEMBER",
+      memberId: devUser.id,
+      payload: {},
+      status: "SKIPPED",
+      result: { reason: NOT_CONFIGURED_REASON },
+      createdAt: skippedAt,
+      updatedAt: skippedAt,
+    },
+  ];
 }
 
 // Two failures so /admin/sync-jobs and its retry button have something to show.
@@ -497,6 +579,20 @@ function buildFailedSyncJobs(
       updatedAt: failedAt,
     });
   }
+  jobs.push({
+    target: "WEBSITE",
+    operation: "SYNC_MEMBER",
+    memberId: devUser.id,
+    payload: {},
+    status: "FAILED",
+    attempts: 1,
+    result: {
+      error: "Website webhook error: joinedSemester: érvénytelen formátum.",
+    },
+    createdAt: failedAt,
+    updatedAt: failedAt,
+  });
+
   return jobs;
 }
 
