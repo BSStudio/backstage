@@ -41,6 +41,7 @@ import {
   orchestrateAddToGoogleGroup,
   orchestrateRemoveFromGoogleGroup,
 } from "@/lib/sync/google/orchestrators";
+import { orchestrateSyncWebsiteMember } from "@/lib/sync/website/orchestrators";
 import { currentSemester, isAlumniStatus } from "@/types";
 
 export type {
@@ -59,6 +60,13 @@ const AUTHENTIK_SYNCED_FIELDS = new Set([
   "lastName",
   "email",
   "mobile",
+]);
+
+const WEBSITE_SYNCED_FIELDS = new Set([
+  "firstName",
+  "lastName",
+  "nickname",
+  "status",
 ]);
 
 const DRUPAL_SYNCED_FIELDS = new Set([
@@ -218,6 +226,8 @@ export async function createMember(
     await orchestrateAddToGoogleGroup(prisma, member.id, data.email),
   );
 
+  results.push(await orchestrateSyncWebsiteMember(prisma, member.id));
+
   return {
     member,
     username: authentikUser.username,
@@ -242,6 +252,7 @@ async function syncAvatarUrl(
     await orchestrateUpdateAttributes(prisma, memberId, {
       attributes: buildAuthentikAttributes(after),
     }),
+    await orchestrateSyncWebsiteMember(prisma, memberId),
   ];
 }
 
@@ -462,6 +473,13 @@ export async function updateMember(
     results.push(await orchestrateUpdateDrupalUser(prisma, member.id, fields));
   }
 
+  const websiteFieldChanged = Object.keys(diff).some((k) =>
+    WEBSITE_SYNCED_FIELDS.has(k),
+  );
+  if (websiteFieldChanged) {
+    results.push(await orchestrateSyncWebsiteMember(prisma, member.id));
+  }
+
   return { member: updated, syncErrors: collectSyncErrors(results) };
 }
 
@@ -537,6 +555,7 @@ export async function archiveMember(
   const results: SyncResult[] = await Promise.all([
     orchestrateDeactivate(prisma, member.id),
     orchestrateDeactivateDrupalUser(prisma, member.id),
+    orchestrateSyncWebsiteMember(prisma, member.id),
   ]);
 
   if (options.removeFromGoogleGroup) {
@@ -587,6 +606,7 @@ export async function reactivateMember(
     orchestrateReactivate(prisma, member.id),
     orchestrateAddToStatusGroup(prisma, member.id, member.status),
     orchestrateReactivateDrupalUser(prisma, member.id),
+    orchestrateSyncWebsiteMember(prisma, member.id),
   ]);
 
   return { syncErrors: collectSyncErrors(results) };
@@ -639,6 +659,7 @@ export async function batchArchive(
     members.flatMap((m) => [
       orchestrateDeactivate(prisma, m.id),
       orchestrateDeactivateDrupalUser(prisma, m.id),
+      orchestrateSyncWebsiteMember(prisma, m.id),
       ...(options.removeFromGoogleGroup
         ? [orchestrateRemoveFromGoogleGroup(prisma, m.id, m.email)]
         : []),
@@ -702,10 +723,14 @@ export async function batchUpdateStatus(
       }),
     ),
   );
+  const websiteResults = await Promise.all(
+    members.map((m) => orchestrateSyncWebsiteMember(prisma, m.id)),
+  );
   const syncErrors = collectSyncErrors([
     ...groupResultsPerMember.flat(),
     ...alumniResults,
     ...drupalResults,
+    ...websiteResults,
   ]);
 
   return { count: members.length, syncErrors };
@@ -802,12 +827,14 @@ export async function assignRole(
   const drupalResult = await orchestrateUpdateDrupalUser(prisma, memberId, {
     role: label,
   });
+  const websiteResult = await orchestrateSyncWebsiteMember(prisma, memberId);
 
   return {
     syncErrors: collectSyncErrors([
       ...addResults,
       ...removeResults,
       drupalResult,
+      websiteResult,
     ]),
   };
 }
@@ -854,6 +881,13 @@ export async function removeRole(
   const drupalResult = await orchestrateUpdateDrupalUser(prisma, memberId, {
     role: "",
   });
+  const websiteResult = await orchestrateSyncWebsiteMember(prisma, memberId);
 
-  return { syncErrors: collectSyncErrors([...removeResults, drupalResult]) };
+  return {
+    syncErrors: collectSyncErrors([
+      ...removeResults,
+      drupalResult,
+      websiteResult,
+    ]),
+  };
 }

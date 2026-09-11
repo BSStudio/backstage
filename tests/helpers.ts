@@ -53,6 +53,18 @@ export function mockDrupalOrchestrators() {
   };
 }
 
+export function mockWebsiteOrchestrators() {
+  const orchestrateSyncWebsiteMember = vi.fn(
+    async (): Promise<SyncResult> => ok,
+  );
+
+  vi.doMock("@/lib/sync/website/orchestrators", () => ({
+    orchestrateSyncWebsiteMember,
+  }));
+
+  return { orchestrateSyncWebsiteMember };
+}
+
 export function mockGoogleGroupOrchestrators() {
   const orchestrateAddToAlumniGroup = vi.fn(
     async (): Promise<SyncResult> => ok,

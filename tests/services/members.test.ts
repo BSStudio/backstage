@@ -16,6 +16,7 @@ const {
   mockOrchestrateRemoveFromGoogleGroup,
   mockOrchestrateAddToAlumniGroup,
   mockOrchestrateReactivate,
+  mockOrchestrateSyncWebsiteMember,
 } = vi.hoisted(() => ({
   mockCreateAuthentikUser: vi.fn(),
   mockOrchestrateDeactivate: vi.fn(),
@@ -32,6 +33,7 @@ const {
   mockOrchestrateRemoveFromGoogleGroup: vi.fn(),
   mockOrchestrateAddToAlumniGroup: vi.fn(),
   mockOrchestrateReactivate: vi.fn(),
+  mockOrchestrateSyncWebsiteMember: vi.fn(),
 }));
 
 vi.mock("@/lib/sync/authentik/orchestrators", () => ({
@@ -65,6 +67,10 @@ vi.mock("@/lib/sync/drupal/orchestrators", () => ({
   orchestrateUpdateDrupalUser: mockOrchestrateUpdateDrupalUser,
   orchestrateDeactivateDrupalUser: mockOrchestrateDeactivateDrupalUser,
   orchestrateReactivateDrupalUser: mockOrchestrateReactivateDrupalUser,
+}));
+
+vi.mock("@/lib/sync/website/orchestrators", () => ({
+  orchestrateSyncWebsiteMember: mockOrchestrateSyncWebsiteMember,
 }));
 
 vi.mock("@/lib/sync/google/orchestrators", () => ({
@@ -147,6 +153,7 @@ beforeEach(async () => {
   mockOrchestrateAddToGoogleGroup.mockResolvedValue(drupalOk);
   mockOrchestrateRemoveFromGoogleGroup.mockResolvedValue(drupalOk);
   mockOrchestrateAddToAlumniGroup.mockResolvedValue(drupalOk);
+  mockOrchestrateSyncWebsiteMember.mockResolvedValue(drupalOk);
 
   const prisma = getTestPrisma();
 
@@ -2528,5 +2535,161 @@ describe("listAuthentikGroups", () => {
     await expect(
       listAuthentikGroups(getTestPrisma(), MEMBER_ACTOR),
     ).rejects.toThrow(ForbiddenError);
+  });
+});
+
+// ─── website sync fan-out ────────────────────────────────────────────────────
+
+describe("website sync", () => {
+  function pushedIds() {
+    return mockOrchestrateSyncWebsiteMember.mock.calls.map((c) => c[1]);
+  }
+
+  it("pushes the new member on create", async () => {
+    mockCreateAuthentikUser.mockResolvedValue({
+      uuid: crypto.randomUUID(),
+      username: "jkovacs",
+      name: "János Kovács",
+      email: "jkovacs@bsstudio.hu",
+    });
+
+    const { member } = await createMember(
+      getTestPrisma(),
+      {
+        firstName: "János",
+        lastName: "Kovács",
+        email: "jkovacs@bsstudio.hu",
+        mobile: "+36301234567",
+      },
+      ACTOR,
+    );
+
+    expect(pushedIds()).toEqual([member.id]);
+  });
+
+  it.each([
+    [{ firstName: "János" }],
+    [{ lastName: "Kovács" }],
+    [{ nickname: "Jani" }],
+    [{ status: "MEMBER" as const }],
+  ])("pushes when %j changes", async (patch) => {
+    await updateMember(getTestPrisma(), MEMBER_ID, patch, ACTOR);
+
+    expect(pushedIds()).toEqual([MEMBER_ID]);
+  });
+
+  it.each([
+    [{ mobile: "+36301234567" }],
+    [{ email: "moved@bsstudio.hu" }],
+    [{ university: "BME" }],
+    [{ major: "Villamosmérnök" }],
+    [{ dormRoom: "1408" }],
+  ])("does not push when only %j changes", async (patch) => {
+    await updateMember(getTestPrisma(), MEMBER_ID, patch, ACTOR);
+
+    expect(mockOrchestrateSyncWebsiteMember).not.toHaveBeenCalled();
+  });
+
+  it("pushes once per avatar change, and not when the url is unchanged", async () => {
+    const prisma = getTestPrisma();
+    const URLS = { avatarUrl: "/a.webp", portraitUrl: "/p.webp" };
+
+    await uploadMemberAvatar(prisma, MEMBER_ID, URLS, ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID]);
+
+    // Replacing the image leaves the url identical, so there is nothing to tell anyone.
+    await uploadMemberAvatar(prisma, MEMBER_ID, URLS, ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID]);
+
+    await removeMemberAvatar(prisma, MEMBER_ID, ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID, MEMBER_ID]);
+  });
+
+  it("pushes on archive and again on reactivation", async () => {
+    const prisma = getTestPrisma();
+
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID]);
+
+    await reactivateMember(prisma, MEMBER_ID, ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID, MEMBER_ID]);
+  });
+
+  it("pushes a second time on archive when a position had to be ended", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: [],
+      },
+    });
+
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+
+    // removeRole pushes too, and by then the member is already archived — so both
+    // pushes send the same archive rather than one of them resurrecting them.
+    expect(pushedIds()).toEqual([MEMBER_ID, MEMBER_ID]);
+  });
+
+  it("pushes every member of a batch archive", async () => {
+    const prisma = getTestPrisma();
+    const id2 = crypto.randomUUID();
+    await prisma.member.create({
+      data: {
+        id: id2,
+        firstName: "Second",
+        lastName: "Member",
+        email: "second@bsstudio.hu",
+        joinedSemester: "2025/2026/1",
+      },
+    });
+
+    await batchArchive(prisma, [MEMBER_ID, id2], ACTOR);
+
+    expect(pushedIds().sort()).toEqual([MEMBER_ID, id2].sort());
+  });
+
+  it("pushes every member of a batch status change", async () => {
+    await batchUpdateStatus(getTestPrisma(), [MEMBER_ID], "MEMBER", ACTOR);
+
+    expect(pushedIds()).toEqual([MEMBER_ID]);
+  });
+
+  it("pushes when a position is assigned and when it is removed", async () => {
+    const prisma = getTestPrisma();
+
+    await assignRole(prisma, MEMBER_ID, "Főszerkesztő", [], ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID]);
+
+    await removeRole(prisma, MEMBER_ID, ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID, MEMBER_ID]);
+  });
+
+  it("does not push when an identical role assignment changes nothing", async () => {
+    const prisma = getTestPrisma();
+    await assignRole(prisma, MEMBER_ID, "Főszerkesztő", [], ACTOR);
+    mockOrchestrateSyncWebsiteMember.mockClear();
+
+    await assignRole(prisma, MEMBER_ID, "Főszerkesztő", [], ACTOR);
+
+    expect(mockOrchestrateSyncWebsiteMember).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a failed push as a syncError without failing the write", async () => {
+    mockOrchestrateSyncWebsiteMember.mockResolvedValue({
+      success: false,
+      error: "Website webhook error: HTTP 500",
+    });
+
+    const result = await updateMember(
+      getTestPrisma(),
+      MEMBER_ID,
+      { nickname: "Jani" },
+      ACTOR,
+    );
+
+    expect(result.member.nickname).toBe("Jani");
+    expect(result.syncErrors).toContain("Website webhook error: HTTP 500");
   });
 });
