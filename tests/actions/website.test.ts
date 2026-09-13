@@ -66,7 +66,7 @@ describe("forceWebsiteFullSyncAction", () => {
       data: { count: 43 },
       syncErrors: [],
     });
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/admin/sync-jobs");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/admin/audit");
   });
 
   it("shows what the website refused, verbatim", async () => {

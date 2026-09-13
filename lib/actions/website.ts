@@ -33,7 +33,7 @@ export async function forceWebsiteFullSyncAction(): Promise<
 
   try {
     const { count } = await forceWebsiteFullSync(prisma, actor);
-    revalidatePath("/admin/sync-jobs");
+    revalidatePath("/admin/audit");
     return { success: true, data: { count }, syncErrors: [] };
   } catch (error) {
     return mapError(error);

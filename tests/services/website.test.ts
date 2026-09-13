@@ -114,7 +114,14 @@ describe("forceWebsiteFullSync", () => {
       targetId: null,
       targetLabel: "Honlap",
     });
-    expect(entry?.diff).toEqual({ members: 1, result: INGEST_RESULT });
+    expect(entry?.diff).toEqual({
+      members: 1,
+      created: 0,
+      updated: 2,
+      archived: 1,
+      restored: 0,
+      unchanged: 0,
+    });
   });
 
   it("records a duplicate answer, which carries no counts", async () => {
@@ -127,7 +134,7 @@ describe("forceWebsiteFullSync", () => {
     const entry = await prisma.auditLog.findFirst({
       where: { action: "WEBSITE_FULL_SYNC" },
     });
-    expect(entry?.diff).toEqual({ members: 1, result: null });
+    expect(entry?.diff).toEqual({ members: 1 });
   });
 
   it("writes no audit entry when the push is refused", async () => {

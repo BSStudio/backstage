@@ -39,6 +39,7 @@ export async function forceWebsiteFullSync(prisma: PrismaClient, actor: Actor) {
     randomUUID(),
   );
 
+  const counts = response.result;
   await prisma.auditLog.create({
     data: {
       actorId: actor.id,
@@ -46,7 +47,15 @@ export async function forceWebsiteFullSync(prisma: PrismaClient, actor: Actor) {
       targetLabel: "Honlap",
       diff: {
         members: members.length,
-        result: response.result ?? null,
+        ...(counts
+          ? {
+              created: counts.created,
+              updated: counts.updated,
+              archived: counts.archived,
+              restored: counts.restored,
+              unchanged: counts.unchanged,
+            }
+          : {}),
       } as object,
     },
   });
