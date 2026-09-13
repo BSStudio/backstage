@@ -259,3 +259,42 @@ describe("googleRequest", () => {
     );
   });
 });
+
+describe("transport failures", () => {
+  it("becomes a Google error when the token exchange never answers", async () => {
+    const failure = new Error("The operation was aborted");
+    failure.name = "TimeoutError";
+    mockFetch.mockRejectedValueOnce(failure);
+
+    const { googleRequest, GoogleApiError } = await importClient();
+    const request = googleRequest("/groups:lookup");
+    await expect(request).rejects.toBeInstanceOf(GoogleApiError);
+    await expect(request).rejects.toThrow("No answer within 15 seconds");
+  });
+
+  it("becomes a Google error when the API call does not connect", async () => {
+    const failure = new TypeError("fetch failed");
+    failure.cause = new Error("connect ECONNREFUSED 142.250.0.1:443");
+    mockFetch
+      .mockResolvedValueOnce(tokenResponse())
+      .mockRejectedValueOnce(failure);
+
+    const { googleRequest } = await importClient();
+    await expect(googleRequest("/groups:lookup")).rejects.toThrow(
+      "Google API error: connect ECONNREFUSED 142.250.0.1:443",
+    );
+  });
+
+  it("bounds both requests", async () => {
+    mockFetch
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse({}));
+
+    const { googleRequest } = await importClient();
+    await googleRequest("/groups:lookup");
+
+    for (const [, init] of mockFetch.mock.calls) {
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+    }
+  });
+});

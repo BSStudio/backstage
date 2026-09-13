@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { requestTimeout, transportFailure } from "@/lib/http";
 
 export class DrupalError extends Error {
   constructor(
@@ -60,6 +61,8 @@ async function fetchWithCookies(
 ): Promise<Response> {
   let currentUrl = url;
   let currentInit: RequestInit = init;
+  // One signal for the whole chain, so a redirect loop cannot outlive the budget a hop has.
+  const signal = requestTimeout();
 
   for (let i = 0; i <= MAX_REDIRECTS; i++) {
     const cookieHeader = jar.header();
@@ -70,6 +73,9 @@ async function fetchWithCookies(
         ...currentInit.headers,
         ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       },
+      signal,
+    }).catch((error) => {
+      throw new DrupalError(0, transportFailure(error));
     });
     jar.update(res.headers.getSetCookie());
 

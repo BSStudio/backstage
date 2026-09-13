@@ -1,3 +1,5 @@
+import { requestTimeout, transportFailure } from "@/lib/http";
+
 export class AuthentikError extends Error {
   constructor(
     public status: number,
@@ -36,6 +38,9 @@ export async function authentikRequest<T>(
       Authorization: `Bearer ${token}`,
       ...options?.headers,
     },
+    signal: requestTimeout(),
+  }).catch((error) => {
+    throw new AuthentikError(0, { detail: transportFailure(error) });
   });
 
   if (!res.ok) {

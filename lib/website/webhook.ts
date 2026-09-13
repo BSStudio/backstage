@@ -1,4 +1,5 @@
 import type { MembershipStatus } from "@/app/generated/prisma/client";
+import { requestTimeout, transportFailure } from "@/lib/http";
 
 /** Idempotency key. */
 const DELIVERY_ID_HEADER = "x-bss-delivery-id";
@@ -99,6 +100,9 @@ export async function pushMembers(
       [DELIVERY_ID_HEADER]: deliveryId,
     },
     body: JSON.stringify(payload),
+    signal: requestTimeout(),
+  }).catch((error) => {
+    throw new WebsiteWebhookError(0, { message: transportFailure(error) });
   });
 
   const body = await res.json().catch(() => null);

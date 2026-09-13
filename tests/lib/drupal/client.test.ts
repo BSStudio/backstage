@@ -314,3 +314,24 @@ describe("DrupalError", () => {
     expect(error.message).toBe("Drupal API error: not found");
   });
 });
+
+describe("transport failures", () => {
+  it("becomes a Drupal error rather than escaping as a TypeError", async () => {
+    const failure = new TypeError("fetch failed");
+    failure.cause = new Error("connect ETIMEDOUT 10.0.0.1:443");
+    mockFetch.mockRejectedValue(failure);
+
+    const error = await loginDrupal().catch((e) => e);
+
+    expect(error).toBeInstanceOf(DrupalError);
+    expect(error.message).toBe(
+      "Drupal API error: connect ETIMEDOUT 10.0.0.1:443",
+    );
+  });
+
+  it("bounds the request", async () => {
+    await login();
+
+    expect(mockFetch.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+  });
+});

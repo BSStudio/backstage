@@ -86,6 +86,7 @@ describe("pushMembers", () => {
         "x-bss-delivery-id": "job-abc",
       },
       body: JSON.stringify({ operations: [{ op: "upsert", member: MEMBER }] }),
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -196,5 +197,22 @@ describe("pushMembers", () => {
 
     expect(error).toBeInstanceOf(WebsiteWebhookError);
     expect(error.message).toBe("Website webhook error: Response was not JSON");
+  });
+});
+
+describe("pushMembers transport failures", () => {
+  it("becomes a webhook error rather than escaping as a TypeError", async () => {
+    const failure = new TypeError("fetch failed");
+    failure.cause = new Error("connect ECONNREFUSED 10.0.0.1:443");
+    mockFetch.mockRejectedValue(failure);
+
+    const error = await pushMembers({ operations: [] }, "delivery-1").catch(
+      (e) => e,
+    );
+
+    expect(error).toBeInstanceOf(WebsiteWebhookError);
+    expect(error.message).toBe(
+      "Website webhook error: connect ECONNREFUSED 10.0.0.1:443",
+    );
   });
 });

@@ -1,4 +1,5 @@
 import { importPKCS8, SignJWT } from "jose";
+import { requestTimeout, transportFailure } from "@/lib/http";
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const CLOUD_IDENTITY_BASE = "https://cloudidentity.googleapis.com/v1";
@@ -25,6 +26,12 @@ export class GoogleApiError extends Error {
     super(`Google API error: ${message}`);
     this.name = "GoogleApiError";
   }
+}
+
+function transportError(error: unknown): never {
+  throw new GoogleApiError(0, {
+    error: { message: transportFailure(error) },
+  });
 }
 
 interface ServiceAccountKey {
@@ -103,7 +110,8 @@ async function getAccessToken(scope: string): Promise<string> {
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion,
     }),
-  });
+    signal: requestTimeout(),
+  }).catch(transportError);
 
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new GoogleApiError(res.status, body);
@@ -133,7 +141,8 @@ export async function googleFetch<T>(
       Authorization: `Bearer ${token}`,
       ...init.headers,
     },
-  });
+    signal: requestTimeout(),
+  }).catch(transportError);
 
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new GoogleApiError(res.status, body);
