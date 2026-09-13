@@ -10,7 +10,7 @@ export interface WebsiteMemberSource {
   avatarUrl: string | null;
   status: MembershipStatus;
   joinedSemester: string;
-  leadershipRole: unknown | null;
+  leadershipRole: { id: string } | null;
 }
 
 export function buildWebsiteMember(member: WebsiteMemberSource): WebsiteMember {
