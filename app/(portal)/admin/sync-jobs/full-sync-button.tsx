@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { forceWebsiteFullSyncAction } from "@/lib/actions/website";
+import { toastSync } from "@/lib/toast";
 
 export function FullSyncButton() {
   const router = useRouter();
@@ -29,7 +30,7 @@ export function FullSyncButton() {
         toast.error(result.error);
         return;
       }
-      toast.success(`${result.data.count} tag szinkronizálva`);
+      toastSync(`${result.data.count} tag szinkronizálva`, result.syncErrors);
       setOpen(false);
       router.refresh();
     });
