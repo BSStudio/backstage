@@ -127,7 +127,7 @@ The scripts refuse to run against a database whose host is not local unless pass
   operations). Named for the technology so the whole integration deletes by grep — see
   Retiring Drupal
 - `lib/website/` — `webhook.ts`, the whole client for the new site: one bearer POST of the
-  member push contract (`docs/members-webhook.openapi.yaml`, vendored)
+  member push contract — see The new website
 - `lib/google/` — the Google clients sharing one signer: `client.ts` (token minting + transport,
   `googleFetch` for an absolute URL, `googleRequest` for a Cloud Identity path), `groups.ts`
   (membership operations), `calendar.ts` (the studio calendar read)
@@ -135,6 +135,8 @@ The scripts refuse to run against a database whose host is not local unless pass
   `{authentik,drupal}/{operations,orchestrators,group-mapping}.ts`,
   `google/{operations,orchestrators}.ts` and `website/{operations,orchestrators,payload}.ts`
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
+- `lib/http.ts` — the timeout every outgoing request carries, and what a rejection that never
+  became an HTTP answer says
 - `lib/errors.ts` — typed error hierarchy + `mapServiceError`
 - `lib/api-response.ts` — `syncJson` / `syncJsonResource`, the answer every mutating route
   returns
@@ -660,8 +662,10 @@ to Authentik.
 ### The new website (members webhook)
 
 `WEBSITE_WEBHOOK_URL` and `WEBSITE_WEBHOOK_TOKEN`. One endpoint, one verb: a bearer `POST` of
-members, either as targeted operations or as a whole-roster `replace`. The contract is **theirs**
-and is vendored at `docs/members-webhook.openapi.yaml` — re-copy it when it moves, never edit it.
+members, either as targeted operations or as a whole-roster `replace`. The contract is **theirs**,
+generated from their own route and published at `docs/api/members-webhook.openapi.yaml` in
+[kir-dev/bss-stack](https://github.com/kir-dev/bss-stack). Read it there rather than keeping a copy
+here, which can only go stale.
 
 The token is issued on the website's side and shown there once; it is a client identifier and a
 secret joined by a dot, and revoking access means revoking the client there.
@@ -1005,13 +1009,16 @@ container; routes and actions get smoke tests for auth and error mapping only.
 - `tests/helpers.ts` — `mockSession(overrides)` / `mockNoSession()` replace `@/lib/session` for
   route tests. `mockAuthApi(getSession)` mocks `next/headers` and `@/lib/auth` *underneath* it
   instead, so action and session tests run the real helpers and genuinely exercise the role
-  predicates. `mockWebsiteOrchestrators()` and `mockGoogleGroupOrchestrators()` stub the external
-  fan-out; both return their mocks so a test can fail one call and assert on it.
+  predicates. `mockDrupalOrchestrators()`, `mockWebsiteOrchestrators()` and
+  `mockGoogleGroupOrchestrators()` stub the external fan-out and return their mocks, so a test can
+  fail one call and assert on it. Each factory is annotated with the module it replaces, because
+  `vi.doMock` swaps one wholesale: an orchestrator a factory leaves out is `undefined` at the call
+  site, and the annotation turns that into a typecheck failure in the helper.
 - Route tests use `vi.resetModules()` + `vi.doMock()` + dynamic `import()` to swap in the test
   database and session before each test.
-- Website client tests stub `fetch` with real `Response`/`Headers` objects so `getSetCookie()`
-  behaves as in production. Website operation tests mock only the transport, leaving `parseHtml`
-  and `getFormToken` real so the Drupal scraping selectors are genuinely exercised.
+- Drupal client tests stub `fetch` with real `Response`/`Headers` objects so `getSetCookie()`
+  behaves as in production. Drupal operation tests mock only the transport, leaving `parseHtml`
+  and `getFormToken` real so the scraping selectors are genuinely exercised.
 
 Coverage includes `app/**/*.ts`, `lib/**/*.ts`, `types/**/*.ts`, excluding `app/generated/**`,
 `app/api/auth/**`, and the config/wiring files `lib/auth.ts`, `lib/auth-client.ts`,

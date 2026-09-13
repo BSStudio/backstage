@@ -478,7 +478,7 @@ function buildSyncJobs(
   ];
 }
 
-// Two skips so the SKIPPED badge and the reason it carries have something to show.
+// Two Authentik skips, so the SKIPPED badge and the reason it carries have something to show.
 function buildSkippedSyncJobs(
   members: BuiltMember[],
   devUser: DevUser,
@@ -522,7 +522,7 @@ function buildSkippedWebsiteJob(
   ];
 }
 
-// Two failures so /admin/sync-jobs and its retry button have something to show.
+// One per target that can fail, so /admin/sync-jobs and its retry button have something to show.
 function buildFailedSyncJobs(
   members: BuiltMember[],
   devUser: DevUser,

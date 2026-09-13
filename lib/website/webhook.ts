@@ -30,7 +30,7 @@ function describe(status: number, body: unknown): string {
 }
 
 export interface WebsiteMember {
-  /** The Authentik `sub`, which is our own `Member.id`. */
+  /** Our `Member.id`: the Authentik `sub`, or a local id for a member with no account. */
   sub: string;
   fullName: string;
   nickname: string | null;
