@@ -33,10 +33,10 @@ describe("toastSync", () => {
   it("warns with the failures when a sync step failed", async () => {
     const { toastSync } = await import("@/lib/toast");
 
-    toastSync("Adatok mentve", ["Authentik unreachable", "Website HTTP 500"]);
+    toastSync("Adatok mentve", ["Authentik unreachable", "Drupal HTTP 500"]);
 
     expect(mockWarning).toHaveBeenCalledWith(
-      "Adatok mentve, de a szinkronizálás során hiba történt: Authentik unreachable, Website HTTP 500",
+      "Adatok mentve, de a szinkronizálás során hiba történt: Authentik unreachable, Drupal HTTP 500",
     );
     expect(mockSuccess).not.toHaveBeenCalled();
   });

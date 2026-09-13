@@ -1,43 +1,31 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getTestPrisma } from "../../../setup";
 
-const {
-  mockCreateWebsiteUser,
-  mockUpdateWebsiteUser,
-  mockDeactivateWebsiteUser,
-  mockReactivateWebsiteUser,
-} = vi.hoisted(() => ({
-  mockCreateWebsiteUser: vi.fn(),
-  mockUpdateWebsiteUser: vi.fn(),
-  mockDeactivateWebsiteUser: vi.fn(),
-  mockReactivateWebsiteUser: vi.fn(),
+const { mockPushMembers } = vi.hoisted(() => ({ mockPushMembers: vi.fn() }));
+
+vi.mock("@/lib/website/webhook", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/website/webhook")>()),
+  pushMembers: mockPushMembers,
 }));
 
-vi.mock("@/lib/website/users", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/website/users")>()),
-  createWebsiteUser: mockCreateWebsiteUser,
-  updateWebsiteUser: mockUpdateWebsiteUser,
-  deactivateWebsiteUser: mockDeactivateWebsiteUser,
-  reactivateWebsiteUser: mockReactivateWebsiteUser,
-}));
-
-import {
-  orchestrateCreateWebsiteUser,
-  orchestrateDeactivateWebsiteUser,
-  orchestrateReactivateWebsiteUser,
-  orchestrateUpdateWebsiteUser,
-} from "@/lib/sync/website/orchestrators";
+import { orchestrateSyncWebsiteMember } from "@/lib/sync/website/orchestrators";
+import { NOT_CONFIGURED_REASON } from "@/lib/sync-jobs";
 
 const MEMBER_ID = "uuid-member-1";
-const WEBSITE_UID = "9001";
 
-const CREATE_INPUT = {
-  username: "jkovacs",
-  fullname: "Kovács János",
-  nickname: "Jani",
-  email: "jkovacs@bss.hu",
-  mobile: "+36301234567",
-  joinedSemester: "2025/2026/1",
+const PUSH_RESPONSE = {
+  ok: true,
+  duplicate: false,
+  result: {
+    mode: "operations",
+    operationCount: 1,
+    created: 1,
+    updated: 0,
+    archived: 0,
+    restored: 0,
+    unchanged: 0,
+    ignored: 0,
+  },
 };
 
 async function jobsFor(memberId: string) {
@@ -49,13 +37,10 @@ async function jobsFor(memberId: string) {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  mockCreateWebsiteUser.mockResolvedValue({
-    userId: WEBSITE_UID,
-    username: "jkovacs",
-  });
-  mockUpdateWebsiteUser.mockResolvedValue(undefined);
-  mockDeactivateWebsiteUser.mockResolvedValue(undefined);
-  mockReactivateWebsiteUser.mockResolvedValue(undefined);
+  mockPushMembers.mockResolvedValue(PUSH_RESPONSE);
+  vi.stubEnv("APP_URL", "https://backstage.example.hu");
+  vi.stubEnv("WEBSITE_WEBHOOK_URL", "https://example.hu/api/webhooks/members");
+  vi.stubEnv("WEBSITE_WEBHOOK_TOKEN", "client-id.secret");
 
   await getTestPrisma().member.upsert({
     where: { id: MEMBER_ID },
@@ -64,186 +49,134 @@ beforeEach(async () => {
       id: MEMBER_ID,
       firstName: "János",
       lastName: "Kovács",
-      email: "jkovacs@bss.hu",
+      nickname: "Jani",
+      email: "jkovacs@bsstudio.hu",
+      status: "MEMBER",
       joinedSemester: "2025/2026/1",
-      websiteUserId: WEBSITE_UID,
     },
   });
 });
 
-describe("orchestrateCreateWebsiteUser", () => {
-  it("creates a CREATE_USER job with the semester converted to a join year", async () => {
-    const prisma = getTestPrisma();
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
-    const result = await orchestrateCreateWebsiteUser(
-      prisma,
+describe("orchestrateSyncWebsiteMember", () => {
+  it("pushes an upsert and records what the website reported", async () => {
+    const result = await orchestrateSyncWebsiteMember(
+      getTestPrisma(),
       MEMBER_ID,
-      CREATE_INPUT,
     );
 
-    expect(result).toEqual({
-      success: true,
-      result: { userId: WEBSITE_UID, username: "jkovacs" },
-    });
-    expect(mockCreateWebsiteUser).toHaveBeenCalledWith({
-      username: "jkovacs",
-      fullname: "Kovács János",
-      nickname: "Jani",
-      email: "jkovacs@bss.hu",
-      mobile: "+36301234567",
-      joinYear: "2025 ősz",
-    });
+    expect(result).toEqual({ success: true, result: PUSH_RESPONSE });
 
     const [job] = await jobsFor(MEMBER_ID);
     expect(job).toMatchObject({
       target: "WEBSITE",
-      operation: "CREATE_USER",
+      operation: "SYNC_MEMBER",
       status: "SUCCESS",
       attempts: 1,
     });
-    expect(job.result).toEqual({ userId: WEBSITE_UID, username: "jkovacs" });
+    expect(job.result).toEqual(PUSH_RESPONSE);
+
+    expect(mockPushMembers).toHaveBeenCalledWith(
+      {
+        operations: [
+          {
+            op: "upsert",
+            member: {
+              sub: MEMBER_ID,
+              fullName: "Kovács János",
+              nickname: "Jani",
+              avatarUrl: null,
+              membershipStatus: "MEMBER",
+              isLeadership: false,
+              joinedSemester: "2025/2026/1",
+            },
+          },
+        ],
+      },
+      job.id,
+    );
   });
 
-  it("never persists a password in the job payload", async () => {
-    await orchestrateCreateWebsiteUser(
-      getTestPrisma(),
-      MEMBER_ID,
-      CREATE_INPUT,
-    );
+  it("uses the job id as the delivery id, so a retry cannot apply twice", async () => {
+    await orchestrateSyncWebsiteMember(getTestPrisma(), MEMBER_ID);
 
     const [job] = await jobsFor(MEMBER_ID);
-    // jsonb does not preserve key order, so compare as a set.
-    expect(Object.keys(job.payload as object).sort()).toEqual([
-      "email",
-      "fullname",
-      "joinYear",
-      "mobile",
-      "nickname",
-      "username",
-    ]);
+    expect(mockPushMembers.mock.calls[0][1]).toBe(job.id);
   });
 
-  it("persists a FAILED job when the Drupal create fails", async () => {
-    mockCreateWebsiteUser.mockRejectedValue(
-      new Error("User creation failed for jkovacs"),
-    );
-
-    const result = await orchestrateCreateWebsiteUser(
-      getTestPrisma(),
-      MEMBER_ID,
-      CREATE_INPUT,
-    );
-
-    expect(result).toEqual({
-      success: false,
-      error: "User creation failed for jkovacs",
-    });
-    const [job] = await jobsFor(MEMBER_ID);
-    expect(job.status).toBe("FAILED");
-    expect(job.result).toEqual({ error: "User creation failed for jkovacs" });
-  });
-});
-
-describe("orchestrateUpdateWebsiteUser", () => {
-  it("stores only the changed fields and resolves the uid from the member", async () => {
-    const result = await orchestrateUpdateWebsiteUser(
-      getTestPrisma(),
-      MEMBER_ID,
-      { nickname: "Janó", position: "stúdiós" },
-    );
-
-    expect(result).toEqual({ success: true, result: { userId: WEBSITE_UID } });
-    expect(mockUpdateWebsiteUser).toHaveBeenCalledWith(WEBSITE_UID, {
-      nickname: "Janó",
-      position: "stúdiós",
+  it("reads the member at execute time, so an archive since the failure wins", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.update({
+      where: { id: MEMBER_ID },
+      data: { archived: true, archivedAt: new Date() },
     });
 
-    const [job] = await jobsFor(MEMBER_ID);
-    expect(job.operation).toBe("UPDATE_USER");
-    expect(job.payload).toEqual({ nickname: "Janó", position: "stúdiós" });
+    await orchestrateSyncWebsiteMember(prisma, MEMBER_ID);
+
+    expect(mockPushMembers).toHaveBeenCalledWith(
+      { operations: [{ op: "archive", sub: MEMBER_ID }] },
+      expect.any(String),
+    );
   });
 
-  it("persists a FAILED job when the Drupal update fails", async () => {
-    mockUpdateWebsiteUser.mockRejectedValue(
-      new Error("Update BSS adatok failed for 9001"),
-    );
-
-    const result = await orchestrateUpdateWebsiteUser(
-      getTestPrisma(),
-      MEMBER_ID,
-      { position: "öregtag" },
-    );
-
-    expect(result).toEqual({
-      success: false,
-      error: "Update BSS adatok failed for 9001",
+  it("carries the leadership flag when the member holds a role", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: [],
+      },
     });
-    expect((await jobsFor(MEMBER_ID))[0].status).toBe("FAILED");
-  });
-});
 
-describe("orchestrateDeactivateWebsiteUser", () => {
-  it("creates an empty-payload DEACTIVATE_USER job", async () => {
-    const result = await orchestrateDeactivateWebsiteUser(
-      getTestPrisma(),
-      MEMBER_ID,
-    );
+    await orchestrateSyncWebsiteMember(prisma, MEMBER_ID);
 
-    expect(result).toEqual({ success: true, result: { userId: WEBSITE_UID } });
-    expect(mockDeactivateWebsiteUser).toHaveBeenCalledWith(WEBSITE_UID);
-
-    const [job] = await jobsFor(MEMBER_ID);
-    expect(job.operation).toBe("DEACTIVATE_USER");
-    expect(job.payload).toEqual({});
+    const [{ operations }] = mockPushMembers.mock.calls[0];
+    expect(operations[0].member.isLeadership).toBe(true);
   });
 
-  it("persists a FAILED job when the Drupal deactivation fails", async () => {
-    mockDeactivateWebsiteUser.mockRejectedValue(
-      new Error("Deactivation step 1 failed for user 9001"),
+  it("persists a FAILED job when the push is refused", async () => {
+    mockPushMembers.mockRejectedValue(
+      new Error("Website webhook error: sub: kötelező mező."),
     );
 
-    const result = await orchestrateDeactivateWebsiteUser(
+    const result = await orchestrateSyncWebsiteMember(
       getTestPrisma(),
       MEMBER_ID,
     );
 
     expect(result).toEqual({
       success: false,
-      error: "Deactivation step 1 failed for user 9001",
+      error: "Website webhook error: sub: kötelező mező.",
     });
-    expect((await jobsFor(MEMBER_ID))[0].status).toBe("FAILED");
-  });
-});
-
-describe("orchestrateReactivateWebsiteUser", () => {
-  it("creates an empty-payload REACTIVATE_USER job", async () => {
-    const result = await orchestrateReactivateWebsiteUser(
-      getTestPrisma(),
-      MEMBER_ID,
-    );
-
-    expect(result).toEqual({ success: true, result: { userId: WEBSITE_UID } });
-    expect(mockReactivateWebsiteUser).toHaveBeenCalledWith(WEBSITE_UID);
 
     const [job] = await jobsFor(MEMBER_ID);
-    expect(job.operation).toBe("REACTIVATE_USER");
-    expect(job.payload).toEqual({});
+    expect(job).toMatchObject({ status: "FAILED", attempts: 1 });
   });
 
-  it("persists a FAILED job when the Drupal reactivation fails", async () => {
-    mockReactivateWebsiteUser.mockRejectedValue(
-      new Error("Reactivation step 1 failed for user 9001"),
-    );
+  it.each([["WEBSITE_WEBHOOK_URL"], ["WEBSITE_WEBHOOK_TOKEN"]])(
+    "skips the job instead of failing it when %s is unset",
+    async (name) => {
+      vi.stubEnv(name, "");
 
-    const result = await orchestrateReactivateWebsiteUser(
-      getTestPrisma(),
-      MEMBER_ID,
-    );
+      const result = await orchestrateSyncWebsiteMember(
+        getTestPrisma(),
+        MEMBER_ID,
+      );
 
-    expect(result).toEqual({
-      success: false,
-      error: "Reactivation step 1 failed for user 9001",
-    });
-    expect((await jobsFor(MEMBER_ID))[0].status).toBe("FAILED");
-  });
+      expect(result).toEqual({ success: true, result: null });
+      expect(mockPushMembers).not.toHaveBeenCalled();
+
+      const [job] = await jobsFor(MEMBER_ID);
+      expect(job).toMatchObject({
+        target: "WEBSITE",
+        status: "SKIPPED",
+        attempts: 0,
+        result: { reason: NOT_CONFIGURED_REASON },
+      });
+    },
+  );
 });

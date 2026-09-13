@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
 import {
+  DrupalError,
+  type DrupalSession,
+  drupalGet,
+  drupalPost,
   getFormToken,
-  loginWebsite,
+  loginDrupal,
   parseHtml,
-  WebsiteError,
-  type WebsiteSession,
-  websiteGet,
-  websitePost,
 } from "./client";
 
 // Drupal role IDs on bsstudio.hu
@@ -15,8 +15,8 @@ const VIDEO_META_EDITOR = 5;
 const VIDEO_CONTENT_EDITOR = 4;
 const ACTIVE = 1;
 
-// BSS state labels expected by the website
-export const WEBSITE_STATE = {
+// BSS state labels expected by Drupal
+export const DRUPAL_STATE = {
   MEMBER_CANDIDATE_CANDIDATE: "stúdiós-jelölt jelölt",
   MEMBER_CANDIDATE: "stúdiós jelölt",
   MEMBER: "stúdiós",
@@ -36,7 +36,7 @@ export function buildJoinYearFromSemester(semester: string): string {
   return number === "1" ? `${startYear} ősz` : `${endYear} tavasz`;
 }
 
-export type CreateWebsiteUserInput = {
+export type CreateDrupalUserInput = {
   username: string;
   fullname: string; // last name first, Hungarian order
   nickname: string;
@@ -45,13 +45,13 @@ export type CreateWebsiteUserInput = {
   joinYear: string; // e.g. "2025 ősz"
 };
 
-/** Creates a new user on the website. Returns the website user_id (numeric string). */
-export async function createWebsiteUser(
-  input: CreateWebsiteUserInput,
+/** Creates a new user on Drupal. Returns the Drupal user_id (numeric string). */
+export async function createDrupalUser(
+  input: CreateDrupalUserInput,
 ): Promise<{ userId: string; username: string }> {
-  const session = await loginWebsite();
+  const session = await loginDrupal();
 
-  const createPage = await websiteGet(session, "/admin/user/user/create");
+  const createPage = await drupalGet(session, "/admin/user/user/create");
   const formToken = getFormToken(createPage, "edit-user-register-form-token");
 
   const password = generateRandomPassword();
@@ -65,7 +65,7 @@ export async function createWebsiteUser(
     [`roles[${VIDEO_META_EDITOR}]`]: VIDEO_META_EDITOR,
     [`roles[${VIDEO_CONTENT_EDITOR}]`]: VIDEO_CONTENT_EDITOR,
     profile_BSS_join_year: input.joinYear,
-    profile_BSS_state: WEBSITE_STATE.MEMBER_CANDIDATE_CANDIDATE,
+    profile_BSS_state: DRUPAL_STATE.MEMBER_CANDIDATE_CANDIDATE,
     profile_email: input.email,
     profile_mobilephone_number: input.mobile,
     profile_fullname: input.fullname,
@@ -76,10 +76,10 @@ export async function createWebsiteUser(
     language: "hu",
   };
 
-  const response = await websitePost(session, "/admin/user/user/create", data);
+  const response = await drupalPost(session, "/admin/user/user/create", data);
   const successMarker = `Az új felhasználó fiók <a href="/user/${input.username}"><em>${input.username}</em></a> néven létrejött.`;
   if (!response.includes(successMarker)) {
-    throw new WebsiteError(0, `User creation failed for ${input.username}`);
+    throw new DrupalError(0, `User creation failed for ${input.username}`);
   }
 
   const userId = await fetchUserIdByUsername(session, input.username);
@@ -87,32 +87,32 @@ export async function createWebsiteUser(
 }
 
 async function fetchUserIdByUsername(
-  session: WebsiteSession,
+  session: DrupalSession,
   username: string,
 ): Promise<string> {
-  const html = await websiteGet(
+  const html = await drupalGet(
     session,
     `/user/${encodeURIComponent(username)}`,
   );
   const $ = parseHtml(html);
   const href = $('a:contains("Szerkesztés")').attr("href");
   if (!href) {
-    throw new WebsiteError(0, `Edit link not found for user ${username}`);
+    throw new DrupalError(0, `Edit link not found for user ${username}`);
   }
   const match = href.match(/\/user\/([0-9]+)\/edit/);
   if (!match) {
-    throw new WebsiteError(0, `User ID not parseable from ${href}`);
+    throw new DrupalError(0, `User ID not parseable from ${href}`);
   }
   return match[1];
 }
 
-/** Look up the numeric website user_id by username. */
-export async function getWebsiteUserId(username: string): Promise<string> {
-  const session = await loginWebsite();
+/** Look up the numeric Drupal user_id by username. */
+export async function getDrupalUserId(username: string): Promise<string> {
+  const session = await loginDrupal();
   return fetchUserIdByUsername(session, username);
 }
 
-export interface WebsiteUserDetails {
+export interface DrupalUserDetails {
   email0: string;
   fullname: string;
   nickname: string;
@@ -128,15 +128,15 @@ export interface WebsiteUserDetails {
   emailSame: boolean;
 }
 
-async function fetchWebsiteUser(
-  session: WebsiteSession,
+async function fetchDrupalUser(
+  session: DrupalSession,
   userId: string,
-): Promise<WebsiteUserDetails> {
-  const mainPage = parseHtml(await websiteGet(session, `/user/${userId}/edit`));
+): Promise<DrupalUserDetails> {
+  const mainPage = parseHtml(await drupalGet(session, `/user/${userId}/edit`));
   const email0 = mainPage("input#edit-mail").attr("value") ?? "";
 
   const personalPage = parseHtml(
-    await websiteGet(session, `/user/${userId}/edit/Személyes adatok`),
+    await drupalGet(session, `/user/${userId}/edit/Személyes adatok`),
   );
   const fullname =
     personalPage("input#edit-profile-fullname").attr("value") ?? "";
@@ -144,7 +144,7 @@ async function fetchWebsiteUser(
     personalPage("input#edit-profile-personal-nickname").attr("value") ?? "";
 
   const contactPage = parseHtml(
-    await websiteGet(session, `/user/${userId}/edit/Elérhetőségek`),
+    await drupalGet(session, `/user/${userId}/edit/Elérhetőségek`),
   );
   const email1 = contactPage("input#edit-profile-email").attr("value") ?? "";
   const mobile =
@@ -154,7 +154,7 @@ async function fetchWebsiteUser(
   );
 
   const bssPage = parseHtml(
-    await websiteGet(session, `/user/${userId}/edit/BSS adatok`),
+    await drupalGet(session, `/user/${userId}/edit/BSS adatok`),
   );
   const position = bssPage('option[selected="selected"]').attr("value") ?? "";
   const passive = Boolean(
@@ -190,59 +190,59 @@ async function fetchWebsiteUser(
 /**
  * Sets a user to passive and removes all privileged group access.
  */
-export async function deactivateWebsiteUser(userId: string): Promise<void> {
-  const session = await loginWebsite();
+export async function deactivateDrupalUser(userId: string): Promise<void> {
+  const session = await loginDrupal();
 
   // Step 1: remove privileged groups by submitting the main edit form without role checkboxes.
-  const mainHtml = await websiteGet(session, `/user/${userId}/edit`);
+  const mainHtml = await drupalGet(session, `/user/${userId}/edit`);
   const $main = parseHtml(mainHtml);
   const username = $main("input#edit-name").attr("value") ?? "";
   const email = $main("input#edit-mail").attr("value") ?? "";
   const mainToken = getFormToken(mainHtml, "edit-user-profile-form-form-token");
 
-  const step1 = await websitePost(session, `/user/${userId}/edit`, {
+  const step1 = await drupalPost(session, `/user/${userId}/edit`, {
     name: username,
     mail: email,
     form_token: mainToken,
     form_id: "user_profile_form",
   });
   if (!step1.includes(SUCCESS_PHRASE)) {
-    throw new WebsiteError(0, `Deactivation step 1 failed for user ${userId}`);
+    throw new DrupalError(0, `Deactivation step 1 failed for user ${userId}`);
   }
 
   // Step 2: mark user as passive on the BSS adatok tab.
-  const bssHtml = await websiteGet(session, `/user/${userId}/edit/BSS adatok`);
+  const bssHtml = await drupalGet(session, `/user/${userId}/edit/BSS adatok`);
   const $bss = parseHtml(bssHtml);
   const joined = $bss("input#edit-profile-BSS-join-year").attr("value") ?? "";
   const bssToken = getFormToken(bssHtml, "edit-user-profile-form-form-token");
 
-  const step2 = await websitePost(session, `/user/${userId}/edit/BSS adatok`, {
+  const step2 = await drupalPost(session, `/user/${userId}/edit/BSS adatok`, {
     profile_passive: 1,
     profile_BSS_join_year: joined,
     form_token: bssToken,
     form_id: "user_profile_form",
   });
   if (!step2.includes(SUCCESS_PHRASE)) {
-    throw new WebsiteError(0, `Deactivation step 2 failed for user ${userId}`);
+    throw new DrupalError(0, `Deactivation step 2 failed for user ${userId}`);
   }
 }
 
 /**
- * Restores the roles and the active flag `deactivateWebsiteUser` cleared.
+ * Restores the roles and the active flag `deactivateDrupalUser` cleared.
  */
-export async function reactivateWebsiteUser(userId: string): Promise<void> {
-  const session = await loginWebsite();
+export async function reactivateDrupalUser(userId: string): Promise<void> {
+  const session = await loginDrupal();
 
   // Step 1: re-check the role boxes, which the deactivation cleared by omitting them.
   // `status` is left out to mirror the deactivation, which never sent it either: sending
-  // ACTIVE would unblock an account a website administrator blocked for their own reason.
-  const mainHtml = await websiteGet(session, `/user/${userId}/edit`);
+  // ACTIVE would unblock an account a Drupal administrator blocked for their own reason.
+  const mainHtml = await drupalGet(session, `/user/${userId}/edit`);
   const $main = parseHtml(mainHtml);
   const username = $main("input#edit-name").attr("value") ?? "";
   const email = $main("input#edit-mail").attr("value") ?? "";
   const mainToken = getFormToken(mainHtml, "edit-user-profile-form-form-token");
 
-  const step1 = await websitePost(session, `/user/${userId}/edit`, {
+  const step1 = await drupalPost(session, `/user/${userId}/edit`, {
     name: username,
     mail: email,
     [`roles[${WEBSITE_EDITOR}]`]: WEBSITE_EDITOR,
@@ -252,45 +252,45 @@ export async function reactivateWebsiteUser(userId: string): Promise<void> {
     form_id: "user_profile_form",
   });
   if (!step1.includes(SUCCESS_PHRASE)) {
-    throw new WebsiteError(0, `Reactivation step 1 failed for user ${userId}`);
+    throw new DrupalError(0, `Reactivation step 1 failed for user ${userId}`);
   }
 
   // Step 2: clear the passive flag on the BSS adatok tab.
-  const bssHtml = await websiteGet(session, `/user/${userId}/edit/BSS adatok`);
+  const bssHtml = await drupalGet(session, `/user/${userId}/edit/BSS adatok`);
   const $bss = parseHtml(bssHtml);
   const joined = $bss("input#edit-profile-BSS-join-year").attr("value") ?? "";
   const bssToken = getFormToken(bssHtml, "edit-user-profile-form-form-token");
 
-  const step2 = await websitePost(session, `/user/${userId}/edit/BSS adatok`, {
+  const step2 = await drupalPost(session, `/user/${userId}/edit/BSS adatok`, {
     profile_passive: 0,
     profile_BSS_join_year: joined,
     form_token: bssToken,
     form_id: "user_profile_form",
   });
   if (!step2.includes(SUCCESS_PHRASE)) {
-    throw new WebsiteError(0, `Reactivation step 2 failed for user ${userId}`);
+    throw new DrupalError(0, `Reactivation step 2 failed for user ${userId}`);
   }
 }
 
-export type UpdateWebsiteUserInput = {
+export type UpdateDrupalUserInput = {
   fullname?: string;
   nickname?: string;
   email?: string;
   mobile?: string;
   inSch?: boolean;
-  position?: string; // value from WEBSITE_STATE
+  position?: string; // value from DRUPAL_STATE
   role?: string; // free text, "" to clear
   joined?: string; // e.g. "2025 ősz"
 };
 
-export async function updateWebsiteUser(
+export async function updateDrupalUser(
   userId: string,
-  input: UpdateWebsiteUserInput,
+  input: UpdateDrupalUserInput,
 ): Promise<void> {
-  const session = await loginWebsite();
-  const current = await fetchWebsiteUser(session, userId);
+  const session = await loginDrupal();
+  const current = await fetchDrupalUser(session, userId);
 
-  const mainHtml = await websiteGet(session, `/user/${userId}/edit`);
+  const mainHtml = await drupalGet(session, `/user/${userId}/edit`);
   const formToken = getFormToken(mainHtml, "edit-user-profile-form-form-token");
 
   // Személyes adatok — fullname / nickname
@@ -301,13 +301,13 @@ export async function updateWebsiteUser(
       form_token: formToken,
       form_id: "user_profile_form",
     };
-    const response = await websitePost(
+    const response = await drupalPost(
       session,
       `/user/${userId}/edit/Személyes adatok`,
       data,
     );
     if (!response.includes(SUCCESS_PHRASE)) {
-      throw new WebsiteError(0, `Update Személyes adatok failed for ${userId}`);
+      throw new DrupalError(0, `Update Személyes adatok failed for ${userId}`);
     }
   }
 
@@ -324,13 +324,13 @@ export async function updateWebsiteUser(
       form_token: formToken,
       form_id: "user_profile_form",
     };
-    const response = await websitePost(
+    const response = await drupalPost(
       session,
       `/user/${userId}/edit/Elérhetőségek`,
       data,
     );
     if (!response.includes(SUCCESS_PHRASE)) {
-      throw new WebsiteError(0, `Update Elérhetőségek failed for ${userId}`);
+      throw new DrupalError(0, `Update Elérhetőségek failed for ${userId}`);
     }
   }
 
@@ -358,13 +358,13 @@ export async function updateWebsiteUser(
       form_token: formToken,
       form_id: "user_profile_form",
     };
-    const response = await websitePost(
+    const response = await drupalPost(
       session,
       `/user/${userId}/edit/BSS adatok`,
       data,
     );
     if (!response.includes(SUCCESS_PHRASE)) {
-      throw new WebsiteError(0, `Update BSS adatok failed for ${userId}`);
+      throw new DrupalError(0, `Update BSS adatok failed for ${userId}`);
     }
   }
 }

@@ -7,7 +7,7 @@ import {
 
 describe("AUDIT_ACTION_LABELS", () => {
   it("has a Hungarian label for every audit action", () => {
-    expect(Object.keys(AUDIT_ACTION_LABELS)).toHaveLength(17);
+    expect(Object.keys(AUDIT_ACTION_LABELS)).toHaveLength(18);
     expect(AUDIT_ACTION_LABELS.MEMBER_CREATED).toBe("Létrehozás");
     expect(AUDIT_ACTION_LABELS.STATUS_CHANGED).toBe("Státusz módosítás");
     expect(AUDIT_ACTION_LABELS.ROLE_ASSIGNED).toBe("Pozíció hozzárendelés");
@@ -32,7 +32,7 @@ describe("AUDIT_ACTION_LABELS", () => {
 
 describe("AUDIT_ACTION_VARIANT", () => {
   it("has a Tailwind class string for every audit action", () => {
-    expect(Object.keys(AUDIT_ACTION_VARIANT)).toHaveLength(17);
+    expect(Object.keys(AUDIT_ACTION_VARIANT)).toHaveLength(18);
     for (const val of Object.values(AUDIT_ACTION_VARIANT)) {
       expect(val).toContain("bg-");
       expect(val).toContain("text-");
@@ -50,6 +50,13 @@ describe("parseAuditDiff", () => {
     expect(parseAuditDiff({ created: { firstName: "A" } })).toBe("created");
   });
 
+  it("reads a `created` count as a count, not as a creation snapshot", () => {
+    expect(parseAuditDiff({ members: 43, created: 2 })).toEqual([
+      { field: "members", value: 43 },
+      { field: "created", value: 2 },
+    ]);
+  });
+
   it("parses field changes into structured entries", () => {
     const diff = {
       nickname: { old: null, new: "Béci" },
@@ -65,6 +72,21 @@ describe("parseAuditDiff", () => {
     const diff = { status: { old: "MEMBER_CANDIDATE", new: "MEMBER" } };
     expect(parseAuditDiff(diff)).toEqual([
       { field: "status", old: "MEMBER_CANDIDATE", new: "MEMBER" },
+    ]);
+  });
+
+  it("reads a count as a value rather than throwing, as WEBSITE_FULL_SYNC writes", () => {
+    const diff = { members: 43, unchanged: 40, result: null };
+    expect(parseAuditDiff(diff)).toEqual([
+      { field: "members", value: 43 },
+      { field: "unchanged", value: 40 },
+      { field: "result", value: null },
+    ]);
+  });
+
+  it("keeps a half-written pair on the change side", () => {
+    expect(parseAuditDiff({ email: { new: "a@b.hu" } })).toEqual([
+      { field: "email", old: undefined, new: "a@b.hu" },
     ]);
   });
 });

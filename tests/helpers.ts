@@ -29,28 +29,51 @@ export function mockSession(
 
 const ok: SyncResult = { success: true, result: null };
 
-export function mockWebsiteOrchestrators() {
-  const orchestrateCreateWebsiteUser = vi.fn(
+export function mockDrupalOrchestrators() {
+  const orchestrateCreateDrupalUser = vi.fn(
     async (): Promise<SyncResult> => ok,
   );
-  const orchestrateUpdateWebsiteUser = vi.fn(
+  const orchestrateUpdateDrupalUser = vi.fn(
     async (): Promise<SyncResult> => ok,
   );
-  const orchestrateDeactivateWebsiteUser = vi.fn(
+  const orchestrateDeactivateDrupalUser = vi.fn(
+    async (): Promise<SyncResult> => ok,
+  );
+  const orchestrateReactivateDrupalUser = vi.fn(
     async (): Promise<SyncResult> => ok,
   );
 
-  vi.doMock("@/lib/sync/website/orchestrators", () => ({
-    orchestrateCreateWebsiteUser,
-    orchestrateUpdateWebsiteUser,
-    orchestrateDeactivateWebsiteUser,
-  }));
+  vi.doMock(
+    "@/lib/sync/drupal/orchestrators",
+    (): typeof import("@/lib/sync/drupal/orchestrators") => ({
+      orchestrateCreateDrupalUser,
+      orchestrateUpdateDrupalUser,
+      orchestrateDeactivateDrupalUser,
+      orchestrateReactivateDrupalUser,
+    }),
+  );
 
   return {
-    orchestrateCreateWebsiteUser,
-    orchestrateUpdateWebsiteUser,
-    orchestrateDeactivateWebsiteUser,
+    orchestrateCreateDrupalUser,
+    orchestrateUpdateDrupalUser,
+    orchestrateDeactivateDrupalUser,
+    orchestrateReactivateDrupalUser,
   };
+}
+
+export function mockWebsiteOrchestrators() {
+  const orchestrateSyncWebsiteMember = vi.fn(
+    async (): Promise<SyncResult> => ok,
+  );
+
+  vi.doMock(
+    "@/lib/sync/website/orchestrators",
+    (): typeof import("@/lib/sync/website/orchestrators") => ({
+      orchestrateSyncWebsiteMember,
+    }),
+  );
+
+  return { orchestrateSyncWebsiteMember };
 }
 
 export function mockGoogleGroupOrchestrators() {
@@ -64,11 +87,14 @@ export function mockGoogleGroupOrchestrators() {
     async (): Promise<SyncResult> => ok,
   );
 
-  vi.doMock("@/lib/sync/google/orchestrators", () => ({
-    orchestrateAddToAlumniGroup,
-    orchestrateAddToGoogleGroup,
-    orchestrateRemoveFromGoogleGroup,
-  }));
+  vi.doMock(
+    "@/lib/sync/google/orchestrators",
+    (): typeof import("@/lib/sync/google/orchestrators") => ({
+      orchestrateAddToAlumniGroup,
+      orchestrateAddToGoogleGroup,
+      orchestrateRemoveFromGoogleGroup,
+    }),
+  );
 
   return {
     orchestrateAddToAlumniGroup,

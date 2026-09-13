@@ -11,6 +11,11 @@ function EmptyValue() {
 
 function DiffValue({ value }: { value: unknown }) {
   if (value === null || value === undefined) return <EmptyValue />;
+  // A role with no groups of its own is an empty array, and String([]) is the empty string.
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <EmptyValue />;
+    return <span>{value.join(", ")}</span>;
+  }
   return <span>{String(value)}</span>;
 }
 
@@ -26,9 +31,15 @@ export function AuditDiff({ diff }: { diff: unknown }) {
         <div key={entry.field} className="text-sm">
           <span className="font-medium">{entry.field}</span>
           {": "}
-          <DiffValue value={entry.old} />
-          <span className="mx-1 text-muted-foreground">→</span>
-          <DiffValue value={entry.new} />
+          {"value" in entry ? (
+            <DiffValue value={entry.value} />
+          ) : (
+            <>
+              <DiffValue value={entry.old} />
+              <span className="mx-1 text-muted-foreground">→</span>
+              <DiffValue value={entry.new} />
+            </>
+          )}
         </div>
       ))}
     </div>

@@ -13,6 +13,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   AVATAR_UPLOADED: "Profilkép feltöltés",
   AVATAR_REMOVED: "Profilkép törlés",
   GOOGLE_GROUP_SYNCED: "Google Group beolvasás",
+  WEBSITE_FULL_SYNC: "Teljes szinkronizálás",
   CARDDAV_TOKEN_CREATED: "CardDAV eszköz hozzáadás",
   CARDDAV_TOKEN_REVOKED: "CardDAV eszköz törlés",
   APP_LINK_CREATED: "Alkalmazás létrehozás",
@@ -35,6 +36,7 @@ export const AUDIT_ACTION_VARIANT: Record<AuditAction, string> = {
   AVATAR_UPLOADED: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
   AVATAR_REMOVED: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
   GOOGLE_GROUP_SYNCED: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
+  WEBSITE_FULL_SYNC: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
   CARDDAV_TOKEN_CREATED: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
   CARDDAV_TOKEN_REVOKED:
     "bg-orange-500/15 text-orange-600 dark:text-orange-400",
@@ -44,13 +46,24 @@ export const AUDIT_ACTION_VARIANT: Record<AuditAction, string> = {
   COMPUTER_DELETED: "bg-red-500/15 text-red-600 dark:text-red-400",
 };
 
+export type AuditDiffEntry =
+  | { field: string; old: unknown; new: unknown }
+  | { field: string; value: unknown };
+
 /** Parse an audit log diff into structured entries. Returns null for non-diff objects. */
 export function parseAuditDiff(
   diff: unknown,
-): { field: string; old: unknown; new: unknown }[] | "created" | null {
+): AuditDiffEntry[] | "created" | null {
   if (!diff || typeof diff !== "object") return null;
-  if ("created" in (diff as Record<string, unknown>)) return "created";
-  return Object.entries(diff as Record<string, unknown>).map(([field, val]) => {
+  const record = diff as Record<string, unknown>;
+  // By shape, because a full sync's `created` is a count rather than a snapshot.
+  if (typeof record.created === "object" && record.created !== null)
+    return "created";
+  return Object.entries(record).map(([field, val]) => {
+    // A full sync states counts, and destructuring one would take the whole page down.
+    if (!val || typeof val !== "object" || !("old" in val || "new" in val)) {
+      return { field, value: val };
+    }
     const { old: oldVal, new: newVal } = val as { old: unknown; new: unknown };
     return { field, old: oldVal, new: newVal };
   });

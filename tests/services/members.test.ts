@@ -8,14 +8,15 @@ const {
   mockOrchestrateAddToGroup,
   mockOrchestrateAddToStatusGroup,
   mockOrchestrateRemoveFromGroup,
-  mockOrchestrateCreateWebsiteUser,
-  mockOrchestrateUpdateWebsiteUser,
-  mockOrchestrateDeactivateWebsiteUser,
-  mockOrchestrateReactivateWebsiteUser,
+  mockOrchestrateCreateDrupalUser,
+  mockOrchestrateUpdateDrupalUser,
+  mockOrchestrateDeactivateDrupalUser,
+  mockOrchestrateReactivateDrupalUser,
   mockOrchestrateAddToGoogleGroup,
   mockOrchestrateRemoveFromGoogleGroup,
   mockOrchestrateAddToAlumniGroup,
   mockOrchestrateReactivate,
+  mockOrchestrateSyncWebsiteMember,
 } = vi.hoisted(() => ({
   mockCreateAuthentikUser: vi.fn(),
   mockOrchestrateDeactivate: vi.fn(),
@@ -24,14 +25,15 @@ const {
   mockOrchestrateAddToGroup: vi.fn(),
   mockOrchestrateAddToStatusGroup: vi.fn(),
   mockOrchestrateRemoveFromGroup: vi.fn(),
-  mockOrchestrateCreateWebsiteUser: vi.fn(),
-  mockOrchestrateUpdateWebsiteUser: vi.fn(),
-  mockOrchestrateDeactivateWebsiteUser: vi.fn(),
-  mockOrchestrateReactivateWebsiteUser: vi.fn(),
+  mockOrchestrateCreateDrupalUser: vi.fn(),
+  mockOrchestrateUpdateDrupalUser: vi.fn(),
+  mockOrchestrateDeactivateDrupalUser: vi.fn(),
+  mockOrchestrateReactivateDrupalUser: vi.fn(),
   mockOrchestrateAddToGoogleGroup: vi.fn(),
   mockOrchestrateRemoveFromGoogleGroup: vi.fn(),
   mockOrchestrateAddToAlumniGroup: vi.fn(),
   mockOrchestrateReactivate: vi.fn(),
+  mockOrchestrateSyncWebsiteMember: vi.fn(),
 }));
 
 vi.mock("@/lib/sync/authentik/orchestrators", () => ({
@@ -59,12 +61,16 @@ vi.mock("@/lib/sync/authentik/orchestrators", () => ({
   },
 }));
 
-const websiteOk = { success: true as const, result: null };
+const drupalOk = { success: true as const, result: null };
+vi.mock("@/lib/sync/drupal/orchestrators", () => ({
+  orchestrateCreateDrupalUser: mockOrchestrateCreateDrupalUser,
+  orchestrateUpdateDrupalUser: mockOrchestrateUpdateDrupalUser,
+  orchestrateDeactivateDrupalUser: mockOrchestrateDeactivateDrupalUser,
+  orchestrateReactivateDrupalUser: mockOrchestrateReactivateDrupalUser,
+}));
+
 vi.mock("@/lib/sync/website/orchestrators", () => ({
-  orchestrateCreateWebsiteUser: mockOrchestrateCreateWebsiteUser,
-  orchestrateUpdateWebsiteUser: mockOrchestrateUpdateWebsiteUser,
-  orchestrateDeactivateWebsiteUser: mockOrchestrateDeactivateWebsiteUser,
-  orchestrateReactivateWebsiteUser: mockOrchestrateReactivateWebsiteUser,
+  orchestrateSyncWebsiteMember: mockOrchestrateSyncWebsiteMember,
 }));
 
 vi.mock("@/lib/sync/google/orchestrators", () => ({
@@ -139,14 +145,15 @@ beforeEach(async () => {
     success: true,
     result: null,
   });
-  mockOrchestrateCreateWebsiteUser.mockResolvedValue(websiteOk);
-  mockOrchestrateUpdateWebsiteUser.mockResolvedValue(websiteOk);
-  mockOrchestrateDeactivateWebsiteUser.mockResolvedValue(websiteOk);
-  mockOrchestrateReactivateWebsiteUser.mockResolvedValue(websiteOk);
+  mockOrchestrateCreateDrupalUser.mockResolvedValue(drupalOk);
+  mockOrchestrateUpdateDrupalUser.mockResolvedValue(drupalOk);
+  mockOrchestrateDeactivateDrupalUser.mockResolvedValue(drupalOk);
+  mockOrchestrateReactivateDrupalUser.mockResolvedValue(drupalOk);
   mockOrchestrateReactivate.mockResolvedValue({ success: true, result: null });
-  mockOrchestrateAddToGoogleGroup.mockResolvedValue(websiteOk);
-  mockOrchestrateRemoveFromGoogleGroup.mockResolvedValue(websiteOk);
-  mockOrchestrateAddToAlumniGroup.mockResolvedValue(websiteOk);
+  mockOrchestrateAddToGoogleGroup.mockResolvedValue(drupalOk);
+  mockOrchestrateRemoveFromGoogleGroup.mockResolvedValue(drupalOk);
+  mockOrchestrateAddToAlumniGroup.mockResolvedValue(drupalOk);
+  mockOrchestrateSyncWebsiteMember.mockResolvedValue(drupalOk);
 
   const prisma = getTestPrisma();
 
@@ -160,7 +167,7 @@ beforeEach(async () => {
       lastName: "Actor",
       email: "actor@test.com",
       joinedSemester: "2025/2026/1",
-      websiteUserId: "9001",
+      drupalUserId: "9001",
     },
   });
 
@@ -174,7 +181,7 @@ beforeEach(async () => {
       lastName: "Member",
       email: "target@test.com",
       joinedSemester: "2025/2026/1",
-      websiteUserId: "9002",
+      drupalUserId: "9002",
     },
   });
 });
@@ -366,9 +373,9 @@ describe("createMember", () => {
     });
   });
 
-  it("persists the Drupal uid returned by the website CREATE_USER", async () => {
+  it("persists the Drupal uid returned by the Drupal CREATE_USER", async () => {
     const prisma = getTestPrisma();
-    mockOrchestrateCreateWebsiteUser.mockResolvedValueOnce({
+    mockOrchestrateCreateDrupalUser.mockResolvedValueOnce({
       success: true,
       result: { userId: "4242", username: "nmember" },
     });
@@ -384,14 +391,14 @@ describe("createMember", () => {
       ACTOR,
     );
 
-    expect(member.websiteUserId).toBe("4242");
+    expect(member.drupalUserId).toBe("4242");
     const persisted = await prisma.member.findUnique({
       where: { id: member.id },
     });
-    expect(persisted?.websiteUserId).toBe("4242");
+    expect(persisted?.drupalUserId).toBe("4242");
   });
 
-  it("creates the website user with the username Authentik resolved", async () => {
+  it("creates the Drupal user with the username Authentik resolved", async () => {
     const prisma = getTestPrisma();
     // Collision: Authentik hands back jkovacs2, not the derived base.
     mockCreateAuthentikUser.mockResolvedValueOnce({
@@ -417,15 +424,15 @@ describe("createMember", () => {
       ACTOR,
     );
 
-    expect(mockOrchestrateCreateWebsiteUser.mock.calls[0][2]).toMatchObject({
+    expect(mockOrchestrateCreateDrupalUser.mock.calls[0][2]).toMatchObject({
       username: "jkovacs2",
     });
     expect(username).toBe("jkovacs2");
   });
 
-  it("reports a syncError but still creates the member when the website create fails", async () => {
+  it("reports a syncError but still creates the member when the Drupal create fails", async () => {
     const prisma = getTestPrisma();
-    mockOrchestrateCreateWebsiteUser.mockResolvedValueOnce({
+    mockOrchestrateCreateDrupalUser.mockResolvedValueOnce({
       success: false,
       error: "User creation failed for nmember",
     });
@@ -442,12 +449,12 @@ describe("createMember", () => {
     );
 
     expect(syncErrors).toEqual(["User creation failed for nmember"]);
-    expect(member.websiteUserId).toBeNull();
+    expect(member.drupalUserId).toBeNull();
 
     const persisted = await prisma.member.findUnique({
       where: { id: member.id },
     });
-    expect(persisted?.websiteUserId).toBeNull();
+    expect(persisted?.drupalUserId).toBeNull();
   });
 
   it("throws ValidationError for missing required fields", async () => {
@@ -527,7 +534,7 @@ describe("createMember", () => {
     expect(mockCreateAuthentikUser.mock.calls[0][0]).toMatchObject({
       mobile: "+421903123456",
     });
-    expect(mockOrchestrateCreateWebsiteUser.mock.calls[0][2]).toMatchObject({
+    expect(mockOrchestrateCreateDrupalUser.mock.calls[0][2]).toMatchObject({
       mobile: "+421903123456",
     });
   });
@@ -1036,7 +1043,7 @@ describe("updateMember", () => {
     ]);
   });
 
-  it("maps every website-tracked field onto the Drupal update payload", async () => {
+  it("maps every Drupal-tracked field onto the Drupal update payload", async () => {
     const prisma = getTestPrisma();
 
     await updateMember(
@@ -1046,26 +1053,26 @@ describe("updateMember", () => {
         firstName: "János",
         lastName: "Kovács",
         nickname: "Jani",
-        email: "jkovacs@bss.hu",
+        email: "jkovacs@bsstudio.hu",
         mobile: "+36301234567",
         status: "MEMBER",
       },
       ACTOR,
     );
 
-    expect(mockOrchestrateUpdateWebsiteUser).toHaveBeenCalledTimes(1);
-    const [, memberId, fields] = mockOrchestrateUpdateWebsiteUser.mock.calls[0];
+    expect(mockOrchestrateUpdateDrupalUser).toHaveBeenCalledTimes(1);
+    const [, memberId, fields] = mockOrchestrateUpdateDrupalUser.mock.calls[0];
     expect(memberId).toBe(MEMBER_ID);
     expect(fields).toEqual({
       fullname: "Kovács János",
       nickname: "Jani",
-      email: "jkovacs@bss.hu",
+      email: "jkovacs@bsstudio.hu",
       mobile: "+36301234567",
       position: "stúdiós",
     });
   });
 
-  it("sends an empty string when a website-tracked field is cleared", async () => {
+  it("sends an empty string when a Drupal-tracked field is cleared", async () => {
     const prisma = getTestPrisma();
     await prisma.member.update({
       where: { id: MEMBER_ID },
@@ -1074,7 +1081,7 @@ describe("updateMember", () => {
 
     await updateMember(prisma, MEMBER_ID, { nickname: "" }, ACTOR);
 
-    expect(mockOrchestrateUpdateWebsiteUser.mock.calls[0][2]).toEqual({
+    expect(mockOrchestrateUpdateDrupalUser.mock.calls[0][2]).toEqual({
       // Drupal has no nickname fallback, so the first name stands in.
       nickname: "Target",
     });
@@ -1114,7 +1121,7 @@ describe("updateMember", () => {
     const { member } = await updateMember(prisma, id, { mobile: "" }, ACTOR);
 
     expect(member.mobile).toBeNull();
-    expect(mockOrchestrateUpdateWebsiteUser.mock.calls[0][2]).toEqual({
+    expect(mockOrchestrateUpdateDrupalUser.mock.calls[0][2]).toEqual({
       mobile: "",
     });
   });
@@ -1152,9 +1159,9 @@ describe("updateMember", () => {
     });
   });
 
-  it("collects a syncError when the website update fails", async () => {
+  it("collects a syncError when the Drupal update fails", async () => {
     const prisma = getTestPrisma();
-    mockOrchestrateUpdateWebsiteUser.mockResolvedValueOnce({
+    mockOrchestrateUpdateDrupalUser.mockResolvedValueOnce({
       success: false,
       error: "Update Személyes adatok failed for 9002",
     });
@@ -1171,11 +1178,11 @@ describe("updateMember", () => {
     ]);
   });
 
-  it("does not touch the website when only non-tracked fields change", async () => {
+  it("does not touch Drupal when only non-tracked fields change", async () => {
     const prisma = getTestPrisma();
     await updateMember(prisma, MEMBER_ID, { university: "BME" }, ACTOR);
 
-    expect(mockOrchestrateUpdateWebsiteUser).not.toHaveBeenCalled();
+    expect(mockOrchestrateUpdateDrupalUser).not.toHaveBeenCalled();
   });
 });
 
@@ -1308,7 +1315,7 @@ describe("archiveMember", () => {
 
     expect(result.syncErrors).toEqual([]);
     expect(mockOrchestrateDeactivate).not.toHaveBeenCalled();
-    expect(mockOrchestrateDeactivateWebsiteUser).not.toHaveBeenCalled();
+    expect(mockOrchestrateDeactivateDrupalUser).not.toHaveBeenCalled();
 
     const member = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
     expect(member?.archivedAt).toEqual(first?.archivedAt);
@@ -1411,7 +1418,7 @@ describe("archiveMember", () => {
       "a pozíció megszüntetése nem sikerült: Missing Authentik group UUID for Leadership",
     ]);
     expect(mockOrchestrateDeactivate).toHaveBeenCalledTimes(1);
-    expect(mockOrchestrateDeactivateWebsiteUser).toHaveBeenCalledTimes(1);
+    expect(mockOrchestrateDeactivateDrupalUser).toHaveBeenCalledTimes(1);
   });
 
   it("names a thrown non-Error in the position failure", async () => {
@@ -1457,7 +1464,7 @@ describe("archiveMember", () => {
       success: false,
       error: "Authentik unreachable",
     });
-    mockOrchestrateDeactivateWebsiteUser.mockResolvedValueOnce({
+    mockOrchestrateDeactivateDrupalUser.mockResolvedValueOnce({
       success: false,
       error: "Deactivation step 1 failed for user 9002",
     });
@@ -1468,7 +1475,7 @@ describe("archiveMember", () => {
       "Authentik unreachable",
       "Deactivation step 1 failed for user 9002",
     ]);
-    expect(mockOrchestrateDeactivateWebsiteUser.mock.calls[0][1]).toBe(
+    expect(mockOrchestrateDeactivateDrupalUser.mock.calls[0][1]).toBe(
       MEMBER_ID,
     );
   });
@@ -1523,7 +1530,7 @@ describe("reactivateMember", () => {
       success: true,
       result: null,
     });
-    mockOrchestrateReactivateWebsiteUser.mockResolvedValue(websiteOk);
+    mockOrchestrateReactivateDrupalUser.mockResolvedValue(drupalOk);
     return prisma;
   }
 
@@ -1574,7 +1581,7 @@ describe("reactivateMember", () => {
 
     expect(mockOrchestrateReactivate).toHaveBeenCalledTimes(1);
     expect(mockOrchestrateReactivate.mock.calls[0][1]).toBe(MEMBER_ID);
-    expect(mockOrchestrateReactivateWebsiteUser).toHaveBeenCalledTimes(1);
+    expect(mockOrchestrateReactivateDrupalUser).toHaveBeenCalledTimes(1);
     expect(mockOrchestrateAddToStatusGroup).toHaveBeenCalledTimes(1);
     expect(mockOrchestrateAddToStatusGroup.mock.calls[0][2]).toBe("MEMBER");
   });
@@ -1609,7 +1616,7 @@ describe("reactivateMember", () => {
       success: true,
       result: null,
     });
-    mockOrchestrateReactivateWebsiteUser.mockResolvedValue(websiteOk);
+    mockOrchestrateReactivateDrupalUser.mockResolvedValue(drupalOk);
 
     await reactivateMember(prisma, MEMBER_ID, ACTOR);
 
@@ -1631,7 +1638,7 @@ describe("reactivateMember", () => {
 
     expect(result.syncErrors).toEqual([]);
     expect(mockOrchestrateReactivate).not.toHaveBeenCalled();
-    expect(mockOrchestrateReactivateWebsiteUser).not.toHaveBeenCalled();
+    expect(mockOrchestrateReactivateDrupalUser).not.toHaveBeenCalled();
     expect(mockOrchestrateAddToStatusGroup).not.toHaveBeenCalled();
     expect(
       await prisma.auditLog.count({
@@ -1646,7 +1653,7 @@ describe("reactivateMember", () => {
       success: false,
       error: "Authentik unreachable",
     });
-    mockOrchestrateReactivateWebsiteUser.mockResolvedValueOnce({
+    mockOrchestrateReactivateDrupalUser.mockResolvedValueOnce({
       success: false,
       error: "Reactivation step 1 failed for user 9002",
     });
@@ -1698,7 +1705,7 @@ describe("batchArchive", () => {
         lastName: "Target",
         email: "second@test.com",
         joinedSemester: "2025/2026/1",
-        websiteUserId: "9003",
+        drupalUserId: "9003",
       },
     });
 
@@ -2528,5 +2535,161 @@ describe("listAuthentikGroups", () => {
     await expect(
       listAuthentikGroups(getTestPrisma(), MEMBER_ACTOR),
     ).rejects.toThrow(ForbiddenError);
+  });
+});
+
+// ─── website sync fan-out ────────────────────────────────────────────────────
+
+describe("website sync", () => {
+  function pushedIds() {
+    return mockOrchestrateSyncWebsiteMember.mock.calls.map((c) => c[1]);
+  }
+
+  it("pushes the new member on create", async () => {
+    mockCreateAuthentikUser.mockResolvedValue({
+      uuid: crypto.randomUUID(),
+      username: "jkovacs",
+      name: "János Kovács",
+      email: "jkovacs@bsstudio.hu",
+    });
+
+    const { member } = await createMember(
+      getTestPrisma(),
+      {
+        firstName: "János",
+        lastName: "Kovács",
+        email: "jkovacs@bsstudio.hu",
+        mobile: "+36301234567",
+      },
+      ACTOR,
+    );
+
+    expect(pushedIds()).toEqual([member.id]);
+  });
+
+  it.each([
+    [{ firstName: "János" }],
+    [{ lastName: "Kovács" }],
+    [{ nickname: "Jani" }],
+    [{ status: "MEMBER" as const }],
+  ])("pushes when %j changes", async (patch) => {
+    await updateMember(getTestPrisma(), MEMBER_ID, patch, ACTOR);
+
+    expect(pushedIds()).toEqual([MEMBER_ID]);
+  });
+
+  it.each([
+    [{ mobile: "+36301234567" }],
+    [{ email: "moved@bsstudio.hu" }],
+    [{ university: "BME" }],
+    [{ major: "Villamosmérnök" }],
+    [{ dormRoom: "1408" }],
+  ])("does not push when only %j changes", async (patch) => {
+    await updateMember(getTestPrisma(), MEMBER_ID, patch, ACTOR);
+
+    expect(mockOrchestrateSyncWebsiteMember).not.toHaveBeenCalled();
+  });
+
+  it("pushes once per avatar change, and not when the url is unchanged", async () => {
+    const prisma = getTestPrisma();
+    const URLS = { avatarUrl: "/a.webp", portraitUrl: "/p.webp" };
+
+    await uploadMemberAvatar(prisma, MEMBER_ID, URLS, ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID]);
+
+    // Replacing the image leaves the url identical, so there is nothing to tell anyone.
+    await uploadMemberAvatar(prisma, MEMBER_ID, URLS, ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID]);
+
+    await removeMemberAvatar(prisma, MEMBER_ID, ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID, MEMBER_ID]);
+  });
+
+  it("pushes on archive and again on reactivation", async () => {
+    const prisma = getTestPrisma();
+
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID]);
+
+    await reactivateMember(prisma, MEMBER_ID, ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID, MEMBER_ID]);
+  });
+
+  it("pushes a second time on archive when a position had to be ended", async () => {
+    const prisma = getTestPrisma();
+    await prisma.leadershipRole.create({
+      data: {
+        memberId: MEMBER_ID,
+        label: "Főszerkesztő",
+        authentikGroupIds: [],
+      },
+    });
+
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+
+    // removeRole pushes too, and by then the member is already archived — so both
+    // pushes send the same archive rather than one of them resurrecting them.
+    expect(pushedIds()).toEqual([MEMBER_ID, MEMBER_ID]);
+  });
+
+  it("pushes every member of a batch archive", async () => {
+    const prisma = getTestPrisma();
+    const id2 = crypto.randomUUID();
+    await prisma.member.create({
+      data: {
+        id: id2,
+        firstName: "Second",
+        lastName: "Member",
+        email: "second@bsstudio.hu",
+        joinedSemester: "2025/2026/1",
+      },
+    });
+
+    await batchArchive(prisma, [MEMBER_ID, id2], ACTOR);
+
+    expect(pushedIds().sort()).toEqual([MEMBER_ID, id2].sort());
+  });
+
+  it("pushes every member of a batch status change", async () => {
+    await batchUpdateStatus(getTestPrisma(), [MEMBER_ID], "MEMBER", ACTOR);
+
+    expect(pushedIds()).toEqual([MEMBER_ID]);
+  });
+
+  it("pushes when a position is assigned and when it is removed", async () => {
+    const prisma = getTestPrisma();
+
+    await assignRole(prisma, MEMBER_ID, "Főszerkesztő", [], ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID]);
+
+    await removeRole(prisma, MEMBER_ID, ACTOR);
+    expect(pushedIds()).toEqual([MEMBER_ID, MEMBER_ID]);
+  });
+
+  it("does not push when an identical role assignment changes nothing", async () => {
+    const prisma = getTestPrisma();
+    await assignRole(prisma, MEMBER_ID, "Főszerkesztő", [], ACTOR);
+    mockOrchestrateSyncWebsiteMember.mockClear();
+
+    await assignRole(prisma, MEMBER_ID, "Főszerkesztő", [], ACTOR);
+
+    expect(mockOrchestrateSyncWebsiteMember).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a failed push as a syncError without failing the write", async () => {
+    mockOrchestrateSyncWebsiteMember.mockResolvedValue({
+      success: false,
+      error: "Website webhook error: HTTP 500",
+    });
+
+    const result = await updateMember(
+      getTestPrisma(),
+      MEMBER_ID,
+      { nickname: "Jani" },
+      ACTOR,
+    );
+
+    expect(result.member.nickname).toBe("Jani");
+    expect(result.syncErrors).toContain("Website webhook error: HTTP 500");
   });
 });

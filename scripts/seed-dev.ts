@@ -3,7 +3,10 @@ import { createHash } from "node:crypto";
 import type { MembershipStatus, Prisma } from "../app/generated/prisma/client";
 import { hashCardDavToken } from "../lib/carddav/tokens";
 import prisma from "../lib/prisma";
-import { NO_AUTHENTIK_ACCOUNT_REASON } from "../lib/sync-jobs";
+import {
+  NO_AUTHENTIK_ACCOUNT_REASON,
+  NOT_CONFIGURED_REASON,
+} from "../lib/sync-jobs";
 import {
   currentSemester,
   deriveUsername,
@@ -70,6 +73,10 @@ async function seedDev(): Promise<void> {
       ...buildAuditLog(members, devUser),
       ...buildAppLinkAudit(devUser),
       ...buildComputerAudit(devUser),
+      ...buildWebsiteSyncAudit(
+        devUser,
+        members.filter((m) => !m.archivedAt).length,
+      ),
     ],
   });
   await prisma.syncJob.createMany({ data: buildSyncJobs(members, devUser) });
@@ -127,9 +134,9 @@ function buildMember(
       dormRoom: seed.dormRoom,
       status: seed.status,
       joinedSemester,
-      // Only some members are linked to the legacy website — the gap is what makes a
-      // FAILED website job realistic to reproduce locally.
-      websiteUserId: index % 3 === 0 ? String(1200 + index) : null,
+      // Only some members are linked to the Drupal site — the gap is what makes a
+      // FAILED Drupal job realistic to reproduce locally.
+      drupalUserId: index % 3 === 0 ? String(1200 + index) : null,
       archived: archivedAt !== null,
       archivedAt,
       createdAt: joinedAt,
@@ -160,7 +167,7 @@ function buildDevMember(devUser: DevUser): BuiltMember {
       dormRoom: null,
       status: devUser.status,
       joinedSemester,
-      websiteUserId: null,
+      drupalUserId: null,
       archived: false,
       archivedAt: null,
       createdAt: joinedAt,
@@ -239,6 +246,29 @@ function buildComputerAudit(
       action: "COMPUTER_DELETED" as const,
       diff: { name: { old: "NLE5", new: null } },
       createdAt: daysAgo(9),
+    },
+  ];
+}
+
+// One full sync, so WEBSITE_FULL_SYNC and its null target render on /admin/audit.
+function buildWebsiteSyncAudit(
+  devUser: DevUser,
+  memberCount: number,
+): Prisma.AuditLogCreateManyInput[] {
+  return [
+    {
+      actorId: devUser.id,
+      targetLabel: "Honlap",
+      action: "WEBSITE_FULL_SYNC" as const,
+      diff: {
+        members: memberCount,
+        created: 0,
+        updated: 3,
+        archived: 1,
+        restored: 0,
+        unchanged: memberCount - 3,
+      },
+      createdAt: daysAgo(4),
     },
   ];
 }
@@ -392,9 +422,35 @@ function buildSyncJobs(
       });
     }
 
-    if (row.websiteUserId) {
+    // Both sites run in parallel, so every member carries a push to the new one too.
+    created.push({
+      target: "WEBSITE",
+      operation: "SYNC_MEMBER",
+      memberId: row.id,
+      payload: {},
+      status: "SUCCESS",
+      attempts: 1,
+      result: {
+        ok: true,
+        duplicate: false,
+        result: {
+          mode: "operations",
+          operationCount: 1,
+          created: 1,
+          updated: 0,
+          archived: 0,
+          restored: 0,
+          unchanged: 0,
+          ignored: 0,
+        },
+      },
+      createdAt: joinedAt,
+      updatedAt: joinedAt,
+    });
+
+    if (row.drupalUserId) {
       created.push({
-        target: "WEBSITE",
+        target: "DRUPAL",
         operation: "CREATE_USER",
         memberId: row.id,
         payload: {
@@ -406,7 +462,7 @@ function buildSyncJobs(
         },
         status: "SUCCESS",
         attempts: 1,
-        result: { uid: row.websiteUserId },
+        result: { uid: row.drupalUserId },
         createdAt: joinedAt,
         updatedAt: joinedAt,
       });
@@ -418,10 +474,11 @@ function buildSyncJobs(
     ...jobs,
     ...buildFailedSyncJobs(members, devUser),
     ...buildSkippedSyncJobs(members, devUser),
+    ...buildSkippedWebsiteJob(devUser),
   ];
 }
 
-// Two skips so the SKIPPED badge and the reason it carries have something to show.
+// Two Authentik skips, so the SKIPPED badge and the reason it carries have something to show.
 function buildSkippedSyncJobs(
   members: BuiltMember[],
   devUser: DevUser,
@@ -445,7 +502,27 @@ function buildSkippedSyncJobs(
     }));
 }
 
-// Two failures so /admin/sync-jobs and its retry button have something to show.
+// A local .env usually has no webhook, which is the other reason a job is skipped.
+function buildSkippedWebsiteJob(
+  devUser: DevUser,
+): Prisma.SyncJobCreateManyInput[] {
+  const skippedAt = daysAgo(1);
+
+  return [
+    {
+      target: "WEBSITE",
+      operation: "SYNC_MEMBER",
+      memberId: devUser.id,
+      payload: {},
+      status: "SKIPPED",
+      result: { reason: NOT_CONFIGURED_REASON },
+      createdAt: skippedAt,
+      updatedAt: skippedAt,
+    },
+  ];
+}
+
+// One per target that can fail, so /admin/sync-jobs and its retry button have something to show.
 function buildFailedSyncJobs(
   members: BuiltMember[],
   devUser: DevUser,
@@ -456,7 +533,7 @@ function buildFailedSyncJobs(
     (m) =>
       m.row.id !== devUser.id && !m.archivedAt && m.row.status === "MEMBER",
   );
-  const unlinked = active.find((m) => !m.row.websiteUserId);
+  const unlinked = active.find((m) => !m.row.drupalUserId);
   const failedAt = new Date(NOW.getTime() - 2 * 24 * 60 * 60 * 1000);
 
   // The Authentik failure is the dev user's: everyone else is skipped before a call is
@@ -481,7 +558,7 @@ function buildFailedSyncJobs(
   ];
   if (unlinked) {
     jobs.push({
-      target: "WEBSITE",
+      target: "DRUPAL",
       operation: "UPDATE_USER",
       memberId: unlinked.row.id,
       payload: {
@@ -491,12 +568,26 @@ function buildFailedSyncJobs(
       status: "FAILED",
       attempts: 1,
       result: {
-        error: "Member has no websiteUserId — cannot target the account",
+        error: "Member has no drupalUserId — cannot target the account",
       },
       createdAt: failedAt,
       updatedAt: failedAt,
     });
   }
+  jobs.push({
+    target: "WEBSITE",
+    operation: "SYNC_MEMBER",
+    memberId: devUser.id,
+    payload: {},
+    status: "FAILED",
+    attempts: 1,
+    result: {
+      error: "Website webhook error: joinedSemester: érvénytelen formátum.",
+    },
+    createdAt: failedAt,
+    updatedAt: failedAt,
+  });
+
   return jobs;
 }
 

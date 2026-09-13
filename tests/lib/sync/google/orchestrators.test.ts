@@ -16,7 +16,7 @@ import {
   orchestrateAddToGoogleGroup,
   orchestrateRemoveFromGoogleGroup,
 } from "@/lib/sync/google/orchestrators";
-import { NO_GOOGLE_GROUP_CONFIG_REASON } from "@/lib/sync-jobs";
+import { NOT_CONFIGURED_REASON } from "@/lib/sync-jobs";
 
 const MEMBER_ID = "uuid-member-1";
 const EMAIL = "tag@example.com";
@@ -166,7 +166,7 @@ describe("without credentials", () => {
     expect(job).toMatchObject({
       status: "SKIPPED",
       attempts: 0,
-      result: { reason: NO_GOOGLE_GROUP_CONFIG_REASON },
+      result: { reason: NOT_CONFIGURED_REASON },
     });
   });
 });

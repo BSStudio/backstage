@@ -156,3 +156,30 @@ describe("authentikRequest", () => {
     );
   });
 });
+
+describe("authentikRequest transport failures", () => {
+  it("becomes an Authentik error rather than escaping as a TypeError", async () => {
+    const failure = new TypeError("fetch failed");
+    failure.cause = new Error("getaddrinfo ENOTFOUND auth.example.com");
+    mockFetch.mockRejectedValue(failure);
+
+    const request = authentikRequest("/core/users/");
+
+    await expect(request).rejects.toBeInstanceOf(AuthentikError);
+    await expect(request).rejects.toThrow(
+      "Authentik API error: getaddrinfo ENOTFOUND auth.example.com",
+    );
+  });
+
+  it("bounds the request", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({}),
+    });
+
+    await authentikRequest("/core/users/");
+
+    expect(mockFetch.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+  });
+});

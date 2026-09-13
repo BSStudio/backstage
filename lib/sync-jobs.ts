@@ -5,7 +5,7 @@ import type {
 } from "@/app/generated/prisma/client";
 
 export const NO_AUTHENTIK_ACCOUNT_REASON = "Nincs Authentik-fiók";
-export const NO_GOOGLE_GROUP_CONFIG_REASON = "Nincs Google Group beállítva";
+export const NOT_CONFIGURED_REASON = "Nincs beállítva";
 
 export const SYNC_STATUS_LABELS: Record<SyncJobStatus, string> = {
   PENDING: "Függőben",
@@ -25,6 +25,7 @@ export const SYNC_STATUS_VARIANT: Record<SyncJobStatus, string> = {
 
 export const SYNC_TARGET_LABELS: Record<SyncTarget, string> = {
   AUTHENTIK: "Authentik",
+  DRUPAL: "Régi honlap",
   WEBSITE: "Honlap",
   GOOGLE_GROUP: "Google Group",
 };
@@ -36,4 +37,5 @@ export const SYNC_OPERATION_LABELS: Record<SyncOperation, string> = {
   REACTIVATE_USER: "Felhasználó újraaktiválás",
   ADD_TO_GROUP: "Csoporthoz adás",
   REMOVE_FROM_GROUP: "Csoportból törlés",
+  SYNC_MEMBER: "Tag szinkronizálás",
 };
