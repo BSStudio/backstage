@@ -79,10 +79,6 @@ export const auth = betterAuth({
         {
           providerId: "authentik",
           discoveryUrl: `${authentikIssuer()}/.well-known/openid-configuration`,
-          // Without an explicit issuer, a failed discovery fetch throws out of
-          // plugin init and takes down every auth route, `/get-session`
-          // included. Pinned here, an unreachable Authentik only breaks login.
-          accountIssuer: authentikIssuer(),
           clientId: process.env.AUTHENTIK_CLIENT_ID ?? "",
           clientSecret: process.env.AUTHENTIK_CLIENT_SECRET ?? "",
           scopes: ["openid", "email", "profile"],
