@@ -1094,6 +1094,24 @@ That same determinism is why both paths sync Authentik only when `avatarUrl` act
 attribute push would be a `SyncJob` row and an Authentik call that change nothing. The audit entry
 is still written — that is what records the replace.
 
+**Avatars are cached like Gravatar, not versioned.** The route answers `max-age=300` with
+`stale-while-revalidate` and `stale-if-error`, and Cloudflare caches it at the edge. A content hash
+in the URL would let the cache run for a year, but it would make every replace a URL change, and so
+a push to Authentik and the website — the thing the determinism above exists to avoid. A stable URL
+with a five-minute lifetime is what Gravatar does for the same reason: everyone sees a new image
+within minutes, and nothing downstream is told. The uploader sees it at once, because
+`member-avatar.tsx` appends its own `?v=` — only on that page, so the rest of the portal waits out
+the lifetime like everyone else. `stale-if-error` is the reliability half: the public website
+hotlinks these URLs, and the edge keeps serving the last copy for a week while Backstage or the
+bucket is down. A 404 is `no-store`, or a removal followed by a quick re-upload would keep
+answering from a cached miss.
+
+The edge half is instance configuration nothing in the app can detect, like Authentik's subject
+mode. A Cache Rule on `/avatars/*` sets *Eligible for cache*, edge TTL from the origin header, and
+browser TTL **Respect origin** — the setting the rule exists for, because the zone's Browser Cache
+TTL rewrites any origin `max-age` shorter than itself and browsers would hold a replaced avatar for
+hours. The cache key keeps its query string, or the uploader's `?v=` would be served the old copy.
+
 **Leadership role → group sync.** Assigning a role adds the member to the common Leadership group
 (`AUTHENTIK_GROUP_LEADERSHIP_UUID`) **plus** any role-specific `authentikGroupIds`; `removeRole`
 removes both. Updating an existing role keeps the Leadership membership and only diffs the
