@@ -22,7 +22,7 @@ function makeParams(parts: string[]) {
 }
 
 describe("GET /avatars/[...path]", () => {
-  it("streams body with image/webp and no-cache headers", async () => {
+  it("streams body with image/webp and a short shared-cache lifetime", async () => {
     const bytes = new Uint8Array([1, 2, 3]);
     mockGetAvatar.mockResolvedValueOnce({
       body: bytes,
@@ -38,7 +38,7 @@ describe("GET /avatars/[...path]", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("image/webp");
     expect(res.headers.get("Cache-Control")).toBe(
-      "public, max-age=0, must-revalidate",
+      "public, max-age=300, stale-while-revalidate=86400, stale-if-error=604800",
     );
     const buf = new Uint8Array(await res.arrayBuffer());
     expect(buf).toEqual(bytes);
@@ -54,6 +54,7 @@ describe("GET /avatars/[...path]", () => {
     );
 
     expect(res.status).toBe(404);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(mockGetAvatar).toHaveBeenCalledWith("missing.webp");
   });
 
@@ -65,6 +66,7 @@ describe("GET /avatars/[...path]", () => {
     );
 
     expect(res.status).toBe(404);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(mockGetAvatar).not.toHaveBeenCalled();
   });
 });
