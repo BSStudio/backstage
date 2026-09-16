@@ -105,10 +105,12 @@ export async function orchestrateStatusChange(
 
   if (fromGroup === toGroup) return [];
 
-  const results: SyncResult[] = [];
-  results.push(await orchestrateAddToGroup(prisma, memberId, toGroup));
-  results.push(await orchestrateRemoveFromGroup(prisma, memberId, fromGroup));
-  return results;
+  // Orchestrators never throw, so without this a failed add still removes the old group,
+  // leaving the member in neither.
+  const added = await orchestrateAddToGroup(prisma, memberId, toGroup);
+  if (!added.success) return [added];
+
+  return [added, await orchestrateRemoveFromGroup(prisma, memberId, fromGroup)];
 }
 
 export async function orchestrateAddToStatusGroup(
