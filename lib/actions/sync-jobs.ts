@@ -27,7 +27,7 @@ export async function retrySyncJobAction(
     };
   } catch (error) {
     return mapActionError(error, {
-      validation: "Csak sikertelen feladatok indíthatók újra",
+      validation: "Csak sikertelen vagy félbemaradt feladatok indíthatók újra",
     });
   }
 }

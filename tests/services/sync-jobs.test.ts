@@ -53,7 +53,7 @@ describe("retrySyncJob", () => {
     );
   });
 
-  it("throws ValidationError for non-FAILED job", async () => {
+  it("throws ValidationError for a completed job", async () => {
     const prisma = getTestPrisma();
     const job = await prisma.syncJob.create({
       data: {
@@ -67,6 +67,39 @@ describe("retrySyncJob", () => {
     await expect(retrySyncJob(prisma, job.id, ADMIN)).rejects.toThrow(
       ValidationError,
     );
+  });
+
+  it("throws ValidationError for a skipped job", async () => {
+    const prisma = getTestPrisma();
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "UPDATE_USER",
+        memberId: MEMBER_ID,
+        payload: {},
+        status: "SKIPPED",
+      },
+    });
+    await expect(retrySyncJob(prisma, job.id, ADMIN)).rejects.toThrow(
+      ValidationError,
+    );
+  });
+
+  it("retries a job left behind mid-flight", async () => {
+    const prisma = getTestPrisma();
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "UPDATE_USER",
+        memberId: MEMBER_ID,
+        payload: {},
+        status: "IN_PROGRESS",
+      },
+    });
+
+    await retrySyncJob(prisma, job.id, ADMIN);
+
+    expect(mockExecuteSyncJob.mock.calls[0][1]).toBe(job.id);
   });
 
   it("calls executeSyncJob for FAILED job", async () => {

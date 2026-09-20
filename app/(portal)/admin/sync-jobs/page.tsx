@@ -17,6 +17,7 @@ import { resolvePage } from "@/lib/services/pagination";
 import { listSyncJobs } from "@/lib/services/sync-jobs";
 import { pageActor } from "@/lib/session";
 import {
+  isRetryableSyncJob,
   SYNC_OPERATION_LABELS,
   SYNC_STATUS_LABELS,
   SYNC_STATUS_VARIANT,
@@ -115,7 +116,7 @@ export default async function SyncJobsPage({
                     {formatTimestamp(job.updatedAt)}
                   </TableCell>
                   <TableCell>
-                    {canRetry && job.status === "FAILED" && (
+                    {canRetry && isRetryableSyncJob(job.status) && (
                       <RetryButton jobId={job.id} />
                     )}
                   </TableCell>

@@ -60,7 +60,7 @@ describe("retrySyncJobAction", () => {
     const result = await retrySyncJobAction("job-id");
     expect(result).toEqual({
       success: false,
-      error: "Csak sikertelen feladatok indíthatók újra",
+      error: "Csak sikertelen vagy félbemaradt feladatok indíthatók újra",
     });
   });
 

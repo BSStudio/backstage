@@ -7,6 +7,7 @@ import {
 } from "@/lib/permissions";
 import { pageSlice, totalPages } from "@/lib/services/pagination";
 import { executeSyncJob, type SyncResult } from "@/lib/sync/executor";
+import { isRetryableSyncJob } from "@/lib/sync-jobs";
 
 export async function listSyncJobs(
   prisma: PrismaClient,
@@ -36,8 +37,10 @@ export async function retrySyncJob(
 
   const job = await prisma.syncJob.findUnique({ where: { id: jobId } });
   if (!job) throw new NotFoundError();
-  if (job.status !== "FAILED") {
-    throw new ValidationError({ status: "Only FAILED jobs can be retried" });
+  if (!isRetryableSyncJob(job.status)) {
+    throw new ValidationError({
+      status: "Only failed or interrupted jobs can be retried",
+    });
   }
 
   return executeSyncJob(prisma, jobId);
