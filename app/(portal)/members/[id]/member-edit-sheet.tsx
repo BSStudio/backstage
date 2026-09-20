@@ -125,11 +125,7 @@ function EditForms({
     },
     validators: { onChange: RoleFormSchema },
     onSubmit: async ({ value }) => {
-      const result = await assignRoleAction(
-        member.id,
-        value.label,
-        value.authentikGroupIds,
-      );
+      const result = await assignRoleAction(member.id, value);
       if (!result.success) {
         toast.error(result.error);
         return;

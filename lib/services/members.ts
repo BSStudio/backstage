@@ -13,6 +13,7 @@ import {
   ensureCanModifyMember,
 } from "@/lib/permissions";
 import {
+  AssignRoleSchema,
   CreateMemberSchema,
   updateMemberSchema,
 } from "@/lib/services/member-schemas";
@@ -140,6 +141,10 @@ export async function createMember(
   const data = parsed.data;
   const status: MembershipStatus = "MEMBER_CANDIDATE_CANDIDATE";
 
+  if (await prisma.member.count({ where: { email: data.email } })) {
+    throw new ValidationError({ email: "Ezzel az email-címmel már van tag" });
+  }
+
   const authentikUser = await createAuthentikUser({
     firstName: data.firstName,
     lastName: data.lastName,
@@ -203,7 +208,7 @@ export async function createMember(
   const drupalResult = await orchestrateCreateDrupalUser(prisma, member.id, {
     username: drupalUsername,
     fullname: `${data.lastName} ${data.firstName}`.trim(),
-    nickname: data.nickname ?? data.firstName,
+    nickname: data.nickname ?? "",
     email: data.email,
     mobile: data.mobile,
     joinedSemester,
@@ -465,7 +470,7 @@ export async function updateMember(
     if (diff.firstName || diff.lastName) {
       fields.fullname = `${updated.lastName} ${updated.firstName}`.trim();
     }
-    if (diff.nickname) fields.nickname = updated.nickname ?? updated.firstName;
+    if (diff.nickname) fields.nickname = updated.nickname ?? "";
     if (diff.email) fields.email = updated.email;
     if (diff.mobile) fields.mobile = updated.mobile ?? "";
     if (diff.status) fields.position = getDrupalStatusLabel(updated.status);
@@ -739,17 +744,32 @@ export async function batchUpdateStatus(
 export async function assignRole(
   prisma: PrismaClient,
   memberId: string,
-  label: string,
-  authentikGroupIds: string[],
+  input: unknown,
   actor: Actor,
 ) {
   ensureCanManageMembers(actor);
+
+  const parsed = AssignRoleSchema.safeParse(input);
+  if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
+
+  const { label, authentikGroupIds } = parsed.data;
 
   const member = await prisma.member.findUnique({
     where: { id: memberId },
     include: { leadershipRole: true },
   });
   if (!member) throw new NotFoundError();
+
+  const registered = await prisma.authentikGroup.findMany({
+    where: { authentikGroupId: { in: authentikGroupIds } },
+    select: { authentikGroupId: true },
+  });
+  const known = new Set(registered.map((g) => g.authentikGroupId));
+  if (authentikGroupIds.some((id) => !known.has(id))) {
+    throw new ValidationError({
+      authentikGroupIds: "Ismeretlen Authentik csoport",
+    });
+  }
 
   let toAdd: string[] = [];
   let toRemove: string[] = [];

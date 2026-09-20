@@ -196,8 +196,13 @@ The scripts refuse to run against a database whose host is not local unless pass
   `docker-compose.dev.yml` is just the dev Postgres
 - `.github/workflows/` — `ci.yml`, `docker-publish.yml`, `authentik-contract.yml`, all sharing the
   `.github/actions/setup` composite: `pnpm/setup`, which reads the pnpm version from
-  `packageManager` and takes the runtime as an input, so `.nvmrc` is read into one first rather
-  than pointed at. It needs pnpm 11 or newer. `.github/renovate.json` for dependency updates
+  `packageManager` and is pointed at `.nvmrc` for the runtime. Named rather than left to the
+  action's own detection, which falls back through `.node-version`, `.nvmrc` and
+  `.tool-versions` and defers to `devEngines.runtime` — so adding any of those would silently
+  move CI onto another Node. It installs too: `require-lockfile` is what makes a *missing*
+  lockfile fail the job, which a frozen install does not — pnpm resolves from the registry,
+  writes one and exits 0. It needs pnpm 11 or newer. `.github/renovate.json` for dependency
+  updates
 
 ---
 
@@ -310,7 +315,9 @@ free-text `label` and an array of `authentikGroupIds`. When a role ends the row 
 Architectural decisions.
 
 **AuthentikGroup** — registry of known Authentik groups powering the role-assignment checklist.
-Populated manually by admins. The Authentik UUID is the primary key — no separate cuid.
+Populated manually by admins. The Authentik UUID is the primary key — no separate cuid. It is a
+constraint and not just a source for the checklist: `assignRole` refuses an id the registry does
+not name, or a leader could grant any group in the instance, `AUTHENTIK_GROUP_ADMIN` included.
 
 **TimelineEntry** — human-readable history: status promotions, role changes, archival, reactivation.
 
@@ -327,7 +334,9 @@ an `APP_LINK_UPDATED` entry stores the name the link goes by *after* the change.
 Group.
 PENDING → IN_PROGRESS → SUCCESS | FAILED, plus `SKIPPED` for a call that was never attempted
 (see Sync architecture). `memberId` is a required FK. Failed
-jobs surface at `/admin/sync-jobs` and are individually retryable; `SKIPPED` is not retryable.
+jobs surface at `/admin/sync-jobs` and are individually retryable, and so is a row left
+`PENDING` or `IN_PROGRESS` — execution is synchronous, so one outliving its request was
+interrupted. `SUCCESS` and `SKIPPED` are the two that are finished and refuse a retry.
 
 **GoogleGroupEntry** — one row per address on the mailing list, rebuilt from a live read.
 `matchStatus` is either derived by matching the address against `Member.email` (`MATCHED`,
@@ -378,7 +387,8 @@ concepts.
 
 One string: `"2025/2026/1"` (autumn) or `"2025/2026/2"` (spring) — start year / end year / semester
 number. Sorts correctly as a string. Helpers in `types/index.ts`: `parseSemester`, `formatSemester`
-(`"2025 ősz"`), `currentSemester`, and `semesterSchema` for validation.
+(`"2025 ősz"`) and `currentSemester`. Nothing validates the format — only `currentSemester()`
+ever writes one.
 
 ### Dates and the studio zone
 
@@ -388,11 +398,12 @@ instant to the date it falls on **at the studio**; `addDays`, `startOfWeek` (Mon
 calendar starts) and `daysBetween` are whole-day arithmetic over the `"YYYY-MM-DD"` strings that
 produces, done in UTC so no zone shift can move them.
 
-Rendering splits along the same line, and `lib/calendar.ts` is where both halves live. An instant
-is formatted **in the studio's zone**, because that is the clock on the wall. A `"YYYY-MM-DD"` is
-already a civil date with no zone of its own, so it is parsed and formatted **as UTC** — putting
-it through Budapest would shift it a day. Getting this backwards moves a Monday all-day event
-into the previous week, which is exactly the bug the split exists to prevent.
+Rendering splits along the same line. An instant is formatted **in the studio's zone**, because
+that is the clock on the wall — `formatTimestamp` and `formatTimestampDate` in `types/index.ts`
+for a stored one, `lib/calendar.ts`'s `clock` for an event. A `"YYYY-MM-DD"` is already a civil
+date with no zone of its own, so it is parsed and formatted **as UTC** — putting it through
+Budapest would shift it a day. Getting this backwards moves a Monday all-day event into the
+previous week, which is exactly the bug the split exists to prevent.
 
 ---
 
@@ -960,9 +971,10 @@ before the studio instance is upgraded into it. A scheduled run that drifts open
 with `pnpm authentik:contract --update` once the change is understood.
 
 **Renovate** (`.github/renovate.json`). Non-major npm and GitHub Actions groups and the monthly
-lockfile refresh automerge; everything else waits for a human. Majors are separate PRs, and a
-Next.js major is disabled outright — it is a migration, not a bump (see `AGENTS.md`). The config
-file does nothing on its own: the Renovate GitHub App has to be installed on the repository.
+lockfile refresh automerge; everything else waits for a human. Majors are separate PRs, which is
+what a Next.js major wants to be: a PR that says a version landed and that nobody merges on
+sight, because it is a migration rather than a bump (see `AGENTS.md`). The config file does
+nothing on its own: the Renovate GitHub App has to be installed on the repository.
 `schedule:weekends` opens PRs across both days, `automergeSchedule` merges them Monday 04:00–08:00.
 The gap is the review pass: by Monday `schedule:weekends` has stopped opening new PRs, so the set
 that merges is the set that was reviewed. An out-of-schedule run still processes branches that
@@ -1016,7 +1028,9 @@ container; routes and actions get smoke tests for auth and error mapping only.
   behaves as in production. Drupal operation tests mock only the transport, leaving `parseHtml`
   and `getFormToken` real so the scraping selectors are genuinely exercised.
 
-Coverage includes `app/**/*.ts`, `lib/**/*.ts`, `types/**/*.ts`, excluding `app/generated/**`,
+Coverage includes `app/**/*.ts`, `lib/**/*.ts`, `types/**/*.ts` and, named one by one because
+a root glob would pull in every config file, `proxy.ts` and `instrumentation.ts` — route
+protection and the Sentry bootstrap are not wiring. It excludes `app/generated/**`,
 `app/api/auth/**`, and the config/wiring files `lib/auth.ts`, `lib/auth-client.ts`,
 `lib/prisma.ts`, `lib/utils.ts`. The 100% figure is enforced, not just documented:
 `coverage.thresholds` in `vitest.config.ts` fails `pnpm test:coverage` — and so CI — on a drop.

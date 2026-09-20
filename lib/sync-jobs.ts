@@ -23,6 +23,12 @@ export const SYNC_STATUS_VARIANT: Record<SyncJobStatus, string> = {
   SKIPPED: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
 };
 
+// Execution is synchronous, so a row still PENDING or IN_PROGRESS once its request is gone
+// was interrupted — a deploy, most often — and needs the same button a failure does.
+export function isRetryableSyncJob(status: SyncJobStatus): boolean {
+  return status !== "SUCCESS" && status !== "SKIPPED";
+}
+
 export const SYNC_TARGET_LABELS: Record<SyncTarget, string> = {
   AUTHENTIK: "Authentik",
   DRUPAL: "Régi honlap",

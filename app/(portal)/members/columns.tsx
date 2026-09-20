@@ -22,7 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getInitials, STATUS_ORDER } from "@/lib/members";
-import { formatSemester } from "@/types";
+import { formatSemester, formatTimestampDate } from "@/types";
 
 export type MemberRow = Member & {
   leadershipRole: { label: string } | null;
@@ -286,7 +286,7 @@ export const archivedAtColumn: MemberColumnDef = {
     if (!archivedAt) return <span className="text-muted-foreground">—</span>;
     return (
       <span className="text-sm text-muted-foreground">
-        {new Date(archivedAt).toLocaleDateString("hu-HU")}
+        {formatTimestampDate(new Date(archivedAt))}
       </span>
     );
   },

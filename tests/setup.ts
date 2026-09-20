@@ -44,6 +44,7 @@ afterEach(async () => {
   await prisma.cardDAVToken.deleteMany();
   await prisma.appLink.deleteMany();
   await prisma.computer.deleteMany();
+  await prisma.authentikGroup.deleteMany();
   await prisma.member.deleteMany();
 });
 

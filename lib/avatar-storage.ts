@@ -1,3 +1,4 @@
+import { ValidationError } from "./errors";
 import { avatarStorage } from "./storage/factory";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -27,9 +28,15 @@ export async function saveAvatar(
   variant: "square" | "portrait",
   buffer: Buffer,
 ): Promise<string> {
-  if (!isSafeId(memberId)) throw new Error("Invalid member ID");
-  if (buffer.length > MAX_FILE_SIZE) throw new Error("File too large");
-  if (!isWebP(buffer)) throw new Error("Invalid image format");
+  if (!isSafeId(memberId)) {
+    throw new ValidationError({ memberId: "Invalid member ID" });
+  }
+  if (buffer.length > MAX_FILE_SIZE) {
+    throw new ValidationError({ file: "File too large" });
+  }
+  if (!isWebP(buffer)) {
+    throw new ValidationError({ file: "Invalid image format" });
+  }
 
   const filename = `${memberId}-${variant}.webp`;
   await avatarStorage().put(filename, buffer, "image/webp");
@@ -37,7 +44,9 @@ export async function saveAvatar(
 }
 
 export async function deleteAvatars(memberId: string): Promise<void> {
-  if (!isSafeId(memberId)) throw new Error("Invalid member ID");
+  if (!isSafeId(memberId)) {
+    throw new ValidationError({ memberId: "Invalid member ID" });
+  }
   for (const variant of ["square", "portrait"] as const) {
     await avatarStorage().remove(`${memberId}-${variant}.webp`);
   }

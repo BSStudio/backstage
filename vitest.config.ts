@@ -25,7 +25,13 @@ export default defineConfig({
         functions: 100,
         lines: 100,
       },
-      include: ["app/**/*.ts", "lib/**/*.ts", "types/**/*.ts"],
+      include: [
+        "app/**/*.ts",
+        "lib/**/*.ts",
+        "types/**/*.ts",
+        "instrumentation.ts",
+        "proxy.ts",
+      ],
       exclude: [
         "app/api/auth/**",
         "app/generated/**",

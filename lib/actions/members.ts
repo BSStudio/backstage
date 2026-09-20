@@ -147,20 +147,13 @@ export async function batchUpdateStatusAction(
 
 export async function assignRoleAction(
   memberId: string,
-  label: string,
-  authentikGroupIds: string[],
+  input: Record<string, unknown>,
 ): Promise<ActionResult> {
   const actor = await sessionActor();
   if (!actor) return UNAUTHORIZED;
 
   try {
-    const { syncErrors } = await assignRole(
-      prisma,
-      memberId,
-      label,
-      authentikGroupIds,
-      actor,
-    );
+    const { syncErrors } = await assignRole(prisma, memberId, input, actor);
     revalidateMembers(memberId);
     return { success: true, data: null, syncErrors };
   } catch (error) {

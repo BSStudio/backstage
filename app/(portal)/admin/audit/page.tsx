@@ -18,6 +18,7 @@ import prisma from "@/lib/prisma";
 import { listAuditLogs } from "@/lib/services/audit";
 import { resolvePage } from "@/lib/services/pagination";
 import { pageActor } from "@/lib/session";
+import { formatTimestamp } from "@/types";
 
 export const metadata: Metadata = { title: "Audit napló - Backstage" };
 
@@ -66,7 +67,7 @@ export default async function AuditPage({
               logs.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                    {new Date(log.createdAt).toLocaleString("hu-HU")}
+                    {formatTimestamp(new Date(log.createdAt))}
                   </TableCell>
                   <TableCell>
                     <Badge

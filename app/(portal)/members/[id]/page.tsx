@@ -29,7 +29,11 @@ import { listMemberAuditLogs } from "@/lib/services/audit";
 import { listCardDavTokens } from "@/lib/services/carddav";
 import { findMember, listAuthentikGroups } from "@/lib/services/members";
 import { pageActor } from "@/lib/session";
-import { formatSemester, MEMBERSHIP_STATUS_LABELS } from "@/types";
+import {
+  formatSemester,
+  formatTimestamp,
+  MEMBERSHIP_STATUS_LABELS,
+} from "@/types";
 import { CardDavDevices } from "./carddav-devices";
 import { MemberAvatar } from "./member-avatar";
 import { MemberEditButton } from "./member-edit-button";
@@ -195,7 +199,7 @@ export default async function MemberDetailPage({
                           {AUDIT_ACTION_LABELS[entry.action]}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(entry.createdAt).toLocaleString("hu-HU")}
+                          {formatTimestamp(new Date(entry.createdAt))}
                         </span>
                       </div>
                       {entry.status && (
@@ -255,7 +259,7 @@ export default async function MemberDetailPage({
                   {auditLogs.map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                        {new Date(log.createdAt).toLocaleString("hu-HU")}
+                        {formatTimestamp(new Date(log.createdAt))}
                       </TableCell>
                       <TableCell>
                         <Badge

@@ -29,6 +29,7 @@ import {
   revokeCardDavTokenAction,
 } from "@/lib/actions/carddav";
 import { CreateCardDavTokenSchema } from "@/lib/services/carddav-schemas";
+import { formatTimestamp } from "@/types";
 
 export interface CardDavDevice {
   id: string;
@@ -38,9 +39,7 @@ export interface CardDavDevice {
 }
 
 function formatDate(value: Date | null): string {
-  return value
-    ? new Date(value).toLocaleString("hu-HU")
-    : "Még nem volt használva";
+  return value ? formatTimestamp(new Date(value)) : "Még nem volt használva";
 }
 
 export function CardDavDevices({

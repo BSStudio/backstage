@@ -213,6 +213,28 @@ describe("orchestrateStatusChange", () => {
     expect(jobs[1].payload).toEqual({ groupUuid: "group-c" });
   });
 
+  it("leaves the old group in place when the add fails", async () => {
+    const prisma = getTestPrisma();
+    mockAddUserToGroup.mockRejectedValue(new Error("group not found"));
+
+    const results = await orchestrateStatusChange(
+      prisma,
+      MEMBER_ID,
+      "MEMBER_CANDIDATE",
+      "MEMBER",
+    );
+
+    expect(results).toEqual([{ success: false, error: "group not found" }]);
+    expect(mockRemoveUserFromGroup).not.toHaveBeenCalled();
+
+    const jobs = await prisma.syncJob.findMany({
+      where: { memberId: MEMBER_ID },
+    });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].operation).toBe("ADD_TO_GROUP");
+    expect(jobs[0].status).toBe("FAILED");
+  });
+
   it("skips when source and target map to the same group (ACTIVE_ALUMNI → ALUMNI)", async () => {
     const prisma = getTestPrisma();
 

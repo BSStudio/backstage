@@ -17,12 +17,14 @@ import { resolvePage } from "@/lib/services/pagination";
 import { listSyncJobs } from "@/lib/services/sync-jobs";
 import { pageActor } from "@/lib/session";
 import {
+  isRetryableSyncJob,
   SYNC_OPERATION_LABELS,
   SYNC_STATUS_LABELS,
   SYNC_STATUS_VARIANT,
   SYNC_TARGET_LABELS,
 } from "@/lib/sync-jobs";
 import { isWebsiteWebhookConfigured } from "@/lib/website/webhook";
+import { formatTimestamp } from "@/types";
 import { FullSyncButton } from "./full-sync-button";
 import { RetryButton } from "./retry-button";
 
@@ -111,10 +113,10 @@ export default async function SyncJobsPage({
                     {formatResult(job.result)}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {job.updatedAt.toLocaleString("hu-HU")}
+                    {formatTimestamp(job.updatedAt)}
                   </TableCell>
                   <TableCell>
-                    {canRetry && job.status === "FAILED" && (
+                    {canRetry && isRetryableSyncJob(job.status) && (
                       <RetryButton jobId={job.id} />
                     )}
                   </TableCell>

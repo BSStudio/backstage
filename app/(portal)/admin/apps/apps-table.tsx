@@ -68,6 +68,7 @@ export function AppsTable({
         toast.error(result.error);
         return;
       }
+      toast.success("Sorrend mentve");
       router.refresh();
     });
   }

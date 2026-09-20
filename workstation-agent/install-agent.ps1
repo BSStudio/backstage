@@ -105,8 +105,12 @@ New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 # The ACL is the real boundary around the credential, so it is set before the secret lands.
 # SIDs rather than names: "Administrators" is localised, S-1-5-32-544 is not.
 # Ownership first: whoever created the directory keeps WRITE_DAC over it otherwise.
+# $ErrorActionPreference does not cover a native exit code, and a directory under ProgramData
+# inherits Users:(RX) — so an unchecked failure here leaves the secret readable by anyone.
 icacls $InstallDir /setowner '*S-1-5-32-544' | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Could not take ownership of $InstallDir." }
 icacls $InstallDir /inheritance:r /grant '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Could not restrict access to $InstallDir." }
 
 Copy-Item -Path (Join-Path $PSScriptRoot 'backstage-agent.ps1') -Destination $InstallDir -Force
 

@@ -191,9 +191,12 @@ describe("POST /api/members/[id]/avatar", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 when saveAvatar throws", async () => {
+  it("returns 400 when saveAvatar rejects the image", async () => {
+    const { ValidationError } = await import("@/lib/errors");
     mockSession({ id: MEMBER_ID, role: "MEMBER" });
-    mockSaveAvatar.mockRejectedValueOnce(new Error("Invalid image format"));
+    mockSaveAvatar.mockRejectedValueOnce(
+      new ValidationError({ file: "Invalid image format" }),
+    );
     const { POST } = await import("@/app/api/members/[id]/avatar/route");
     const res = await POST(
       makePostReq(MEMBER_ID, { square: dummyBlob, portrait: dummyBlob }),
@@ -201,7 +204,22 @@ describe("POST /api/members/[id]/avatar", () => {
     );
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toBe("Invalid image format");
+    expect(body.error).toEqual({ file: "Invalid image format" });
+  });
+
+  it("returns 500 without the backend's message when storage fails", async () => {
+    mockSession({ id: MEMBER_ID, role: "MEMBER" });
+    mockSaveAvatar.mockRejectedValueOnce(
+      new Error("EACCES: permission denied, open '/app/storage/avatars/x'"),
+    );
+    const { POST } = await import("@/app/api/members/[id]/avatar/route");
+    const res = await POST(
+      makePostReq(MEMBER_ID, { square: dummyBlob, portrait: dummyBlob }),
+      makeParams(MEMBER_ID),
+    );
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("Internal server error");
   });
 
   it("updates member record with avatar URLs", async () => {
