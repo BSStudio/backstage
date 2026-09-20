@@ -615,6 +615,10 @@ describe("createMember", () => {
     expect(member.university).toBeNull();
     expect(member.major).toBeNull();
     expect(member.dormRoom).toBeNull();
+
+    expect(mockOrchestrateCreateDrupalUser.mock.calls[0][2]).toMatchObject({
+      nickname: "",
+    });
   });
 
   it("ignores unknown fields in input", async () => {
@@ -1082,8 +1086,7 @@ describe("updateMember", () => {
     await updateMember(prisma, MEMBER_ID, { nickname: "" }, ACTOR);
 
     expect(mockOrchestrateUpdateDrupalUser.mock.calls[0][2]).toEqual({
-      // Drupal has no nickname fallback, so the first name stands in.
-      nickname: "Target",
+      nickname: "",
     });
   });
 

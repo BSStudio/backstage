@@ -204,7 +204,7 @@ export async function createMember(
   const drupalResult = await orchestrateCreateDrupalUser(prisma, member.id, {
     username: drupalUsername,
     fullname: `${data.lastName} ${data.firstName}`.trim(),
-    nickname: data.nickname ?? data.firstName,
+    nickname: data.nickname ?? "",
     email: data.email,
     mobile: data.mobile,
     joinedSemester,
@@ -466,7 +466,7 @@ export async function updateMember(
     if (diff.firstName || diff.lastName) {
       fields.fullname = `${updated.lastName} ${updated.firstName}`.trim();
     }
-    if (diff.nickname) fields.nickname = updated.nickname ?? updated.firstName;
+    if (diff.nickname) fields.nickname = updated.nickname ?? "";
     if (diff.email) fields.email = updated.email;
     if (diff.mobile) fields.mobile = updated.mobile ?? "";
     if (diff.status) fields.position = getDrupalStatusLabel(updated.status);
