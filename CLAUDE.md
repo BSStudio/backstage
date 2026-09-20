@@ -1016,7 +1016,9 @@ container; routes and actions get smoke tests for auth and error mapping only.
   behaves as in production. Drupal operation tests mock only the transport, leaving `parseHtml`
   and `getFormToken` real so the scraping selectors are genuinely exercised.
 
-Coverage includes `app/**/*.ts`, `lib/**/*.ts`, `types/**/*.ts`, excluding `app/generated/**`,
+Coverage includes `app/**/*.ts`, `lib/**/*.ts`, `types/**/*.ts` and, named one by one because
+a root glob would pull in every config file, `proxy.ts` and `instrumentation.ts` — route
+protection and the Sentry bootstrap are not wiring. It excludes `app/generated/**`,
 `app/api/auth/**`, and the config/wiring files `lib/auth.ts`, `lib/auth-client.ts`,
 `lib/prisma.ts`, `lib/utils.ts`. The 100% figure is enforced, not just documented:
 `coverage.thresholds` in `vitest.config.ts` fails `pnpm test:coverage` — and so CI — on a drop.
