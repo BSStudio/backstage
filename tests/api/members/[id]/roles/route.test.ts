@@ -71,6 +71,10 @@ beforeEach(async () => {
       drupalUserId: "9002",
     },
   });
+
+  await prisma.authentikGroup.create({
+    data: { authentikGroupId: "group-1", displayName: "Egy" },
+  });
 });
 
 function reqWithParams(id: string) {

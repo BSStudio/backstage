@@ -13,6 +13,7 @@ import {
   ensureCanModifyMember,
 } from "@/lib/permissions";
 import {
+  AssignRoleSchema,
   CreateMemberSchema,
   updateMemberSchema,
 } from "@/lib/services/member-schemas";
@@ -739,17 +740,32 @@ export async function batchUpdateStatus(
 export async function assignRole(
   prisma: PrismaClient,
   memberId: string,
-  label: string,
-  authentikGroupIds: string[],
+  input: unknown,
   actor: Actor,
 ) {
   ensureCanManageMembers(actor);
+
+  const parsed = AssignRoleSchema.safeParse(input);
+  if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
+
+  const { label, authentikGroupIds } = parsed.data;
 
   const member = await prisma.member.findUnique({
     where: { id: memberId },
     include: { leadershipRole: true },
   });
   if (!member) throw new NotFoundError();
+
+  const registered = await prisma.authentikGroup.findMany({
+    where: { authentikGroupId: { in: authentikGroupIds } },
+    select: { authentikGroupId: true },
+  });
+  const known = new Set(registered.map((g) => g.authentikGroupId));
+  if (authentikGroupIds.some((id) => !known.has(id))) {
+    throw new ValidationError({
+      authentikGroupIds: "Ismeretlen Authentik csoport",
+    });
+  }
 
   let toAdd: string[] = [];
   let toRemove: string[] = [];

@@ -1909,10 +1909,55 @@ describe("batchUpdateStatus", () => {
 // ─── assignRole ─────────────────────────────────────────────────────────────
 
 describe("assignRole", () => {
+  beforeEach(async () => {
+    await getTestPrisma().authentikGroup.createMany({
+      data: [
+        { authentikGroupId: "group-1", displayName: "Egy" },
+        { authentikGroupId: "group-2", displayName: "Kettő" },
+        { authentikGroupId: "group-3", displayName: "Három" },
+      ],
+    });
+  });
+
+  it("rejects a group outside the registry", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      assignRole(
+        prisma,
+        MEMBER_ID,
+        { label: "Lead", authentikGroupIds: ["group-1", "not-registered"] },
+        ACTOR,
+      ),
+    ).rejects.toThrow(ValidationError);
+
+    expect(
+      await prisma.leadershipRole.findUnique({
+        where: { memberId: MEMBER_ID },
+      }),
+    ).toBeNull();
+    expect(mockOrchestrateAddToGroup).not.toHaveBeenCalled();
+  });
+
+  it("rejects a blank label", async () => {
+    await expect(
+      assignRole(
+        getTestPrisma(),
+        MEMBER_ID,
+        { label: "   ", authentikGroupIds: [] },
+        ACTOR,
+      ),
+    ).rejects.toThrow(ValidationError);
+  });
+
   it("throws NotFoundError for non-existent member", async () => {
     const prisma = getTestPrisma();
     await expect(
-      assignRole(prisma, "non-existent", "Lead", [], ACTOR),
+      assignRole(
+        prisma,
+        "non-existent",
+        { label: "Lead", authentikGroupIds: [] },
+        ACTOR,
+      ),
     ).rejects.toThrow(NotFoundError);
   });
 
@@ -1921,8 +1966,7 @@ describe("assignRole", () => {
     await assignRole(
       prisma,
       MEMBER_ID,
-      "Főszerkesztő",
-      ["group-1", "group-2"],
+      { label: "Főszerkesztő", authentikGroupIds: ["group-1", "group-2"] },
       ACTOR,
     );
 
@@ -1969,8 +2013,7 @@ describe("assignRole", () => {
     await assignRole(
       prisma,
       MEMBER_ID,
-      "Főszerkesztő",
-      ["group-1", "group-2"],
+      { label: "Főszerkesztő", authentikGroupIds: ["group-1", "group-2"] },
       ACTOR,
     );
 
@@ -2017,8 +2060,7 @@ describe("assignRole", () => {
     await assignRole(
       prisma,
       MEMBER_ID,
-      "Főszerkesztő",
-      ["group-1", "group-2"],
+      { label: "Főszerkesztő", authentikGroupIds: ["group-1", "group-2"] },
       ACTOR,
     );
 
@@ -2046,8 +2088,7 @@ describe("assignRole", () => {
     await assignRole(
       prisma,
       MEMBER_ID,
-      "Főszerkesztő",
-      ["group-2", "group-1"],
+      { label: "Főszerkesztő", authentikGroupIds: ["group-2", "group-1"] },
       ACTOR,
     );
 
@@ -2070,8 +2111,7 @@ describe("assignRole", () => {
     await assignRole(
       prisma,
       MEMBER_ID,
-      "Főszerkesztő",
-      ["group-1", "group-2"],
+      { label: "Főszerkesztő", authentikGroupIds: ["group-1", "group-2"] },
       ACTOR,
     );
 
@@ -2115,8 +2155,7 @@ describe("assignRole", () => {
     await assignRole(
       prisma,
       MEMBER_ID,
-      "Főszerkesztő",
-      ["group-1", "group-3"],
+      { label: "Főszerkesztő", authentikGroupIds: ["group-1", "group-3"] },
       ACTOR,
     );
 
@@ -2160,8 +2199,7 @@ describe("assignRole", () => {
     const result = await assignRole(
       prisma,
       MEMBER_ID,
-      "Lead",
-      ["group-1"],
+      { label: "Lead", authentikGroupIds: ["group-1"] },
       ACTOR,
     );
 
@@ -2170,7 +2208,12 @@ describe("assignRole", () => {
 
   it("adds member to common Leadership group on new role assignment", async () => {
     const prisma = getTestPrisma();
-    await assignRole(prisma, MEMBER_ID, "Lead", ["group-1"], ACTOR);
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      { label: "Lead", authentikGroupIds: ["group-1"] },
+      ACTOR,
+    );
 
     const calledGroupIds = mockOrchestrateAddToGroup.mock.calls.map(
       (call) => call[2],
@@ -2189,7 +2232,12 @@ describe("assignRole", () => {
       },
     });
 
-    await assignRole(prisma, MEMBER_ID, "Főszerkesztő", ["group-2"], ACTOR);
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      { label: "Főszerkesztő", authentikGroupIds: ["group-2"] },
+      ACTOR,
+    );
 
     const calledGroupIds = mockOrchestrateAddToGroup.mock.calls.map(
       (call) => call[2],
@@ -2492,7 +2540,12 @@ describe("member management guards", () => {
 
   it("rejects a member assigning a leadership role", async () => {
     await expect(
-      assignRole(getTestPrisma(), MEMBER_ID, "Stúdióvezető", [], MEMBER_ACTOR),
+      assignRole(
+        getTestPrisma(),
+        MEMBER_ID,
+        { label: "Stúdióvezető", authentikGroupIds: [] },
+        MEMBER_ACTOR,
+      ),
     ).rejects.toThrow(ForbiddenError);
   });
 
@@ -2659,7 +2712,12 @@ describe("website sync", () => {
   it("pushes when a position is assigned and when it is removed", async () => {
     const prisma = getTestPrisma();
 
-    await assignRole(prisma, MEMBER_ID, "Főszerkesztő", [], ACTOR);
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      { label: "Főszerkesztő", authentikGroupIds: [] },
+      ACTOR,
+    );
     expect(pushedIds()).toEqual([MEMBER_ID]);
 
     await removeRole(prisma, MEMBER_ID, ACTOR);
@@ -2668,10 +2726,20 @@ describe("website sync", () => {
 
   it("does not push when an identical role assignment changes nothing", async () => {
     const prisma = getTestPrisma();
-    await assignRole(prisma, MEMBER_ID, "Főszerkesztő", [], ACTOR);
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      { label: "Főszerkesztő", authentikGroupIds: [] },
+      ACTOR,
+    );
     mockOrchestrateSyncWebsiteMember.mockClear();
 
-    await assignRole(prisma, MEMBER_ID, "Főszerkesztő", [], ACTOR);
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      { label: "Főszerkesztő", authentikGroupIds: [] },
+      ACTOR,
+    );
 
     expect(mockOrchestrateSyncWebsiteMember).not.toHaveBeenCalled();
   });

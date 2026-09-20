@@ -375,7 +375,10 @@ describe("assignRoleAction", () => {
   it("returns error when not authenticated", async () => {
     mockGetSession.mockResolvedValue(null);
     const { assignRoleAction } = await import("@/lib/actions/members");
-    const result = await assignRoleAction("m-1", "Főszerkesztő", []);
+    const result = await assignRoleAction("m-1", {
+      label: "Főszerkesztő",
+      authentikGroupIds: [],
+    });
     expect(result).toEqual({
       success: false,
       error: "Jogosulatlan hozzáférés",
@@ -387,7 +390,10 @@ describe("assignRoleAction", () => {
     mockGetSession.mockResolvedValue(session("MEMBER"));
     mockAssignRole.mockRejectedValue(new ForbiddenError());
     const { assignRoleAction } = await import("@/lib/actions/members");
-    const result = await assignRoleAction("m-1", "Főszerkesztő", []);
+    const result = await assignRoleAction("m-1", {
+      label: "Főszerkesztő",
+      authentikGroupIds: [],
+    });
     expect(result).toEqual({
       success: false,
       error: "Hozzáférés megtagadva",
@@ -399,7 +405,10 @@ describe("assignRoleAction", () => {
     mockGetSession.mockResolvedValue(session("LEADER"));
     mockAssignRole.mockRejectedValue(new NotFoundError());
     const { assignRoleAction } = await import("@/lib/actions/members");
-    const result = await assignRoleAction("bad-id", "Főszerkesztő", []);
+    const result = await assignRoleAction("bad-id", {
+      label: "Főszerkesztő",
+      authentikGroupIds: [],
+    });
     expect(result).toEqual({ success: false, error: "Nem található" });
   });
 
@@ -407,7 +416,10 @@ describe("assignRoleAction", () => {
     mockGetSession.mockResolvedValue(session("LEADER"));
     mockAssignRole.mockResolvedValue({ syncErrors: [] });
     const { assignRoleAction } = await import("@/lib/actions/members");
-    const result = await assignRoleAction("m-1", "Főszerkesztő", ["group-1"]);
+    const result = await assignRoleAction("m-1", {
+      label: "Főszerkesztő",
+      authentikGroupIds: ["group-1"],
+    });
     expect(result).toEqual({ success: true, data: null, syncErrors: [] });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/members/m-1");
