@@ -594,6 +594,27 @@ describe("createMember", () => {
     ).rejects.toThrow(ValidationError);
   });
 
+  it("refuses a duplicate email before touching Authentik", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      createMember(
+        prisma,
+        {
+          firstName: "Another",
+          lastName: "Target",
+          email: "target@test.com",
+          mobile: "+36301234567",
+        },
+        ACTOR,
+      ),
+    ).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { email: "Ezzel az email-címmel már van tag" },
+    });
+
+    expect(mockCreateAuthentikUser).not.toHaveBeenCalled();
+  });
+
   it("stores null for empty optional fields", async () => {
     const prisma = getTestPrisma();
     const { member } = await createMember(

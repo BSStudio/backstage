@@ -141,6 +141,10 @@ export async function createMember(
   const data = parsed.data;
   const status: MembershipStatus = "MEMBER_CANDIDATE_CANDIDATE";
 
+  if (await prisma.member.count({ where: { email: data.email } })) {
+    throw new ValidationError({ email: "Ezzel az email-címmel már van tag" });
+  }
+
   const authentikUser = await createAuthentikUser({
     firstName: data.firstName,
     lastName: data.lastName,
