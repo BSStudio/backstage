@@ -196,8 +196,13 @@ The scripts refuse to run against a database whose host is not local unless pass
   `docker-compose.dev.yml` is just the dev Postgres
 - `.github/workflows/` — `ci.yml`, `docker-publish.yml`, `authentik-contract.yml`, all sharing the
   `.github/actions/setup` composite: `pnpm/setup`, which reads the pnpm version from
-  `packageManager` and takes the runtime as an input, so `.nvmrc` is read into one first rather
-  than pointed at. It needs pnpm 11 or newer. `.github/renovate.json` for dependency updates
+  `packageManager` and is pointed at `.nvmrc` for the runtime. Named rather than left to the
+  action's own detection, which falls back through `.node-version`, `.nvmrc` and
+  `.tool-versions` and defers to `devEngines.runtime` — so adding any of those would silently
+  move CI onto another Node. It installs too: `require-lockfile` is what makes a *missing*
+  lockfile fail the job, which a frozen install does not — pnpm resolves from the registry,
+  writes one and exits 0. It needs pnpm 11 or newer. `.github/renovate.json` for dependency
+  updates
 
 ---
 
