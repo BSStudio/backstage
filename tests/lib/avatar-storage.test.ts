@@ -51,23 +51,30 @@ describe("saveAvatar", () => {
   });
 
   it("rejects invalid member ID", async () => {
-    await expect(saveAvatar("../etc", "square", makeWebP())).rejects.toThrow(
-      "Invalid member ID",
-    );
+    await expect(
+      saveAvatar("../etc", "square", makeWebP()),
+    ).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { memberId: "Invalid member ID" },
+    });
     expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
   it("rejects ID with spaces", async () => {
-    await expect(saveAvatar("has space", "square", makeWebP())).rejects.toThrow(
-      "Invalid member ID",
-    );
+    await expect(
+      saveAvatar("has space", "square", makeWebP()),
+    ).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { memberId: "Invalid member ID" },
+    });
   });
 
   it("rejects oversized buffer", async () => {
     const buf = makeWebP(5 * 1024 * 1024 + 1);
-    await expect(saveAvatar("abc-123", "square", buf)).rejects.toThrow(
-      "File too large",
-    );
+    await expect(saveAvatar("abc-123", "square", buf)).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { file: "File too large" },
+    });
     expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
@@ -78,18 +85,20 @@ describe("saveAvatar", () => {
 
   it("rejects non-WebP buffer", async () => {
     const buf = Buffer.from("not a webp image at all");
-    await expect(saveAvatar("abc-123", "square", buf)).rejects.toThrow(
-      "Invalid image format",
-    );
+    await expect(saveAvatar("abc-123", "square", buf)).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { file: "Invalid image format" },
+    });
     expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
   it("rejects buffer too short for magic bytes", async () => {
     const buf = Buffer.alloc(8);
     buf.write("RIFF", 0);
-    await expect(saveAvatar("abc-123", "square", buf)).rejects.toThrow(
-      "Invalid image format",
-    );
+    await expect(saveAvatar("abc-123", "square", buf)).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { file: "Invalid image format" },
+    });
   });
 
   it("accepts IDs with underscores and hyphens", async () => {
@@ -109,9 +118,10 @@ describe("deleteAvatars", () => {
   });
 
   it("rejects invalid member ID", async () => {
-    await expect(deleteAvatars("../../etc")).rejects.toThrow(
-      "Invalid member ID",
-    );
+    await expect(deleteAvatars("../../etc")).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { memberId: "Invalid member ID" },
+    });
     expect(mockUnlink).not.toHaveBeenCalled();
   });
 

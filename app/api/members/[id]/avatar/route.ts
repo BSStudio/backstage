@@ -60,8 +60,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       saveAvatar(id, "portrait", portraitBuffer),
     ]);
   } catch (error) {
-    const message = (error as Error).message;
-    return NextResponse.json({ error: message }, { status: 400 });
+    return mapServiceError(error);
   }
 
   try {
