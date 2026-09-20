@@ -6,6 +6,7 @@ import { canAdminister, canViewAdminArea } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 import { getGoogleGroupReconciliation } from "@/lib/services/google-group";
 import { pageActor } from "@/lib/session";
+import { formatTimestamp } from "@/types";
 import { EntriesTable } from "./entries-table";
 import { MissingTable } from "./missing-table";
 import { RefreshButton } from "./refresh-button";
@@ -31,7 +32,7 @@ export default async function GoogleGroupPage() {
           </p>
           <p className="text-muted-foreground text-sm">
             {lastSyncedAt
-              ? `Utoljára beolvasva: ${lastSyncedAt.toLocaleString("hu-HU")}`
+              ? `Utoljára beolvasva: ${formatTimestamp(lastSyncedAt)}`
               : "A lista még nem volt beolvasva."}
           </p>
         </div>

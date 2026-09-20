@@ -23,6 +23,7 @@ import {
   SYNC_TARGET_LABELS,
 } from "@/lib/sync-jobs";
 import { isWebsiteWebhookConfigured } from "@/lib/website/webhook";
+import { formatTimestamp } from "@/types";
 import { FullSyncButton } from "./full-sync-button";
 import { RetryButton } from "./retry-button";
 
@@ -111,7 +112,7 @@ export default async function SyncJobsPage({
                     {formatResult(job.result)}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {job.updatedAt.toLocaleString("hu-HU")}
+                    {formatTimestamp(job.updatedAt)}
                   </TableCell>
                   <TableCell>
                     {canRetry && job.status === "FAILED" && (

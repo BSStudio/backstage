@@ -150,6 +150,38 @@ export function civilDate(
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+const timestampFormats = {
+  datetime: { dateStyle: "short", timeStyle: "medium" },
+  date: { dateStyle: "short" },
+} as const satisfies Record<string, Intl.DateTimeFormatOptions>;
+
+const timestampFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function formatInStudioZone(
+  instant: Date,
+  format: keyof typeof timestampFormats,
+): string {
+  let formatter = timestampFormatters.get(format);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("hu-HU", {
+      timeZone: STUDIO_TIME_ZONE,
+      ...timestampFormats[format],
+    });
+    timestampFormatters.set(format, formatter);
+  }
+  return formatter.format(instant);
+}
+
+/** "2026. 09. 21. 14:30:05" — a stored instant on the studio's clock. */
+export function formatTimestamp(instant: Date): string {
+  return formatInStudioZone(instant, "datetime");
+}
+
+/** "2026. 09. 21." — the date an instant falls on at the studio. */
+export function formatTimestampDate(instant: Date): string {
+  return formatInStudioZone(instant, "date");
+}
+
 /** Shift a "YYYY-MM-DD" by whole days. UTC arithmetic, so no zone shift can move it. */
 export function addDays(date: string, days: number): string {
   const shifted = new Date(`${date}T00:00:00Z`);

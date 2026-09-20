@@ -6,6 +6,8 @@ import {
   daysBetween,
   deriveUsername,
   formatSemester,
+  formatTimestamp,
+  formatTimestampDate,
   hasAuthentikAccount,
   isAlumniStatus,
   LOCAL_MEMBER_ID_PREFIX,
@@ -119,6 +121,33 @@ describe("civilDate", () => {
     );
     expect(civilDate(new Date("2026-09-04T12:00:00Z"), "Asia/Tokyo")).toBe(
       "2026-09-04",
+    );
+  });
+});
+
+// ─── formatTimestamp ─────────────────────────────────────────────────────────
+
+describe("formatTimestamp", () => {
+  it("renders an instant on the studio clock, not the server's", () => {
+    // 22:30 UTC is already half past midnight the next day in Budapest.
+    expect(formatTimestamp(new Date("2026-06-01T22:30:05Z"))).toBe(
+      "2026. 06. 02. 0:30:05",
+    );
+  });
+
+  it("follows the zone across the winter offset", () => {
+    expect(formatTimestamp(new Date("2026-01-15T23:10:00Z"))).toBe(
+      "2026. 01. 16. 0:10:00",
+    );
+  });
+});
+
+// ─── formatTimestampDate ─────────────────────────────────────────────────────
+
+describe("formatTimestampDate", () => {
+  it("renders the date the instant falls on at the studio", () => {
+    expect(formatTimestampDate(new Date("2026-06-01T22:30:05Z"))).toBe(
+      "2026. 06. 02.",
     );
   });
 });
