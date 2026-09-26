@@ -899,6 +899,17 @@ wholesale; `user` is reduced to `id` + `username`; request headers, cookies and 
 entirely. Tags are deliberately **not** scrubbed — every tag value is written by our own code, and
 the phone matcher would otherwise eat identifiers that are long runs of digits.
 
+**And nothing is collected that the scrubber would only have to drop.** The SDK collects every
+`dataCollection` category by default, so the restrictive baseline is spelled out rather than
+inherited — `scrub.ts` is the second line of defence, not the only one. `userInfo`, `cookies` and
+`httpHeaders` are off and `httpBodies` is none; `urlQueryParams` keeps the query string but denies
+any key containing `name`, which is how a member's own name arrives at
+`/api/usernames/suggest?firstName=…&lastName=…` — deny terms match as case-insensitive substrings, so
+the one term covers every spelling. `databaseQueryData` is pinned for a different reason: it reaches
+nothing while tracing is off, and the pin is what keeps enabling tracing from shipping the values
+Prisma binds. The remaining span-scoped categories (`queues`, `genAI`, `graphQL`) have no integration
+behind them at all and are left alone.
+
 **Release tagging** reuses `NEXT_PUBLIC_APP_VERSION` from `next.config.ts` (git tag + short hash, or
 whatever the image build passes in), so an event points at a known build. Source map upload is
 wired through `withSentryConfig` but switches itself off unless `SENTRY_AUTH_TOKEN` is present —
