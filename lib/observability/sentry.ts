@@ -27,7 +27,18 @@ export function sentryInitOptions() {
       process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT || process.env.NODE_ENV,
     // No `tracesSampleRate`: Sentry reads 0 as "tracing on, sample nothing",
     // which still builds spans and propagates trace headers.
-    sendDefaultPii: false,
+
+    // All of it is collected by default. `databaseQueryData` reaches nothing while tracing
+    // is off, and is pinned so turning tracing on cannot start sending bound values.
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: false,
+      httpBodies: [],
+      databaseQueryData: false,
+      // Matched as a substring: `/api/usernames/suggest` takes first and last name.
+      urlQueryParams: { deny: ["name"] },
+    },
     beforeSend(event: ErrorEvent) {
       // Causes are prepended, so the thrown error is the last value, not the first.
       const type = event.exception?.values?.at(-1)?.type;

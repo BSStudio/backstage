@@ -43,7 +43,7 @@ describe("sentryInitOptions", () => {
     expect(options.enabled).toBe(false);
   });
 
-  it("tags the release from the build version and never sends default PII", () => {
+  it("tags the release from the build version and collects no PII", () => {
     process.env.NEXT_PUBLIC_SENTRY_DSN = "https://key@sentry.example/1";
     process.env.NEXT_PUBLIC_APP_VERSION = "v1.2.3-abc1234";
     process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT = "production";
@@ -53,7 +53,14 @@ describe("sentryInitOptions", () => {
     expect(options.enabled).toBe(true);
     expect(options.release).toBe("v1.2.3-abc1234");
     expect(options.environment).toBe("production");
-    expect(options.sendDefaultPii).toBe(false);
+    expect(options.dataCollection).toEqual({
+      userInfo: false,
+      cookies: false,
+      httpHeaders: false,
+      httpBodies: [],
+      databaseQueryData: false,
+      urlQueryParams: { deny: ["name"] },
+    });
     // Not 0 — Sentry reads 0 as "tracing on, sample nothing".
     expect(options).not.toHaveProperty("tracesSampleRate");
   });
