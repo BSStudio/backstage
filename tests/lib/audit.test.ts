@@ -7,7 +7,7 @@ import {
 
 describe("AUDIT_ACTION_LABELS", () => {
   it("has a Hungarian label for every audit action", () => {
-    expect(Object.keys(AUDIT_ACTION_LABELS)).toHaveLength(18);
+    expect(Object.keys(AUDIT_ACTION_LABELS)).toHaveLength(22);
     expect(AUDIT_ACTION_LABELS.MEMBER_CREATED).toBe("Létrehozás");
     expect(AUDIT_ACTION_LABELS.STATUS_CHANGED).toBe("Státusz módosítás");
     expect(AUDIT_ACTION_LABELS.ROLE_ASSIGNED).toBe("Pozíció hozzárendelés");
@@ -27,12 +27,20 @@ describe("AUDIT_ACTION_LABELS", () => {
     expect(AUDIT_ACTION_LABELS.APP_LINK_UPDATED).toBe("Alkalmazás módosítás");
     expect(AUDIT_ACTION_LABELS.APP_LINK_DELETED).toBe("Alkalmazás törlés");
     expect(AUDIT_ACTION_LABELS.COMPUTER_DELETED).toBe("Számítógép törlés");
+    expect(AUDIT_ACTION_LABELS.SHORT_LINK_CREATED).toBe(
+      "Rövid link létrehozás",
+    );
+    expect(AUDIT_ACTION_LABELS.SHORT_LINK_UPDATED).toBe("Rövid link módosítás");
+    expect(AUDIT_ACTION_LABELS.SHORT_LINK_DELETED).toBe("Rövid link törlés");
+    expect(AUDIT_ACTION_LABELS.SHORT_LINK_FULL_SYNC).toBe(
+      "Rövid linkek újrapublikálása",
+    );
   });
 });
 
 describe("AUDIT_ACTION_VARIANT", () => {
   it("has a Tailwind class string for every audit action", () => {
-    expect(Object.keys(AUDIT_ACTION_VARIANT)).toHaveLength(18);
+    expect(Object.keys(AUDIT_ACTION_VARIANT)).toHaveLength(22);
     for (const val of Object.values(AUDIT_ACTION_VARIANT)) {
       expect(val).toContain("bg-");
       expect(val).toContain("text-");

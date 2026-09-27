@@ -64,6 +64,10 @@ enum AuditAction {
   APP_LINK_UPDATED
   APP_LINK_DELETED
   COMPUTER_DELETED
+  SHORT_LINK_CREATED
+  SHORT_LINK_UPDATED
+  SHORT_LINK_DELETED
+  SHORT_LINK_FULL_SYNC
 }
 
 enum GoogleGroupMatchStatus {
@@ -256,4 +260,21 @@ model Computer {
   metadata    Json
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+// ─── Short Links ──────────────────────────────────────────────────────────────
+
+// A short link. The redirect is served by the Cloudflare Worker from Workers KV, not by this app.
+model ShortLink {
+  // What the URL names, so it is the key rather than a generated id — same reason as Computer.
+  // Lowercased on the way in, so one slug cannot exist under two spellings.
+  slug         String    @id
+  url          String
+  note         String?
+  // A snapshot rather than a relation: a link outlives the member row that created it.
+  createdById  String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  // Null, or older than updatedAt, means KV does not hold the current target.
+  publishedAt  DateTime?
 }

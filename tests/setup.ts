@@ -43,6 +43,7 @@ afterEach(async () => {
   await prisma.googleGroupEntry.deleteMany();
   await prisma.cardDAVToken.deleteMany();
   await prisma.appLink.deleteMany();
+  await prisma.shortLink.deleteMany();
   await prisma.computer.deleteMany();
   await prisma.authentikGroup.deleteMany();
   await prisma.member.deleteMany();
