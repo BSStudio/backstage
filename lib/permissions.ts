@@ -24,6 +24,10 @@ export function canAdminister(role: UserRole | undefined): boolean {
   return role === "ADMIN";
 }
 
+export function canManageShortLinks(role: UserRole | undefined): boolean {
+  return role === "ADMIN" || role === "LEADER";
+}
+
 export function canModifyMember(actor: Actor, targetId: string): boolean {
   return actor.id === targetId || canManageMembers(actor.role);
 }
@@ -38,6 +42,10 @@ export function ensureCanViewAdminArea(actor: Actor): void {
 
 export function ensureCanAdminister(actor: Actor): void {
   if (!canAdminister(actor.role)) throw new ForbiddenError();
+}
+
+export function ensureCanManageShortLinks(actor: Actor): void {
+  if (!canManageShortLinks(actor.role)) throw new ForbiddenError();
 }
 
 export function ensureCanModifyMember(actor: Actor, targetId: string): void {
