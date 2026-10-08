@@ -40,6 +40,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# rendered output of scripts/email-preview.ts
+/.email-preview.html
+/.email-preview.txt
+
 # local developer identity and real Authentik group UUIDs used by scripts/seed-dev.ts
 /.dev-user.json
 /.dev-authentik-groups.json

@@ -40,6 +40,9 @@ const nextConfig: NextConfig = {
   images: {
     localPatterns: [{ pathname: "/avatars/**" }],
   },
+  // nodemailer resolves its transports and its well-known service list at runtime, which
+  // the bundler cannot follow.
+  serverExternalPackages: ["nodemailer"],
   // The tracer copies @swc/helpers' `cjs/` half, but Node 24 resolves the package's
   // `module-sync` export to `esm/` — without this the standalone server dies on boot.
   outputFileTracingIncludes: {
