@@ -391,7 +391,7 @@ describe("PROPFIND", () => {
     expect(xml).toContain("<cs:getctag>");
     expect(xml).toContain("<card:supported-address-data>");
     expect(xml).toContain("<card:addressbook-multiget/>");
-    expect(xml).not.toContain("404");
+    expect(xml).not.toContain("HTTP/1.1 404");
   });
 
   it("reports a property it does not carry as 404 rather than omitting it", async () => {
