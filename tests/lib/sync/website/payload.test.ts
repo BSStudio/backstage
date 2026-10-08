@@ -28,7 +28,7 @@ describe("buildWebsiteMember", () => {
       nickname: "Jani",
       avatarUrl: null,
       membershipStatus: "MEMBER",
-      isLeadership: false,
+      leadershipRole: null,
       joinedSemester: "2025/2026/1",
     });
   });
@@ -52,13 +52,13 @@ describe("buildWebsiteMember", () => {
     ).toThrow("Missing APP_URL");
   });
 
-  it("reports leadership from the role's presence", () => {
+  it("sends the role's own label, which the website prints beside the name", () => {
     const built = buildWebsiteMember({
       ...MEMBER,
-      leadershipRole: { id: "role-1" },
+      leadershipRole: { label: "Főszerkesztő" },
     });
 
-    expect(built.isLeadership).toBe(true);
+    expect(built.leadershipRole).toBe("Főszerkesztő");
   });
 
   it("keeps a missing nickname null rather than falling back to a name", () => {

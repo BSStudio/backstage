@@ -90,7 +90,7 @@ describe("orchestrateSyncWebsiteMember", () => {
               nickname: "Jani",
               avatarUrl: null,
               membershipStatus: "MEMBER",
-              isLeadership: false,
+              leadershipRole: null,
               joinedSemester: "2025/2026/1",
             },
           },
@@ -122,7 +122,7 @@ describe("orchestrateSyncWebsiteMember", () => {
     );
   });
 
-  it("carries the leadership flag when the member holds a role", async () => {
+  it("carries the role label when the member holds one", async () => {
     const prisma = getTestPrisma();
     await prisma.leadershipRole.create({
       data: {
@@ -135,7 +135,7 @@ describe("orchestrateSyncWebsiteMember", () => {
     await orchestrateSyncWebsiteMember(prisma, MEMBER_ID);
 
     const [{ operations }] = mockPushMembers.mock.calls[0];
-    expect(operations[0].member.isLeadership).toBe(true);
+    expect(operations[0].member.leadershipRole).toBe("Főszerkesztő");
   });
 
   it("persists a FAILED job when the push is refused", async () => {

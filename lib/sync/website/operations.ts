@@ -10,7 +10,7 @@ const MEMBER_SELECT = {
   avatarUrl: true,
   status: true,
   joinedSemester: true,
-  leadershipRole: { select: { id: true } },
+  leadershipRole: { select: { label: true } },
 } as const;
 
 // Read here rather than carried in the payload, so a retry sends what is true now: an
