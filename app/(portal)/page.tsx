@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { HeroEvent, UpcomingEvents } from "@/components/dashboard/calendar";
 import { ComputersCard } from "@/components/dashboard/computers-card";
+import { OnboardingCard } from "@/components/dashboard/onboarding-card";
 import {
   ProfileCard,
   readOwnProfile,
@@ -43,6 +44,7 @@ export default async function DashboardPage() {
         </Suspense>
 
         <div className="flex flex-col gap-4">
+          <OnboardingCard memberId={actor.id} />
           <ProfileCard memberId={actor.id} />
           <QuickLinks />
           <ComputersCard />

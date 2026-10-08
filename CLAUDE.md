@@ -106,6 +106,9 @@ version. A
 Two `EMAIL` jobs are seeded: a delivered one on your row, and a skipped one carrying the
 unconfigured reason, which is what a local `.env` without SMTP produces.
 
+Your own row is seeded with no picture and no university or major, so the dashboard's
+Indulás card has something to ask for.
+
 The scripts refuse to run against a database whose host is not local unless passed `--force`.
 
 ---
@@ -167,7 +170,8 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `lib/members.ts`, `lib/audit.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts`,
   `lib/google-group.ts`, `lib/app-links.ts`, `lib/calendar.ts`, `lib/computers.ts` — display
   helpers + Hungarian
-  labels. `lib/app-links.ts` also owns the icon name → lucide component map and the per-accent
+  labels. `lib/members.ts` also owns `onboardingSteps`, the rule behind the dashboard's
+  Indulás card; `lib/app-links.ts` the icon name → lucide component map and the per-accent
   tile classes; `lib/calendar.ts` owns every Hungarian date and time string the dashboard
   renders, and the split between the two kinds of formatter that needs — see Dates and the
   studio zone
@@ -181,7 +185,7 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `components/dashboard/` — the widgets `/` composes, one file per source: `calendar.tsx`
   (`HeroEvent` + `UpcomingEvents`, two server components sharing one `cache()`d read),
   `profile-card.tsx` (which also exports the member read the page's greeting reuses),
-  `quick-links.tsx`, and `computers-card.tsx`
+  `onboarding-card.tsx`, `quick-links.tsx`, and `computers-card.tsx`
 - `components/ui/` — shadcn/ui primitives
 - `scripts/` — dev tooling run with `tsx`: `dev-setup.ts`, `seed-dev.ts` (+ `seed-data.ts` roster,
   `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`,
@@ -1422,6 +1426,21 @@ vanish. Anything that lets a running event reach the list has to restore that cl
 description written by whoever created the event, and it lands in an `href` — so only `http(s)`
 survives, for the same reason `z.url({ protocol: /^https?$/ })` guards an app link. A plain "first
 link wins" would make `javascript:` clickable on the dashboard. A test asserts the refusal.
+
+**Onboarding is a checklist the data fills in, not a tour.** A spotlight walkthrough needs a
+dependency, CSS selectors that break silently on a redesign and a per-member "seen" flag, and
+it explains our own UI — which is not where a newcomer is stuck. `onboardingSteps` instead
+derives what is still missing from the member's own row, so nothing is stored, nothing needs
+dismissing, and the card leaves the dashboard the moment there is nothing left to ask for.
+The rule lives in `lib/members.ts` rather than the component for the same reason
+`computerVerdict` does: `components/**` is outside the coverage include, so a decision put
+there goes unmeasured.
+
+It asks only for what Backstage can see — a picture, a university and a major. Mattermost,
+PéK and the Drive are the welcome letter's to tell: a step nothing can tick would keep the
+card up forever, and self-reported ticks are state nothing verifies. The account itself is
+listed as already done, because a newcomer reading this has one and progress beats a list of
+nothing but demands.
 
 **The dashboard gets chips, `/apps` gets rows.** The home page is a shortcut bar, and a second copy
 of the card grid would compete with the calendar it now sits beside, and with machine status once

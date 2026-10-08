@@ -27,3 +27,29 @@ export const STATUS_ORDER: Record<MembershipStatus, number> = {
   ACTIVE_ALUMNI: 3,
   ALUMNI: 4,
 };
+
+export interface OnboardingStep {
+  key: string;
+  label: string;
+  done: boolean;
+}
+
+export function onboardingSteps(member: {
+  avatarUrl: string | null;
+  university: string | null;
+  major: string | null;
+}): OnboardingStep[] {
+  return [
+    { key: "account", label: "Fiók létrehozva", done: true },
+    {
+      key: "avatar",
+      label: "Profilkép feltöltése",
+      done: member.avatarUrl !== null,
+    },
+    {
+      key: "studies",
+      label: "Egyetem és szak megadása",
+      done: member.university !== null && member.major !== null,
+    },
+  ];
+}
