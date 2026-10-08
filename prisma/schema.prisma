@@ -25,6 +25,7 @@ enum SyncTarget {
   DRUPAL
   WEBSITE
   GOOGLE_GROUP
+  EMAIL
 }
 
 enum SyncOperation {
@@ -35,6 +36,7 @@ enum SyncOperation {
   ADD_TO_GROUP
   REMOVE_FROM_GROUP
   SYNC_MEMBER
+  SEND_WELCOME_EMAIL
 }
 
 enum SyncJobStatus {

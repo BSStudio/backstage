@@ -17,6 +17,7 @@ const {
   mockOrchestrateAddToAlumniGroup,
   mockOrchestrateReactivate,
   mockOrchestrateSyncWebsiteMember,
+  mockOrchestrateSendWelcomeEmail,
 } = vi.hoisted(() => ({
   mockCreateAuthentikUser: vi.fn(),
   mockOrchestrateDeactivate: vi.fn(),
@@ -34,6 +35,7 @@ const {
   mockOrchestrateAddToAlumniGroup: vi.fn(),
   mockOrchestrateReactivate: vi.fn(),
   mockOrchestrateSyncWebsiteMember: vi.fn(),
+  mockOrchestrateSendWelcomeEmail: vi.fn(),
 }));
 
 vi.mock("@/lib/sync/authentik/orchestrators", () => ({
@@ -71,6 +73,10 @@ vi.mock("@/lib/sync/drupal/orchestrators", () => ({
 
 vi.mock("@/lib/sync/website/orchestrators", () => ({
   orchestrateSyncWebsiteMember: mockOrchestrateSyncWebsiteMember,
+}));
+
+vi.mock("@/lib/sync/email/orchestrators", () => ({
+  orchestrateSendWelcomeEmail: mockOrchestrateSendWelcomeEmail,
 }));
 
 vi.mock("@/lib/sync/google/orchestrators", () => ({
@@ -154,6 +160,9 @@ beforeEach(async () => {
   mockOrchestrateRemoveFromGoogleGroup.mockResolvedValue(drupalOk);
   mockOrchestrateAddToAlumniGroup.mockResolvedValue(drupalOk);
   mockOrchestrateSyncWebsiteMember.mockResolvedValue(drupalOk);
+  mockOrchestrateSendWelcomeEmail.mockResolvedValue(drupalOk);
+  vi.stubEnv("SMTP_HOST", "smtp.test");
+  vi.stubEnv("SMTP_FROM", "BSS <noreply@test>");
 
   const prisma = getTestPrisma();
 
@@ -371,6 +380,81 @@ describe("createMember", () => {
       action: "MEMBER_CREATED",
       actorId: ACTOR.id,
     });
+  });
+
+  it("sends the welcome letter under the username Authentik settled on", async () => {
+    const prisma = getTestPrisma();
+    mockCreateAuthentikUser.mockResolvedValueOnce({
+      pk: 7,
+      uuid: "authentik-uuid-welcome",
+      username: "jkovacs2",
+      name: "János Kovács",
+      email: "janos@test.com",
+      is_active: true,
+      path: "users",
+      attributes: {},
+      groups: [],
+    });
+
+    const { member, welcomeEmailSent } = await createMember(
+      prisma,
+      {
+        firstName: "János",
+        lastName: "Kovács",
+        email: "janos@test.com",
+        mobile: "+36301234567",
+      },
+      ACTOR,
+    );
+
+    expect(welcomeEmailSent).toBe(true);
+    expect(mockOrchestrateSendWelcomeEmail).toHaveBeenCalledWith(
+      prisma,
+      member.id,
+      "jkovacs2",
+    );
+  });
+
+  // The job reports success like any skip, so the form must not claim a letter went out.
+  it("reports no letter sent when no relay is configured", async () => {
+    vi.stubEnv("SMTP_HOST", "");
+
+    const { welcomeEmailSent } = await createMember(
+      getTestPrisma(),
+      {
+        firstName: "New",
+        lastName: "Member",
+        email: "new@test.com",
+        mobile: "+36301234567",
+      },
+      ACTOR,
+    );
+
+    expect(welcomeEmailSent).toBe(false);
+    expect(mockOrchestrateSendWelcomeEmail).toHaveBeenCalled();
+  });
+
+  it("surfaces a letter that did not go out as a sync error", async () => {
+    mockOrchestrateSendWelcomeEmail.mockResolvedValueOnce({
+      success: false,
+      error: "Email error: The relay accepted no recipient",
+    });
+
+    const { welcomeEmailSent, syncErrors } = await createMember(
+      getTestPrisma(),
+      {
+        firstName: "New",
+        lastName: "Member",
+        email: "new@test.com",
+        mobile: "+36301234567",
+      },
+      ACTOR,
+    );
+
+    expect(welcomeEmailSent).toBe(false);
+    expect(syncErrors).toEqual([
+      "Email error: The relay accepted no recipient",
+    ]);
   });
 
   it("persists the Drupal uid returned by the Drupal CREATE_USER", async () => {

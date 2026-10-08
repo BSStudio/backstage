@@ -16,7 +16,9 @@ type CreatedMember = {
   id: string;
   firstName: string;
   lastName: string;
+  email: string;
   username: string;
+  welcomeEmailSent: boolean;
 };
 
 const EMPTY_MEMBER = {
@@ -30,7 +32,7 @@ const EMPTY_MEMBER = {
   dormRoom: "",
 };
 
-export function NewMemberForm() {
+export function NewMemberForm({ welcomeEmail }: { welcomeEmail: boolean }) {
   const router = useRouter();
   const [created, setCreated] = useState<CreatedMember | null>(null);
 
@@ -66,6 +68,8 @@ export function NewMemberForm() {
         <h1 className="text-3xl font-bold tracking-tight">Új tag hozzáadása</h1>
         <p className="text-muted-foreground">
           Új tag rögzítése jelölt-jelölt státusszal.
+          {welcomeEmail &&
+            " A mentés után a megadott címre kimegy a köszöntő e-mail."}
         </p>
       </div>
 
@@ -190,8 +194,13 @@ function SuccessStep({
         <CardContent className="flex flex-col gap-3 px-4">
           <CopyField label="Felhasználónév" value={created.username} />
           <p className="text-sm text-muted-foreground">
-            Ezzel a névvel tud belépni. A köszöntő e-mailt kézzel küldjük, és a
-            felhasználónév máshol nem jelenik meg — érdemes most kimásolni.
+            Ezzel a névvel tud belépni. A felhasználónév máshol nem jelenik meg
+            — érdemes most kimásolni.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {created.welcomeEmailSent
+              ? `A köszöntő e-mailt elküldtük a ${created.email} címre.`
+              : "A köszöntő e-mail nem ment ki — küldd el kézzel."}
           </p>
         </CardContent>
       </Card>

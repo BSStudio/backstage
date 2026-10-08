@@ -475,7 +475,53 @@ function buildSyncJobs(
     ...buildFailedSyncJobs(members, devUser),
     ...buildSkippedSyncJobs(members, devUser),
     ...buildSkippedWebsiteJob(devUser),
+    ...buildWelcomeEmailJobs(members, devUser),
   ];
+}
+
+// The letter that goes out with a member. One delivered, so the EMAIL target renders with a
+// relay's own answer, and one skipped — which is what a local .env without SMTP produces.
+function buildWelcomeEmailJobs(
+  members: BuiltMember[],
+  devUser: DevUser,
+): Prisma.SyncJobCreateManyInput[] {
+  const other = members.find((m) => m.row.id !== devUser.id && !m.archivedAt);
+  const sentAt = daysAgo(1);
+
+  const jobs: Prisma.SyncJobCreateManyInput[] = [
+    {
+      target: "EMAIL",
+      operation: "SEND_WELCOME_EMAIL",
+      memberId: devUser.id,
+      payload: {
+        username: deriveUsername(devUser.firstName, devUser.lastName),
+      },
+      status: "SUCCESS",
+      attempts: 1,
+      result: {
+        messageId: `<${devUser.id}@bsstudio.hu>`,
+        response: "250 2.0.0 OK",
+      },
+      createdAt: sentAt,
+      updatedAt: sentAt,
+    },
+  ];
+
+  if (other) {
+    jobs.push({
+      target: "EMAIL",
+      operation: "SEND_WELCOME_EMAIL",
+      memberId: other.row.id,
+      payload: {
+        username: deriveUsername(other.row.firstName, other.row.lastName),
+      },
+      status: "SKIPPED",
+      result: { reason: NOT_CONFIGURED_REASON },
+      createdAt: sentAt,
+      updatedAt: sentAt,
+    });
+  }
+  return jobs;
 }
 
 // Two Authentik skips, so the SKIPPED badge and the reason it carries have something to show.

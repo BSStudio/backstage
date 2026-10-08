@@ -44,13 +44,14 @@ export async function createMemberAction(
   if (!actor) return UNAUTHORIZED;
 
   try {
-    const { member, username, syncErrors } = await createMember(
-      prisma,
-      input,
-      actor,
-    );
+    const { member, username, welcomeEmailSent, syncErrors } =
+      await createMember(prisma, input, actor);
     revalidateMembers(member.id);
-    return { success: true, data: { ...member, username }, syncErrors };
+    return {
+      success: true,
+      data: { ...member, username, welcomeEmailSent },
+      syncErrors,
+    };
   } catch (error) {
     return mapActionError(error);
   }

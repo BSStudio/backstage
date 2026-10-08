@@ -5,6 +5,7 @@ import type {
   PrismaClient,
 } from "@/app/generated/prisma/client";
 import type { UpdateDrupalUserInput } from "@/lib/drupal/users";
+import { isEmailConfigured } from "@/lib/email/smtp";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import {
   type Actor,
@@ -36,6 +37,7 @@ import {
   orchestrateReactivateDrupalUser,
   orchestrateUpdateDrupalUser,
 } from "@/lib/sync/drupal/orchestrators";
+import { orchestrateSendWelcomeEmail } from "@/lib/sync/email/orchestrators";
 import { collectSyncErrors, type SyncResult } from "@/lib/sync/executor";
 import {
   orchestrateAddToAlumniGroup,
@@ -233,9 +235,21 @@ export async function createMember(
 
   results.push(await orchestrateSyncWebsiteMember(prisma, member.id));
 
+  // Last, and the username is passed rather than re-derived: the letter has to name the
+  // name Authentik settled on after its collision loop, same as Drupal above.
+  const welcomeEmail = await orchestrateSendWelcomeEmail(
+    prisma,
+    member.id,
+    authentikUser.username,
+  );
+  results.push(welcomeEmail);
+
   return {
     member,
     username: authentikUser.username,
+    // What the create form tells the leader to do next: a letter that was skipped for want
+    // of a relay reports success like any skip, so configuration is checked separately.
+    welcomeEmailSent: isEmailConfigured() && welcomeEmail.success,
     syncErrors: collectSyncErrors(results),
   };
 }

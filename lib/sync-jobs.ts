@@ -34,6 +34,7 @@ export const SYNC_TARGET_LABELS: Record<SyncTarget, string> = {
   DRUPAL: "Régi honlap",
   WEBSITE: "Honlap",
   GOOGLE_GROUP: "Google Group",
+  EMAIL: "E-mail",
 };
 
 export const SYNC_OPERATION_LABELS: Record<SyncOperation, string> = {
@@ -44,4 +45,5 @@ export const SYNC_OPERATION_LABELS: Record<SyncOperation, string> = {
   ADD_TO_GROUP: "Csoporthoz adás",
   REMOVE_FROM_GROUP: "Csoportból törlés",
   SYNC_MEMBER: "Tag szinkronizálás",
+  SEND_WELCOME_EMAIL: "Köszöntő e-mail",
 };

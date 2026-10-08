@@ -56,6 +56,7 @@ Breaking these causes real damage, not style nits.
 | `pnpm db:seed` | Wipe and reseed dev data (`--reset-user` re-asks who you are) |
 | `pnpm build` | Production build (standalone output) |
 | `pnpm authentik:contract` | Diff Authentik's OpenAPI spec against the committed snapshot (`--update` to rewrite it) |
+| `pnpm email:preview` | Render a letter to `.email-preview.{html,txt}` (`--send <address>` puts it through the relay) |
 
 Environment variables: see `.env.example`. It is the complete list and is kept in sync.
 
@@ -102,6 +103,10 @@ what an agent whose session lookup failed sends — and `nle7` offline on an old
 version. A
 `COMPUTER_DELETED` audit entry for a retired `NLE5` gives `/admin/audit` the new action to render.
 
+Two `EMAIL` jobs are seeded: a delivered one on your row carrying a relay's own `250 2.0.0
+OK`, and a skipped one on another member with the unconfigured reason, which is what a local
+`.env` without SMTP actually produces.
+
 The scripts refuse to run against a database whose host is not local unless passed `--force`.
 
 ---
@@ -128,12 +133,17 @@ The scripts refuse to run against a database whose host is not local unless pass
   Retiring Drupal
 - `lib/website/` — `webhook.ts`, the whole client for the new site: one bearer POST of the
   member push contract — see The new website
+- `lib/email/` — the letters the app sends: `smtp.ts` (the relay client), `components.tsx`
+  (the shell and the inline-styled primitives every letter is built from), `links.ts` (the
+  studio's own addresses), `welcome.tsx` (the only letter so far). Preact, not React — see
+  Architectural decisions
 - `lib/google/` — the Google clients sharing one signer: `client.ts` (token minting + transport,
   `googleFetch` for an absolute URL, `googleRequest` for a Cloud Identity path), `groups.ts`
   (membership operations), `calendar.ts` (the studio calendar read)
 - `lib/sync/` — `executor.ts` + per-target
   `{authentik,drupal}/{operations,orchestrators,group-mapping}.ts`,
-  `google/{operations,orchestrators}.ts` and `website/{operations,orchestrators,payload}.ts`
+  `google/{operations,orchestrators}.ts`, `website/{operations,orchestrators,payload}.ts`
+  and `email/{operations,orchestrators,payload}.ts`
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
 - `lib/http.ts` — the timeout every outgoing request carries, and what a rejection that never
   became an HTTP answer says
@@ -176,7 +186,8 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `components/ui/` — shadcn/ui primitives
 - `scripts/` — dev tooling run with `tsx`: `dev-setup.ts`, `seed-dev.ts` (+ `seed-data.ts` roster,
   `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`,
-  `authentik-contract.ts` + its `authentik-contract.json` snapshot, and the two credential probes,
+  `authentik-contract.ts` + its `authentik-contract.json` snapshot, `email-preview.ts`, and
+  the two credential probes,
   `google-group-probe.ts` and `google-calendar-probe.ts`, which read the configured group and
   calendar through the real clients. Everything here runs on a developer's own machine against
   their `.env`, and nothing here is shipped
@@ -250,6 +261,19 @@ field in `lib/authentik/*` has to be mirrored into the contract check, or it goe
    touches `lib/authentik/**`
 4. Removing a call means removing its `CONTRACT` entry too, otherwise the check guards a field
    nobody reads
+
+**Add an email**
+1. A renderer in `lib/email/<name>.tsx`: an input interface, a component composed from the
+   primitives in `components.tsx`, a plain-text twin, and `renderEmail({ subject, document,
+   text })`. The file opens with `/** @jsxImportSource preact */` — see Architectural
+   decisions for why it is not React
+2. Anything the studio's own addresses answer belongs in `links.ts`, not in the letter
+3. Write the text half. Every client shows it to somebody — a text-only reader, a preview
+   pane, a spam filter scoring a message that arrived without one
+4. A sync target already exists, so sending it is a `SyncOperation` value plus a handler and
+   an orchestrator under `lib/sync/email/` — see *Add a sync operation*
+5. An entry in `TEMPLATES` (`scripts/email-preview.ts`), or it cannot be previewed or sent
+   to a real inbox before it reaches a member
 
 **Add an API route** — keep it a thin adapter: `requireAuth()` or
 `requirePermission(<predicate>)` from `lib/session.ts`, `toActor(session)` for the service call,
@@ -330,8 +354,8 @@ an entry is about when that is not a member either — an app link, say. It is a
 than a relation, so the log still reads correctly after the row it names is renamed or deleted;
 an `APP_LINK_UPDATED` entry stores the name the link goes by *after* the change.
 
-**SyncJob** — one row per external call, against Authentik, Drupal, the website or a Google
-Group.
+**SyncJob** — one row per external call, against Authentik, Drupal, the website, a Google
+Group or the SMTP relay.
 PENDING → IN_PROGRESS → SUCCESS | FAILED, plus `SKIPPED` for a call that was never attempted
 (see Sync architecture). `memberId` is a required FK. Failed
 jobs surface at `/admin/sync-jobs` and are individually retryable, and so is a row left
@@ -685,6 +709,33 @@ goes over the wire.
 landed but never answered comes back as a duplicate instead of applying twice, and a push the
 endpoint *rejected* leaves the key unclaimed, so the same job can retry once the payload is fixed.
 
+### Outgoing mail (SMTP)
+
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` and `SMTP_REPLY_TO`.
+The studio's relay, the same one its other systems send through. `nodemailer` opens one
+connection per message rather than a pool — a handful of letters a semester would otherwise
+hold a socket open between them — and carries `EXTERNAL_REQUEST_TIMEOUT_MS` on all three of
+its phases. `secure` is derived from the port: 465 wraps the session in TLS from the first
+byte, anything else negotiates STARTTLS.
+
+Credentials are optional, since a relay that accepts mail from this host by address needs
+none; an empty `auth` would make nodemailer offer AUTH with an empty username, so it is left
+undefined instead. **Clearing `SMTP_HOST` or `SMTP_FROM` stops the mail** the way an empty
+webhook URL stops the website sync — `isEmailConfigured()` is what the orchestrator checks.
+
+`SMTP_REPLY_TO` is the leadership list, not the members one: a new member answering their
+welcome letter is asking the people who added them. Empty leaves replies going to
+`SMTP_FROM`.
+
+A relay can accept the session and still refuse the recipient, so `sendEmail` treats an
+empty `accepted` as a failure — otherwise the job records a success for a message nobody
+received. What it returns is the relay's own answer (`250 2.0.0 OK`), which is what the
+`SyncJob` stores.
+
+`pnpm email:preview` renders a letter to a gitignored file, and `--send <address>` puts it
+through the real relay: a browser shows what we generated, only a real client shows what the
+relay and the mail app between them make of it.
+
 ### Retiring Drupal
 
 The site is on its way out. Everything that belongs to it alone carries the name, so the removal
@@ -819,6 +870,15 @@ This target deliberately **does not** resolve its identifier at execute time: th
 the group holds, so re-deriving it from the member row would let a retry act on an address the job
 was never about. `runGoogleGroupJob` is the choke point and passes the same kind of skip reason
 when credentials or the target list are unconfigured.
+
+Email specifics: one operation, `SEND_WELCOME_EMAIL` on the `EMAIL` target, created by
+`createMember` and nothing else. `orchestrateSendWelcomeEmail` is the choke point and skips
+when no relay is configured. The payload carries the **username** and only that: it is the
+one thing the letter needs that no row stores, since `createAuthentikUser` settles it after
+its collision loop. Everything else — the address, the first name, whether the member is
+still around — is read at execute time, so a letter that failed on a mistyped address reaches
+the corrected one on retry. A member archived in between is refused rather than welcomed, and
+that lands as a visible `FAILED` row.
 
 Only three things touch the lists automatically: creating a member adds the address to the main
 list; a status change **into** alumni adds it to the alumni list (once — the two alumni statuses
@@ -1039,9 +1099,12 @@ container; routes and actions get smoke tests for auth and error mapping only.
   behaves as in production. Drupal operation tests mock only the transport, leaving `parseHtml`
   and `getFormToken` real so the scraping selectors are genuinely exercised.
 
-Coverage includes `app/**/*.ts`, `lib/**/*.ts`, `types/**/*.ts` and, named one by one because
-a root glob would pull in every config file, `proxy.ts` and `instrumentation.ts` — route
-protection and the Sentry bootstrap are not wiring. It excludes `app/generated/**`,
+Coverage includes `app/**/*.ts`, `lib/**/*.ts`, `lib/**/*.tsx`, `types/**/*.ts` and, named
+one by one because a root glob would pull in every config file, `proxy.ts` and
+`instrumentation.ts` — route protection and the Sentry bootstrap are not wiring. The `.tsx`
+entry is there for the email templates, the only components under `lib/`: without it they
+render unmeasured, and a branch in a letter — a section that appears only sometimes — would
+go untested with nothing failing to say so. It excludes `app/generated/**`,
 `app/api/auth/**`, and the config/wiring files `lib/auth.ts`, `lib/auth-client.ts`,
 `lib/prisma.ts`, `lib/utils.ts`. The 100% figure is enforced, not just documented:
 `coverage.thresholds` in `vitest.config.ts` fails `pnpm test:coverage` — and so CI — on a drop.
@@ -1498,6 +1561,40 @@ reinstall stacks a second one alongside reporting a different id. The installer 
 install path *and* an owner of `S-1-5-18`: an administrator who pasted a snippet naming that path
 has it in their own shell's command line, and matching on text alone kills the console the
 uninstall is being typed into.
+
+**A letter is Preact JSX, not React.** Next refuses `react-dom/server` anywhere in the RSC
+import graph — the build fails with *"You're importing a component that imports
+react-dom/server"* — and a welcome letter is rendered from a Server Action, so
+`renderToStaticMarkup` and React Email, which renders through it, are both out. Preact's
+`render` has no such restriction, escapes its own children (which is a class of bug gone) and
+renders the presentational table attributes email layout still needs. Cost: a second UI
+framework, confined to `lib/email/`, and a per-file `@jsxImportSource` pragma. A template
+engine was the alternative and buys less: the data stops being typed at the template
+boundary, and template conditionals sit outside V8 coverage, so the 100% rule stops seeing
+them.
+
+The attribute types come from the package root (`CSSProperties`, `HTMLAttributes`), not
+through the `JSX.*` namespace, which is the deprecated path. The presentational attributes
+themselves — `border`, `cellpadding`, `cellspacing`, `width` — were dropped from those types
+years ago and are still the only layout every client agrees on, so one `legacy()` wrapper
+passes them through rather than every call site casting.
+
+**Only the welcome letter is automatic.** Archival is told in person or by leadership, so
+there is no archive notification: an account being closed is a conversation, and a member who
+has left does not need a form letter about it. The welcome letter is the opposite — it carries
+the username, which is visible exactly once, on the create form.
+
+**The create form says what will happen, and then what did.** `isEmailConfigured()` reaches
+the form as a boolean prop, like `isRdpConfigured()` reaches `/computers`, so the notice
+about a letter going out is absent on a deployment that cannot send one. `createMember`
+returns `welcomeEmailSent` for the same reason: a skipped job reports success like any other
+skip, so without it the success screen would claim a letter went out on an instance with no
+relay. When it did not, the screen says to send one by hand.
+
+**The letter's link catalogue is hardcoded, not read from `AppLink`.** The rows behind `/apps`
+are an admin's to reorder and hide; a letter should say the same thing to every member who
+gets one, whatever that week's catalogue looks like. Backstage's own entry is the exception,
+built from `APP_URL`, because a deployment knows its own origin.
 
 **Studio leaders history lives on the wiki.** Not an in-app page — the sidebar links to
 `https://wiki.bsstudio.hu/doc/studiovezetok-AdWWlRMuAI`. Edits are rare, pre-2010 entries lack

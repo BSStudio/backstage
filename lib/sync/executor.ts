@@ -7,6 +7,7 @@ import { Prisma } from "@/app/generated/prisma/client";
 import { captureSyncJobFailure } from "@/lib/observability/capture";
 import { authentikHandlers } from "./authentik/operations";
 import { drupalHandlers } from "./drupal/operations";
+import { emailHandlers } from "./email/operations";
 import { googleGroupHandlers } from "./google/operations";
 import { websiteHandlers } from "./website/operations";
 
@@ -26,6 +27,7 @@ const HANDLERS_BY_TARGET: Record<SyncTarget, OperationHandlers> = {
   DRUPAL: drupalHandlers,
   WEBSITE: websiteHandlers,
   GOOGLE_GROUP: googleGroupHandlers,
+  EMAIL: emailHandlers,
 };
 
 export type SyncResult =
