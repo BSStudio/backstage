@@ -26,7 +26,7 @@ export async function forceWebsiteFullSync(prisma: PrismaClient, actor: Actor) {
       avatarUrl: true,
       status: true,
       joinedSemester: true,
-      leadershipRole: { select: { id: true } },
+      leadershipRole: { select: { label: true } },
     },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });

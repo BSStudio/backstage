@@ -10,7 +10,7 @@ export interface WebsiteMemberSource {
   avatarUrl: string | null;
   status: MembershipStatus;
   joinedSemester: string;
-  leadershipRole: { id: string } | null;
+  leadershipRole: { label: string } | null;
 }
 
 export function buildWebsiteMember(member: WebsiteMemberSource): WebsiteMember {
@@ -20,7 +20,7 @@ export function buildWebsiteMember(member: WebsiteMemberSource): WebsiteMember {
     nickname: member.nickname,
     avatarUrl: member.avatarUrl ? absoluteAppUrl(member.avatarUrl) : null,
     membershipStatus: member.status,
-    isLeadership: member.leadershipRole !== null,
+    leadershipRole: member.leadershipRole?.label ?? null,
     joinedSemester: member.joinedSemester,
   };
 }

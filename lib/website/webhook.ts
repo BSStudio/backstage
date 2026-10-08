@@ -36,7 +36,7 @@ export interface WebsiteMember {
   nickname: string | null;
   avatarUrl: string | null;
   membershipStatus: MembershipStatus;
-  isLeadership: boolean;
+  leadershipRole: string | null;
   joinedSemester: string | null;
 }
 
