@@ -16,6 +16,8 @@ export const MATTERMOST_URL = "https://mattermost.bsstudio.hu";
 export const PEK_URL = "https://pek.sch.bme.hu";
 
 // A per-semester poll, replaced by hand: the onboarding session has no durable address.
+// TODO: point this at bsstudio.hu/s/it-gyorstalpalo once the URL shortener lands, so a new
+// semester's poll is a redirect an admin repoints rather than a release.
 export const ONBOARDING_SIGNUP_URL = "https://xoyondo.com/dp/2ef4d3xiaujhp4h";
 
 export function studioCatalogue(portalUrl: string): CatalogueEntry[] {
