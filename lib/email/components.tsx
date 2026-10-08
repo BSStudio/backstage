@@ -1,7 +1,13 @@
 /** @jsxImportSource preact */
 // biome-ignore-all lint/style/noHeadElement: an email is a whole document, not a Next page
 // biome-ignore-all lint/performance/noImgElement: next/image has no meaning in a mail client
-import type { ComponentChildren, JSX } from "preact";
+import type {
+  ComponentChildren,
+  CSSProperties,
+  HTMLAttributes,
+  VNode,
+} from "preact";
+import { render } from "preact-render-to-string";
 
 // Preact, not React: Next refuses `react-dom/server` anywhere in the RSC import graph and
 // a welcome letter is rendered from a Server Action. `preact-render-to-string` has no such
@@ -11,10 +17,30 @@ import type { ComponentChildren, JSX } from "preact";
 // Every rule is inline. Gmail and Outlook each drop a <style> block on at least one of
 // their surfaces, and a letter that arrives unstyled is worse than one that never looked
 // like the portal.
+export interface RenderedEmail {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+export function renderEmail(email: {
+  subject: string;
+  document: VNode;
+  text: string;
+}): RenderedEmail {
+  return {
+    subject: email.subject,
+    // A doctype is not a node, so it is prepended rather than rendered.
+    html: `<!DOCTYPE html>
+${render(email.document)}`,
+    text: email.text,
+  };
+}
+
 export const BRAND = "#005baa";
 export const ACCENT = "#f39434";
 
-const LINK_STYLE: JSX.CSSProperties = {
+const LINK_STYLE: CSSProperties = {
   color: ACCENT,
   textDecoration: "none",
   fontWeight: 600,
@@ -28,8 +54,8 @@ const LOGO_BSS = "https://logotar.schdesign.hu/api/media/file/BSS.svg";
 // passes them through rather than each call site casting.
 function legacy<T extends EventTarget>(
   attributes: Record<string, string>,
-): JSX.HTMLAttributes<T> {
-  return attributes as JSX.HTMLAttributes<T>;
+): HTMLAttributes<T> {
+  return attributes as HTMLAttributes<T>;
 }
 
 export function Table({
@@ -37,7 +63,7 @@ export function Table({
   width = "100%",
   children,
 }: {
-  style?: JSX.CSSProperties;
+  style?: CSSProperties;
   width?: string;
   children: ComponentChildren;
 }) {
@@ -62,7 +88,7 @@ export function Cell({
   width,
   children,
 }: {
-  style?: JSX.CSSProperties;
+  style?: CSSProperties;
   align?: "center";
   width?: string;
   children?: ComponentChildren;

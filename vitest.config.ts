@@ -28,6 +28,7 @@ export default defineConfig({
       include: [
         "app/**/*.ts",
         "lib/**/*.ts",
+        "lib/**/*.tsx",
         "types/**/*.ts",
         "instrumentation.ts",
         "proxy.ts",

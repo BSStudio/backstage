@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { writeFileSync } from "node:fs";
+import type { RenderedEmail } from "../lib/email/components";
 import { isEmailConfigured, sendEmail } from "../lib/email/smtp";
 import { renderWelcomeEmail } from "../lib/email/welcome";
 import { done, fail, info, step } from "./utils";
@@ -7,9 +8,17 @@ import { done, fail, info, step } from "./utils";
 const HTML_FILE = ".email-preview.html";
 const TEXT_FILE = ".email-preview.txt";
 
-const SAMPLE = {
-  firstName: "János",
-  username: "jkovacs",
+// Invented, like the seed roster: a preview is looked at, so it needs a name and a
+// username rather than placeholders. One entry per letter the app can send.
+const TEMPLATES: Record<string, () => RenderedEmail> = {
+  welcome: () =>
+    renderWelcomeEmail({
+      firstName: "János",
+      username: "jkovacs",
+      portalUrl: process.env.APP_URL || "http://localhost:3000",
+      loginUrl: process.env.AUTHENTIK_URL || "https://login.bsstudio.hu",
+      mailingListAddress: process.env.GOOGLE_GROUP_EMAIL || null,
+    }),
 };
 
 function flagValue(flag: string): string | null {
@@ -18,20 +27,23 @@ function flagValue(flag: string): string | null {
   return at === -1 ? null : (args[at + 1] ?? null);
 }
 
+function pickTemplate(): () => RenderedEmail {
+  const names = Object.keys(TEMPLATES);
+  const requested = process.argv.slice(2).find((arg) => !arg.startsWith("--"));
+  const name = requested ?? names[0];
+  const template = name ? TEMPLATES[name] : undefined;
+  if (!template)
+    fail(`Unknown template "${name}" — try one of: ${names.join(", ")}`);
+  step(`Rendering the ${name} letter`);
+  return template;
+}
+
 async function main() {
-  const portalUrl = process.env.APP_URL || "http://localhost:3000";
-  const loginUrl = process.env.AUTHENTIK_URL || "https://login.bsstudio.hu";
+  const { subject, html, text } = pickTemplate()();
 
-  const { subject, html, text } = renderWelcomeEmail({
-    ...SAMPLE,
-    portalUrl,
-    loginUrl,
-    mailingListAddress: process.env.GOOGLE_GROUP_EMAIL || null,
-  });
-
-  step(`Rendering: ${subject}`);
   writeFileSync(HTML_FILE, html, "utf8");
   writeFileSync(TEXT_FILE, `Subject: ${subject}\n\n${text}`, "utf8");
+  info(subject);
   info(`${HTML_FILE} — open it in a browser`);
   info(`${TEXT_FILE} — the plain-text alternative`);
 
