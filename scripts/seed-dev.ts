@@ -479,8 +479,7 @@ function buildSyncJobs(
   ];
 }
 
-// The letter that goes out with a member. One delivered, so the EMAIL target renders with a
-// relay's own answer, and one skipped — which is what a local .env without SMTP produces.
+// One delivered and one skipped, which is what a local .env without SMTP produces.
 function buildWelcomeEmailJobs(
   members: BuiltMember[],
   devUser: DevUser,

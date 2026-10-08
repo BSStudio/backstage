@@ -26,11 +26,9 @@ const PREHEADER =
 
 export interface WelcomeEmailInput {
   firstName: string;
-  /** The name Authentik settled on, which is what the member signs in with. */
+  /** The name Authentik settled on after its collision loop. */
   username: string;
-  /** This deployment's own origin. */
   portalUrl: string;
-  /** The Authentik instance the account was created on. */
   loginUrl: string;
   /** Null when the deployment has no mailing list configured. */
   mailingListAddress: string | null;
@@ -157,8 +155,7 @@ function WelcomeEmail({
   );
 }
 
-// Every client shows this one to somebody: a text-only reader, a preview pane, a spam
-// filter scoring a message that arrived without it.
+// Not optional: a client without HTML, a preview pane and a spam filter all read this one.
 function renderText({
   firstName,
   username,

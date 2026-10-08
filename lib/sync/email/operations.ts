@@ -3,10 +3,8 @@ import { renderWelcomeEmail } from "@/lib/email/welcome";
 import type { OperationHandlers } from "../executor";
 import { buildWelcomeEmail } from "./payload";
 
-// The address is read here rather than carried in the payload, so a retry goes to what the
-// member row says now: a letter that failed because the address was mistyped reaches the
-// corrected one. The username cannot be read the same way — nothing stores it — so it is
-// the one thing the payload carries.
+// Read here rather than carried in the payload, so a retry goes to the address the row holds
+// now. The username is the exception: nothing stores it, so the payload is its only source.
 export const emailHandlers: OperationHandlers = {
   SEND_WELCOME_EMAIL: async (payload, memberId, prisma) => {
     const member = await prisma.member.findUnique({
@@ -16,8 +14,7 @@ export const emailHandlers: OperationHandlers = {
     /* v8 ignore next -- defense in depth; SyncJob.memberId is a required FK */
     if (!member) throw new Error(`Member not found: ${memberId}`);
 
-    // Only reachable by retrying a letter that failed before the member was archived.
-    // Welcoming somebody who has been let go is worse than a visible failed job.
+    // Welcoming somebody who has since been let go is worse than a visible failed job.
     if (member.archived) {
       throw new Error("Member is archived; no welcome email is sent");
     }

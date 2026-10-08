@@ -103,9 +103,8 @@ what an agent whose session lookup failed sends — and `nle7` offline on an old
 version. A
 `COMPUTER_DELETED` audit entry for a retired `NLE5` gives `/admin/audit` the new action to render.
 
-Two `EMAIL` jobs are seeded: a delivered one on your row carrying a relay's own `250 2.0.0
-OK`, and a skipped one on another member with the unconfigured reason, which is what a local
-`.env` without SMTP actually produces.
+Two `EMAIL` jobs are seeded: a delivered one on your row, and a skipped one carrying the
+unconfigured reason, which is what a local `.env` without SMTP produces.
 
 The scripts refuse to run against a database whose host is not local unless passed `--force`.
 
@@ -268,12 +267,12 @@ field in `lib/authentik/*` has to be mirrored into the contract check, or it goe
    text })`. The file opens with `/** @jsxImportSource preact */` — see Architectural
    decisions for why it is not React
 2. Anything the studio's own addresses answer belongs in `links.ts`, not in the letter
-3. Write the text half. Every client shows it to somebody — a text-only reader, a preview
-   pane, a spam filter scoring a message that arrived without one
+3. The plain-text half is not optional: a client without HTML, a preview pane and a spam
+   filter all read it
 4. A sync target already exists, so sending it is a `SyncOperation` value plus a handler and
    an orchestrator under `lib/sync/email/` — see *Add a sync operation*
-5. An entry in `TEMPLATES` (`scripts/email-preview.ts`), or it cannot be previewed or sent
-   to a real inbox before it reaches a member
+5. An entry in `TEMPLATES` (`scripts/email-preview.ts`), or it cannot be previewed before it
+   reaches a member
 
 **Add an API route** — keep it a thin adapter: `requireAuth()` or
 `requirePermission(<predicate>)` from `lib/session.ts`, `toActor(session)` for the service call,
@@ -711,30 +710,21 @@ endpoint *rejected* leaves the key unclaimed, so the same job can retry once the
 
 ### Outgoing mail (SMTP)
 
-`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` and `SMTP_REPLY_TO`.
-The studio's relay, the same one its other systems send through. `nodemailer` opens one
-connection per message rather than a pool — a handful of letters a semester would otherwise
-hold a socket open between them — and carries `EXTERNAL_REQUEST_TIMEOUT_MS` on all three of
-its phases. `secure` is derived from the port: 465 wraps the session in TLS from the first
-byte, anything else negotiates STARTTLS.
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` and `SMTP_REPLY_TO`, over
+`nodemailer` against the studio's relay. `secure` is derived from the port — 465 wraps the
+session in TLS from the first byte, anything else negotiates STARTTLS — and credentials are
+optional, since a relay that accepts mail from this host by address needs none.
 
-Credentials are optional, since a relay that accepts mail from this host by address needs
-none; an empty `auth` would make nodemailer offer AUTH with an empty username, so it is left
-undefined instead. **Clearing `SMTP_HOST` or `SMTP_FROM` stops the mail** the way an empty
-webhook URL stops the website sync — `isEmailConfigured()` is what the orchestrator checks.
+**Clearing `SMTP_HOST` or `SMTP_FROM` stops the mail**, the way an empty webhook URL stops the
+website sync. `SMTP_REPLY_TO` is the leadership list rather than the members one: a new member
+answering their welcome letter is asking the people who added them.
 
-`SMTP_REPLY_TO` is the leadership list, not the members one: a new member answering their
-welcome letter is asking the people who added them. Empty leaves replies going to
-`SMTP_FROM`.
+A relay can accept the session and still refuse the recipient, so an empty `accepted` is a
+failure — otherwise the job records a success for a message nobody received. The relay's own
+answer (`250 2.0.0 OK`) is what the `SyncJob` stores.
 
-A relay can accept the session and still refuse the recipient, so `sendEmail` treats an
-empty `accepted` as a failure — otherwise the job records a success for a message nobody
-received. What it returns is the relay's own answer (`250 2.0.0 OK`), which is what the
-`SyncJob` stores.
-
-`pnpm email:preview` renders a letter to a gitignored file, and `--send <address>` puts it
-through the real relay: a browser shows what we generated, only a real client shows what the
-relay and the mail app between them make of it.
+`pnpm email:preview` renders a letter to a gitignored file; `--send <address>` puts it through
+the real relay, which is the only way to see what a client makes of it.
 
 ### Retiring Drupal
 
@@ -873,12 +863,10 @@ when credentials or the target list are unconfigured.
 
 Email specifics: one operation, `SEND_WELCOME_EMAIL` on the `EMAIL` target, created by
 `createMember` and nothing else. `orchestrateSendWelcomeEmail` is the choke point and skips
-when no relay is configured. The payload carries the **username** and only that: it is the
-one thing the letter needs that no row stores, since `createAuthentikUser` settles it after
-its collision loop. Everything else — the address, the first name, whether the member is
-still around — is read at execute time, so a letter that failed on a mistyped address reaches
-the corrected one on retry. A member archived in between is refused rather than welcomed, and
-that lands as a visible `FAILED` row.
+when no relay is configured. The payload carries the **username** and only that — it is the
+one thing the letter needs that no row stores. The address and the name are read at execute
+time, so a letter that failed on a mistyped address reaches the corrected one on retry; a
+member archived in between is refused rather than welcomed, which lands as a `FAILED` row.
 
 Only three things touch the lists automatically: creating a member adds the address to the main
 list; a status change **into** alumni adds it to the alumni list (once — the two alumni statuses
@@ -1102,9 +1090,7 @@ container; routes and actions get smoke tests for auth and error mapping only.
 Coverage includes `app/**/*.ts`, `lib/**/*.ts`, `lib/**/*.tsx`, `types/**/*.ts` and, named
 one by one because a root glob would pull in every config file, `proxy.ts` and
 `instrumentation.ts` — route protection and the Sentry bootstrap are not wiring. The `.tsx`
-entry is there for the email templates, the only components under `lib/`: without it they
-render unmeasured, and a branch in a letter — a section that appears only sometimes — would
-go untested with nothing failing to say so. It excludes `app/generated/**`,
+entry covers the email templates, the only components under `lib/`. It excludes `app/generated/**`,
 `app/api/auth/**`, and the config/wiring files `lib/auth.ts`, `lib/auth-client.ts`,
 `lib/prisma.ts`, `lib/utils.ts`. The 100% figure is enforced, not just documented:
 `coverage.thresholds` in `vitest.config.ts` fails `pnpm test:coverage` — and so CI — on a drop.
@@ -1563,20 +1549,15 @@ has it in their own shell's command line, and matching on text alone kills the c
 uninstall is being typed into.
 
 **A letter is Preact JSX, not React.** Next refuses `react-dom/server` anywhere in the RSC
-import graph — the build fails with *"You're importing a component that imports
-react-dom/server"* — and a welcome letter is rendered from a Server Action, so
-`renderToStaticMarkup` and React Email, which renders through it, are both out. Preact's
-`render` has no such restriction, escapes its own children (which is a class of bug gone) and
-renders the presentational table attributes email layout still needs. Cost: a second UI
-framework, confined to `lib/email/`, and a per-file `@jsxImportSource` pragma. A template
-engine was the alternative and buys less: the data stops being typed at the template
-boundary, and template conditionals sit outside V8 coverage, so the 100% rule stops seeing
-them.
+import graph and a letter renders from a Server Action, so `renderToStaticMarkup` — and React
+Email, which renders through it — cannot be imported here at all. Preact's `render` has no
+such restriction and escapes its own children, which is a class of bug gone. Cost: a second
+UI framework, confined to `lib/email/`, and a per-file `@jsxImportSource` pragma. A template
+engine was the alternative and buys less: the data stops being typed at the template boundary,
+and template conditionals sit outside V8 coverage, so the 100% rule stops seeing them.
 
-The attribute types come from the package root (`CSSProperties`, `HTMLAttributes`), not
-through the `JSX.*` namespace, which is the deprecated path. The presentational attributes
-themselves — `border`, `cellpadding`, `cellspacing`, `width` — were dropped from those types
-years ago and are still the only layout every client agrees on, so one `legacy()` wrapper
+The presentational attributes email layout still needs — `border`, `cellpadding`,
+`cellspacing`, `width` — were dropped from the JSX types years ago, so one `legacy()` wrapper
 passes them through rather than every call site casting.
 
 **Only the welcome letter is automatic.** Archival is told in person or by leadership, so
@@ -1585,11 +1566,10 @@ has left does not need a form letter about it. The welcome letter is the opposit
 the username, which is visible exactly once, on the create form.
 
 **The create form says what will happen, and then what did.** `isEmailConfigured()` reaches
-the form as a boolean prop, like `isRdpConfigured()` reaches `/computers`, so the notice
-about a letter going out is absent on a deployment that cannot send one. `createMember`
-returns `welcomeEmailSent` for the same reason: a skipped job reports success like any other
-skip, so without it the success screen would claim a letter went out on an instance with no
-relay. When it did not, the screen says to send one by hand.
+the form as a boolean prop, like `isRdpConfigured()` reaches `/computers`, so an instance that
+cannot send promises nothing. `createMember` returns `welcomeEmailSent` for the same reason: a
+skipped job reports success like any other, so `syncErrors` alone would let the success screen
+claim a letter went out where none did. When it did not, the screen says to send one by hand.
 
 **The letter's link catalogue is hardcoded, not read from `AppLink`.** The rows behind `/apps`
 are an admin's to reorder and hide; a letter should say the same thing to every member who

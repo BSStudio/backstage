@@ -8,8 +8,7 @@ import { done, fail, info, step } from "./utils";
 const HTML_FILE = ".email-preview.html";
 const TEXT_FILE = ".email-preview.txt";
 
-// Invented, like the seed roster: a preview is looked at, so it needs a name and a
-// username rather than placeholders. One entry per letter the app can send.
+// One entry per letter the app can send.
 const TEMPLATES: Record<string, () => RenderedEmail> = {
   welcome: () =>
     renderWelcomeEmail({
@@ -58,8 +57,7 @@ async function main() {
     fail("SMTP_HOST or SMTP_FROM is not set — see .env.example.");
   }
 
-  // A browser renders what we generated; only a real client shows what the relay, the
-  // spam filters and the mail app between them make of it.
+  // A browser shows what we generated; only a client shows what the relay made of it.
   step(`Sending to ${recipient}`);
   try {
     const result = await sendEmail({ to: recipient, subject, html, text });

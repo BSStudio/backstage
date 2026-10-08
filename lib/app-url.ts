@@ -8,8 +8,7 @@ export function absoluteAppUrl(path: string): string {
   return new URL(path, origin).toString();
 }
 
-// The origin on its own, for a link a reader clicks rather than an attribute another system
-// renders — a path would leave `https://backstage.example.hu/` inside a sentence.
+// The bare origin: a letter puts this in a sentence, where a trailing slash reads as a typo.
 export function appOrigin(): string {
   return new URL(absoluteAppUrl("/")).origin;
 }

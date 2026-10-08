@@ -5,8 +5,7 @@ export interface WelcomeEmailSource {
   firstName: string;
 }
 
-// Authentik's own base URL, where the letter points for the first sign-in. Normalised the
-// way `authentikRequest` normalises it, so a configured trailing slash cannot reach an href.
+// Normalised like `authentikRequest` does, so a trailing slash cannot reach an href.
 function authentikUrl(): string {
   const url = process.env.AUTHENTIK_URL;
   if (!url) {
@@ -24,8 +23,7 @@ export function buildWelcomeEmail(
     username,
     portalUrl: appOrigin(),
     loginUrl: authentikUrl(),
-    // The letter says the member was put on the list, which is only true where there is
-    // one — the same condition under which `createMember` adds the address.
+    // The letter claims a list membership only where there is a list to join.
     mailingListAddress: process.env.GOOGLE_GROUP_EMAIL || null,
   };
 }

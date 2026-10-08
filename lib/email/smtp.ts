@@ -1,8 +1,7 @@
 import { createTransport } from "nodemailer";
 import { EXTERNAL_REQUEST_TIMEOUT_MS } from "@/lib/http";
 
-// The port is the only thing that says which TLS handshake the relay expects: 465 wraps the
-// session in TLS from the first byte, everything else negotiates STARTTLS afterwards.
+// 465 wraps the session in TLS from the first byte; everything else negotiates STARTTLS.
 const IMPLICIT_TLS_PORT = 465;
 const DEFAULT_PORT = 587;
 
@@ -22,7 +21,7 @@ export interface OutgoingEmail {
 
 export interface EmailSendResult {
   messageId: string;
-  /** The relay's own reply, e.g. `250 2.0.0 OK` — what a `SyncJob` records. */
+  /** The relay's own reply, e.g. `250 2.0.0 OK`. */
   response: string | null;
 }
 
@@ -48,8 +47,7 @@ function getConfig() {
     // A relay that accepts mail from this host by address needs no credentials, and an
     // empty `auth` would make nodemailer offer AUTH with an empty username.
     auth: user && pass ? { user, pass } : undefined,
-    // Replies go to leadership, not to the members list: a new member answering this
-    // letter is asking the people who added them, not writing to the whole studio.
+    // Leadership, not the members list: a new member answering is asking whoever added them.
     replyTo: process.env.SMTP_REPLY_TO || undefined,
   };
 }
@@ -59,8 +57,8 @@ export async function sendEmail(
 ): Promise<EmailSendResult> {
   const { host, port, from, auth, replyTo } = getConfig();
 
-  // One connection per message rather than a pool: the studio sends a handful of these a
-  // semester, and a pooled transport would hold a socket open between them.
+  // One connection per message: a pool would hold a socket open between letters, and the
+  // studio sends a handful a semester.
   const transport = createTransport({
     host,
     port,

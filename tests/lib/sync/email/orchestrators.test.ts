@@ -66,8 +66,7 @@ describe("orchestrateSendWelcomeEmail", () => {
     ]);
   });
 
-  // The username is not stored anywhere, so the payload is the only thing a retry can
-  // read it from.
+  // Nothing stores the username, so the payload is the only place a retry can read it.
   it("carries the username into the job row", async () => {
     await orchestrateSendWelcomeEmail(getTestPrisma(), MEMBER_ID, "jkovacs2");
 

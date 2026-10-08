@@ -9,14 +9,10 @@ import type {
 } from "preact";
 import { render } from "preact-render-to-string";
 
-// Preact, not React: Next refuses `react-dom/server` anywhere in the RSC import graph and
-// a welcome letter is rendered from a Server Action. `preact-render-to-string` has no such
-// restriction, escapes its children, and renders these attributes the way a mail client
-// wants them. Nothing outside lib/email/ uses it.
+// Preact, not React: Next refuses `react-dom/server` anywhere in the RSC import graph, and
+// a letter renders from a Server Action. Nothing outside lib/email/ uses it.
 
-// Every rule is inline. Gmail and Outlook each drop a <style> block on at least one of
-// their surfaces, and a letter that arrives unstyled is worse than one that never looked
-// like the portal.
+// Every rule is inline: each client drops a <style> block on at least one of its surfaces.
 export interface RenderedEmail {
   subject: string;
   html: string;
@@ -49,9 +45,8 @@ const LINK_STYLE: CSSProperties = {
 const LOGO_SIMONYI = "https://logotar.schdesign.hu/api/media/file/Simonyi.svg";
 const LOGO_BSS = "https://logotar.schdesign.hu/api/media/file/BSS.svg";
 
-// The presentational attributes email layout is built from were dropped from the JSX
-// types years ago. They are still the only thing every client agrees on, so one wrapper
-// passes them through rather than each call site casting.
+// The presentational attributes email layout still needs were dropped from the JSX types
+// years ago, so one wrapper passes them through rather than every call site casting.
 function legacy<T extends EventTarget>(
   attributes: Record<string, string>,
 ): HTMLAttributes<T> {
@@ -126,7 +121,6 @@ export function MailLink({ address }: { address: string }) {
   );
 }
 
-/** Free prose, for the opening and the closing lines. */
 export function Prose({ children }: { children: ComponentChildren }) {
   return (
     <tr>
@@ -180,7 +174,6 @@ export function Section({
   );
 }
 
-/** The list of titled sections that carries most of a letter. */
 export function Sections({ children }: { children: ComponentChildren }) {
   return (
     <tr>
@@ -191,7 +184,6 @@ export function Sections({ children }: { children: ComponentChildren }) {
   );
 }
 
-/** An aside inside a section — the username, and what to do with it. */
 export function InfoBox({ children }: { children: ComponentChildren }) {
   return (
     <span
@@ -211,7 +203,6 @@ export function InfoBox({ children }: { children: ComponentChildren }) {
   );
 }
 
-/** The one thing we want the reader to do, given its own tinted panel. */
 export function Callout({
   title,
   body,
@@ -350,13 +341,12 @@ export function EmailDocument({
   heading,
   children,
 }: {
-  /** Also the <title>; the subject is passed to the transport separately. */
+  /** Also the <title>; the subject belongs to the transport. */
   title: string;
   /** The line a client shows next to the subject in the inbox. */
   preheader: string;
   heroEmoji: string;
   heading: string;
-  /** Rows of the card, in order. */
   children: ComponentChildren;
 }) {
   return (

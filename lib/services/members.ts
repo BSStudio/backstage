@@ -235,8 +235,7 @@ export async function createMember(
 
   results.push(await orchestrateSyncWebsiteMember(prisma, member.id));
 
-  // Last, and the username is passed rather than re-derived: the letter has to name the
-  // name Authentik settled on after its collision loop, same as Drupal above.
+  // Passed rather than re-derived, for the same reason Drupal's username is above.
   const welcomeEmail = await orchestrateSendWelcomeEmail(
     prisma,
     member.id,
@@ -247,8 +246,8 @@ export async function createMember(
   return {
     member,
     username: authentikUser.username,
-    // What the create form tells the leader to do next: a letter that was skipped for want
-    // of a relay reports success like any skip, so configuration is checked separately.
+    // A skipped job reports success like any other, so the form needs more than that to
+    // know whether a letter went out.
     welcomeEmailSent: isEmailConfigured() && welcomeEmail.success,
     syncErrors: collectSyncErrors(results),
   };
