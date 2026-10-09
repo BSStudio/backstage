@@ -98,7 +98,7 @@ function WelcomeEmail({
         </Section>
 
         <Section title="🎬 Backstage — a stúdió portálja">
-          A saját adataidat, a stúdió naptárát, a gépterem szabad gépeit és az
+          A saját adataidat, a stúdió naptárát, a szabad vágógépeket és az
           összes belső alkalmazást a <Link href={portalUrl}>Backstage-en</Link>{" "}
           találod. Ha valamelyik adatod hibás, a profilodon szólhatsz érte.
         </Section>
@@ -190,7 +190,7 @@ Felhasználóneved: ${username}
 Teendő: első belépésnél az "elfelejtett jelszó" gombbal kérj új jelszót!
 
 BACKSTAGE — A STÚDIÓ PORTÁLJA
-A saját adataidat, a stúdió naptárát, a gépterem szabad gépeit és az összes belső
+A saját adataidat, a stúdió naptárát, a szabad vágógépeket és az összes belső
 alkalmazást itt találod: ${portalUrl}
 
 ${mailingList}PROFIL ÉS KÖRÖK (PÉK)

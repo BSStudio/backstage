@@ -1,6 +1,7 @@
-import { CheckCircle2, Circle } from "lucide-react";
+import { CheckCircle2, Circle, Compass } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FEATURE_GUIDE_QUERY } from "@/lib/features";
 import { onboardingSteps } from "@/lib/members";
 import { readOwnProfile } from "./profile-card";
 
@@ -41,6 +42,14 @@ export async function OnboardingCard({ memberId }: { memberId: string }) {
             </Link>
           ),
         )}
+
+        <Link
+          href={`?${FEATURE_GUIDE_QUERY}=1`}
+          className="mt-1 flex items-center gap-2 border-t pt-2 text-muted-foreground hover:text-foreground"
+        >
+          <Compass className="size-3.5 shrink-0" />
+          Mit tud a Backstage?
+        </Link>
       </CardContent>
     </Card>
   );

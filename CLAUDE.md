@@ -177,11 +177,14 @@ The scripts refuse to run against a database whose host is not local unless pass
   studio zone
 - `components/form.tsx` — TanStack Form `useAppForm` plus the field/submit components every form
   is built from
+- `lib/features.ts` — the catalogue behind "Mit tud a Backstage?", and `FEATURE_GUIDE_QUERY`,
+  the `?features=1` that opens it
 - `components/` — shared pieces above the primitives: `page-nav.tsx` (admin list pagination),
   `status-badge.tsx` (`StatusBadge` / `ArchivedBadge`), `archive-dialog.tsx` (the archive
   confirmation and its mailing-list checkbox), `app-link-card.tsx` (one row on /apps),
   `computer-card.tsx` (one workstation on /computers), `auto-refresh.tsx` (re-runs a page's
-  server components on a timer), `portal-shell.tsx` (the authenticated frame)
+  server components on a timer), `feature-guide.tsx` (the "Mit tud a Backstage?" dialog),
+  `portal-shell.tsx` (the authenticated frame)
 - `components/dashboard/` — the widgets `/` composes, one file per source: `calendar.tsx`
   (`HeroEvent` + `UpcomingEvents`, two server components sharing one `cache()`d read),
   `profile-card.tsx` (which also exports the member read the page's greeting reuses),
@@ -300,7 +303,9 @@ guards itself regardless.
 **Add a portal page** — `app/(portal)/…/page.tsx` exporting `metadata` and, if it reads data,
 opening with `pageActor()` — or `pageActor(<predicate>)` when a role gates it; a Hungarian label in
 `lib/nav-labels.ts` (used by both sidebar and breadcrumbs); and a sidebar entry in
-`components/app-sidebar.tsx`.
+`components/app-sidebar.tsx`. A feature nobody would find from the page they land on also wants
+an entry in `featureHighlights` (`lib/features.ts`) — nothing derives that list, so a feature
+with no entry stays undiscovered.
 
 **Add a dashboard widget** — one file in `components/dashboard/`, exporting a server component
 that **reads its own data**. `app/(portal)/page.tsx` composes and never queries on a widget's
@@ -1441,6 +1446,16 @@ PéK and the Drive are the welcome letter's to tell: a step nothing can tick wou
 card up forever, and self-reported ticks are state nothing verifies. The account itself is
 listed as already done, because a newcomer reading this has one and progress beats a list of
 nothing but demands.
+
+**The feature guide is a catalogue, and its open state is the URL.** The walkthrough people
+ask for is "what can this thing do", which a list answers and a spotlight tour answers at the
+price of a dependency, a `data-tour` attribute in every component it visits, a step index
+persisted across navigations, and a skip rule for every step whose element may be absent — no
+computer has pinged, RDP is off, the member is not a leader. `featureHighlights` filters on
+those same conditions instead, so an instance without a calendar never advertises one. It is
+opened by `?features=1` rather than by shared state, which is what lets the sidebar footer and
+the Indulás card both point at it without a provider between them, and what makes the guide
+linkable from anywhere later.
 
 **The dashboard gets chips, `/apps` gets rows.** The home page is a shortcut bar, and a second copy
 of the card grid would compete with the calendar it now sits beside, and with machine status once

@@ -1,6 +1,7 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { AvatarProvider } from "@/components/avatar-context";
 import { BreadcrumbProvider } from "@/components/breadcrumb-context";
+import { FeatureGuide } from "@/components/feature-guide";
 import { PortalBreadcrumbs } from "@/components/portal-breadcrumbs";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Separator } from "@/components/ui/separator";
@@ -10,7 +11,9 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
+import { isGoogleCalendarConfigured } from "@/lib/google/calendar";
 import prisma from "@/lib/prisma";
+import { isRdpConfigured } from "@/lib/rdp";
 import type { Session } from "@/lib/session";
 
 export async function PortalShell({
@@ -32,6 +35,12 @@ export async function PortalShell({
       <BreadcrumbProvider>
         <SidebarProvider>
           <AppSidebar role={role} />
+          <FeatureGuide
+            memberId={session.user.id}
+            role={role}
+            rdpConfigured={isRdpConfigured()}
+            calendarConfigured={isGoogleCalendarConfigured()}
+          />
           <SidebarInset>
             <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4">
               <SidebarTrigger className="-ml-1" />

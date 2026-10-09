@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CircleQuestionMark,
   ExternalLink,
   FolderSync,
   Home,
@@ -29,6 +30,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
+import { FEATURE_GUIDE_QUERY } from "@/lib/features";
 import { NAV_LABELS } from "@/lib/nav-labels";
 import { canViewAdminArea } from "@/lib/permissions";
 import type { UserRole } from "@/types";
@@ -185,6 +187,16 @@ export function AppSidebar({ role }: { role: UserRole }) {
         )}
       </SidebarContent>
       <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Mit tud a Backstage?">
+              <Link href={`?${FEATURE_GUIDE_QUERY}=1`}>
+                <CircleQuestionMark />
+                <span>Mit tud a Backstage?</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <a
           href={
             process.env.NEXT_PUBLIC_APP_VERSION?.startsWith("dev")
