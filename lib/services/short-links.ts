@@ -1,11 +1,13 @@
 import { z } from "zod";
 import type { PrismaClient, ShortLink } from "@/app/generated/prisma/client";
+import { readShortLinkClicks } from "@/lib/cloudflare/analytics";
 import {
   CloudflareError,
   isCloudflareConfigured,
 } from "@/lib/cloudflare/client";
 import { deleteKvKeys, listKvKeys, putKvPairs } from "@/lib/cloudflare/kv";
 import { NotFoundError, ValidationError } from "@/lib/errors";
+import { logger } from "@/lib/observability/logger";
 import {
   type Actor,
   ensureCanAdminister,
@@ -24,7 +26,6 @@ export type {
 } from "./short-link-schemas";
 export {
   createShortLinkSchema,
-  editShortLinkFormSchema,
   shortLinkFormSchema,
   updateShortLinkSchema,
 } from "./short-link-schemas";
@@ -80,6 +81,21 @@ async function unpublish(slug: string): Promise<string[]> {
 export async function listShortLinks(prisma: PrismaClient, actor: Actor) {
   ensureCanViewAdminArea(actor);
   return prisma.shortLink.findMany({ orderBy: { createdAt: "desc" } });
+}
+
+// A missing click count is a blank column, not an incident — the same call the calendar makes.
+export async function getShortLinkClicks(
+  actor: Actor,
+): Promise<Record<string, number>> {
+  ensureCanViewAdminArea(actor);
+  try {
+    return await readShortLinkClicks();
+  } catch (error) {
+    logger.warn("short_link_clicks_read_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {};
+  }
 }
 
 export async function createShortLink(

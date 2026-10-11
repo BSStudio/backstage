@@ -1,9 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockDeleteKvKeys, mockListKvKeys, mockPutKvPairs } = vi.hoisted(() => ({
+const {
+  mockDeleteKvKeys,
+  mockListKvKeys,
+  mockPutKvPairs,
+  mockReadClicks,
+  mockWarn,
+} = vi.hoisted(() => ({
   mockDeleteKvKeys: vi.fn(),
   mockListKvKeys: vi.fn(),
   mockPutKvPairs: vi.fn(),
+  mockReadClicks: vi.fn(),
+  mockWarn: vi.fn(),
 }));
 
 vi.mock("@/lib/cloudflare/kv", (): typeof import("@/lib/cloudflare/kv") => ({
@@ -12,12 +20,29 @@ vi.mock("@/lib/cloudflare/kv", (): typeof import("@/lib/cloudflare/kv") => ({
   putKvPairs: mockPutKvPairs,
 }));
 
+vi.mock(
+  "@/lib/cloudflare/analytics",
+  (): typeof import("@/lib/cloudflare/analytics") => ({
+    readShortLinkClicks: mockReadClicks,
+    analyticsDataset: vi.fn(),
+    CLICK_WINDOW_DAYS: 30,
+  }),
+);
+
+vi.mock(
+  "@/lib/observability/logger",
+  (): typeof import("@/lib/observability/logger") => ({
+    logger: { info: vi.fn(), warn: mockWarn, error: vi.fn() },
+  }),
+);
+
 import { CloudflareError } from "@/lib/cloudflare/client";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import type { Actor } from "@/lib/permissions";
 import {
   createShortLink,
   deleteShortLink,
+  getShortLinkClicks,
   listShortLinks,
   publishShortLink,
   republishShortLinks,
@@ -55,6 +80,7 @@ beforeEach(async () => {
   mockPutKvPairs.mockResolvedValue(undefined);
   mockDeleteKvKeys.mockResolvedValue(undefined);
   mockListKvKeys.mockResolvedValue([]);
+  mockReadClicks.mockResolvedValue({});
   configured();
   vi.stubEnv("SHORT_LINK_BASE_URL", "https://l.example.hu");
 
@@ -101,6 +127,36 @@ describe("listShortLinks", () => {
     await expect(listShortLinks(getTestPrisma(), MEMBER)).rejects.toThrow(
       "Forbidden",
     );
+  });
+});
+
+describe("getShortLinkClicks", () => {
+  it("returns the counts per slug", async () => {
+    mockReadClicks.mockResolvedValue({ promo: 12 });
+
+    expect(await getShortLinkClicks(LEADER)).toEqual({ promo: 12 });
+  });
+
+  it("logs a warning and answers empty when Cloudflare will not say", async () => {
+    mockReadClicks.mockRejectedValue(new Error("Analytics down"));
+
+    expect(await getShortLinkClicks(ADMIN)).toEqual({});
+    expect(mockWarn).toHaveBeenCalledWith("short_link_clicks_read_failed", {
+      error: "Analytics down",
+    });
+  });
+
+  it("stringifies a rejection that is not an Error", async () => {
+    mockReadClicks.mockRejectedValue("nope");
+
+    expect(await getShortLinkClicks(ADMIN)).toEqual({});
+    expect(mockWarn).toHaveBeenCalledWith("short_link_clicks_read_failed", {
+      error: "nope",
+    });
+  });
+
+  it("refuses an ordinary member", async () => {
+    await expect(getShortLinkClicks(MEMBER)).rejects.toThrow("Forbidden");
   });
 });
 

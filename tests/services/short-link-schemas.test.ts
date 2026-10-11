@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   createShortLinkSchema,
-  editShortLinkFormSchema,
   shortLinkFormSchema,
   updateShortLinkSchema,
 } from "@/lib/services/short-link-schemas";
@@ -100,22 +99,5 @@ describe("shortLinkFormSchema", () => {
         note: "",
       }).success,
     ).toBe(true);
-  });
-});
-
-describe("editShortLinkFormSchema", () => {
-  it("requires the target and the note, and carries no slug", () => {
-    const schema = editShortLinkFormSchema(HOST);
-
-    expect(schema.safeParse({ url: "https://bsstudio.hu/a" }).success).toBe(
-      false,
-    );
-
-    const parsed = schema.parse({
-      url: "https://bsstudio.hu/a",
-      note: "Plakát",
-    });
-    expect(parsed).toEqual({ url: "https://bsstudio.hu/a", note: "Plakát" });
-    expect("slug" in parsed).toBe(false);
   });
 });

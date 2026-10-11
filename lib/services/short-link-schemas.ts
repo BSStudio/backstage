@@ -63,10 +63,6 @@ export function shortLinkFormSchema(shortHost: string | null) {
   return createShortLinkSchema(shortHost).required();
 }
 
-export function editShortLinkFormSchema(shortHost: string | null) {
-  return updateShortLinkSchema(shortHost).required();
-}
-
 export type CreateShortLinkInput = z.infer<
   ReturnType<typeof createShortLinkSchema>
 >;
@@ -75,7 +71,4 @@ export type UpdateShortLinkInput = z.infer<
 >;
 export type ShortLinkFormValues = z.infer<
   ReturnType<typeof shortLinkFormSchema>
->;
-export type EditShortLinkFormValues = z.infer<
-  ReturnType<typeof editShortLinkFormSchema>
 >;

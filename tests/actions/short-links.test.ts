@@ -36,10 +36,10 @@ beforeEach(() => {
       publishShortLink: mockPublish,
       republishShortLinks: mockRepublish,
       listShortLinks: vi.fn(),
+      getShortLinkClicks: vi.fn(),
       createShortLinkSchema: vi.fn(),
       updateShortLinkSchema: vi.fn(),
       shortLinkFormSchema: vi.fn(),
-      editShortLinkFormSchema: vi.fn(),
     }),
   );
 });
