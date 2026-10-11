@@ -20,6 +20,7 @@ import {
   SEED_APP_LINKS,
   SEED_COMPUTERS,
   SEED_MEMBERS,
+  SEED_SHORT_LINKS,
   type SeedMember,
 } from "./seed-data";
 import { assertLocalDatabase, done, hasFlag, info, step } from "./utils";
@@ -55,6 +56,7 @@ async function seedDev(): Promise<void> {
     prisma.googleGroupEntry.deleteMany(),
     prisma.cardDAVToken.deleteMany(),
     prisma.appLink.deleteMany(),
+    prisma.shortLink.deleteMany(),
     prisma.computer.deleteMany(),
     prisma.leadershipRole.deleteMany(),
     prisma.member.deleteMany(),
@@ -67,11 +69,13 @@ async function seedDev(): Promise<void> {
   await prisma.leadershipRole.createMany({ data: buildRoles(members) });
   await prisma.timelineEntry.createMany({ data: buildTimeline(members) });
   await prisma.appLink.createMany({ data: buildAppLinks() });
+  await prisma.shortLink.createMany({ data: buildShortLinks(devUser) });
   await prisma.computer.createMany({ data: buildComputers() });
   await prisma.auditLog.createMany({
     data: [
       ...buildAuditLog(members, devUser),
       ...buildAppLinkAudit(devUser),
+      ...buildShortLinkAudit(devUser),
       ...buildComputerAudit(devUser),
       ...buildWebsiteSyncAudit(
         devUser,
@@ -85,7 +89,7 @@ async function seedDev(): Promise<void> {
   });
 
   info(
-    `${members.length} members, ${groups.rows.length} groups, ${SEED_APP_LINKS.length} apps, ${SEED_COMPUTERS.length} computers`,
+    `${members.length} members, ${groups.rows.length} groups, ${SEED_APP_LINKS.length} apps, ${SEED_COMPUTERS.length} computers, ${SEED_SHORT_LINKS.length} short links`,
   );
   info(`you: ${devUser.lastName} ${devUser.firstName} <${devUser.email}>`);
   info(`carddav password: ${DEV_CARDDAV_TOKEN}`);
@@ -226,6 +230,19 @@ function buildAppLinks(): Prisma.AppLinkCreateManyInput[] {
   }));
 }
 
+function buildShortLinks(devUser: DevUser): Prisma.ShortLinkCreateManyInput[] {
+  return SEED_SHORT_LINKS.map((link) => ({
+    slug: link.slug,
+    url: link.url,
+    note: link.note,
+    createdById: devUser.id,
+    createdAt: daysAgo(30),
+    updatedAt: daysAgo(link.updatedDaysAgo),
+    publishedAt:
+      link.publishedDaysAgo === null ? null : daysAgo(link.publishedDaysAgo),
+  }));
+}
+
 function buildComputers(): Prisma.ComputerCreateManyInput[] {
   return SEED_COMPUTERS.map(({ id, minutesAgo, metadata }) => ({
     id,
@@ -281,6 +298,18 @@ function buildAppLinkAudit(devUser: DevUser): Prisma.AuditLogCreateManyInput[] {
     action: "APP_LINK_CREATED" as const,
     diff: { created: { name: link.name, url: link.url } },
     createdAt: daysAgo(60 - index),
+  }));
+}
+
+function buildShortLinkAudit(
+  devUser: DevUser,
+): Prisma.AuditLogCreateManyInput[] {
+  return SEED_SHORT_LINKS.map((link, index) => ({
+    actorId: devUser.id,
+    targetLabel: link.slug,
+    action: "SHORT_LINK_CREATED" as const,
+    diff: { created: { slug: link.slug, url: link.url } },
+    createdAt: daysAgo(30 - index),
   }));
 }
 
