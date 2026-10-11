@@ -56,6 +56,8 @@ Breaking these causes real damage, not style nits.
 | `pnpm db:seed` | Wipe and reseed dev data (`--reset-user` re-asks who you are) |
 | `pnpm build` | Production build (standalone output) |
 | `pnpm authentik:contract` | Diff Authentik's OpenAPI spec against the committed snapshot (`--update` to rewrite it) |
+| `pnpm worker:dev` | `wrangler dev` over `short-link-worker/`, against a local KV namespace |
+| `pnpm worker:deploy` | Deploy the short-link Worker by hand — normally Cloudflare does it on a push |
 
 Environment variables: see `.env.example`. It is the complete list and is kept in sync.
 
@@ -102,6 +104,13 @@ what an agent whose session lookup failed sends — and `nle7` offline on an old
 version. A
 `COMPUTER_DELETED` audit entry for a retired `NLE5` gives `/admin/audit` the new action to render.
 
+Four `ShortLink` rows cover every publish state the table renders: two published, one of them
+with no note, one never published, and one edited since it was pushed so the stale badge has
+something to show. Each gets a `SHORT_LINK_CREATED` audit entry with a null `targetId`, which is
+what puts that action and the `targetLabel` fallback on `/admin/audit` without creating a link by
+hand. Nothing is written to Cloudflare, so a local `.env` with no token leaves them all
+unpublished — which is what the badge is for.
+
 The scripts refuse to run against a database whose host is not local unless passed `--force`.
 
 ---
@@ -113,10 +122,11 @@ The scripts refuse to run against a database whose host is not local unless pass
   `computers/[id]/ping`, `auth/[...all]`
 - `app/avatars/[...path]/route.ts` — serves avatar bytes from whichever storage backend is active
 - `lib/services/` — business logic (`members.ts`, `sync-jobs.ts`, `usernames.ts`,
-  `google-group.ts`, `audit.ts`, `app-links.ts`, `calendar.ts`, `computers.ts`, `website.ts`).
+  `google-group.ts`, `audit.ts`, `app-links.ts`, `calendar.ts`, `computers.ts`, `website.ts`,
+  `short-links.ts`).
   All real work
-  happens here. `member-schemas.ts`, `google-group-schemas.ts`, `app-link-schemas.ts` and
-  `computer-schemas.ts` hold the Zod schemas,
+  happens here. `member-schemas.ts`, `google-group-schemas.ts`, `app-link-schemas.ts`,
+  `computer-schemas.ts` and `short-link-schemas.ts` hold the Zod schemas,
   split out so client forms can import them;
   `pagination.ts` holds the page size and the skip/take arithmetic the paginated admin lists share
 - `lib/actions/` — Server Actions; thin wrappers around services. `result.ts` owns the
@@ -128,6 +138,10 @@ The scripts refuse to run against a database whose host is not local unless pass
   Retiring Drupal
 - `lib/website/` — `webhook.ts`, the whole client for the new site: one bearer POST of the
   member push contract — see The new website
+- `lib/cloudflare/` — `client.ts` (config, the bearer transport, the `success: false` envelope),
+  `kv.ts` (the short-link projection) and `analytics.ts` (the click read). Shaped like
+  `lib/authentik/` rather than `lib/website/` because it is a path-templated REST surface with
+  several verbs — see Cloudflare
 - `lib/google/` — the Google clients sharing one signer: `client.ts` (token minting + transport,
   `googleFetch` for an absolute URL, `googleRequest` for a Cloud Identity path), `groups.ts`
   (membership operations), `calendar.ts` (the studio calendar read)
@@ -153,10 +167,15 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `lib/rdp.ts` — the `.rdp` file `/computers` hands out, and the three environment values that
   shape it. Separate from `lib/computers.ts` because client components import that one and
   would carry the environment read into the browser bundle
+- `lib/short-link-config.ts` — `SHORT_LINK_BASE_URL` and the host derived from it. Split from
+  `lib/short-links.ts` for the same reason `lib/rdp.ts` is split from `lib/computers.ts`, and it
+  matters more here: read from the browser the host would be `undefined`, which would quietly
+  drop the refusal to point a slug at another slug
 - `lib/observability/` — `sentry.ts` (shared init options), `scrub.ts` (PII redaction),
   `capture.ts` (capture helpers), `logger.ts` (structured logging)
 - `lib/members.ts`, `lib/audit.ts`, `lib/nav-labels.ts`, `lib/sync-jobs.ts`,
-  `lib/google-group.ts`, `lib/app-links.ts`, `lib/calendar.ts`, `lib/computers.ts` — display
+  `lib/google-group.ts`, `lib/app-links.ts`, `lib/calendar.ts`, `lib/computers.ts`,
+  `lib/short-links.ts` — display
   helpers + Hungarian
   labels. `lib/app-links.ts` also owns the icon name → lucide component map and the per-accent
   tile classes; `lib/calendar.ts` owns every Hungarian date and time string the dashboard
@@ -186,6 +205,12 @@ The scripts refuse to run against a database whose host is not local unless pass
   own `README.md`. Top level rather than under `scripts/` because it is not tooling for this
   repository: it is Windows PowerShell fetched over HTTP onto machines that never clone this, and
   its paths are part of a published install URL
+- `short-link-worker/` — the Cloudflare Worker that serves the short links, plus its
+  `wrangler.jsonc` and its own `README.md`. Top level for the same reason as the agent above: it
+  is deployed elsewhere, by Cloudflare rather than by this repository's CI. Plain `.js`
+  deliberately — `tsconfig.json` includes `**/*.ts` repo-wide, so a TypeScript worker here would
+  be typechecked under Next's `lib` and module resolution and a nested `tsconfig.json` would not
+  displace that
 - `tests/` — mirrors the source layout; `setup.ts` spins Testcontainers Postgres
 - `proxy.ts` — route protection (Next.js 16 convention), and the CardDAV endpoint, which cannot
   live in a route handler
@@ -364,6 +389,16 @@ renders. Status is derived, not stored: online means a ping inside `COMPUTER_ONL
 of a 256-bit random token; the token itself is shown once and stored nowhere. `label` names the
 device, `lastUsedAt` moves at most once every five minutes. Deleting the row revokes the device.
 
+**ShortLink** — one studio short link. `slug` is the primary key rather than a generated id — it
+is what the URL names, the same reasoning as `Computer.id` — and is lowercased on the way in, so
+one slug cannot exist under two spellings. It is also immutable: an edit changes `url` and `note`
+only, because renaming would break a URL already printed on a poster. `createdById` is a plain
+column rather than a `Member` relation, the same snapshot reasoning as `AuditLog.targetLabel`: a
+link outlives the row that created it. `publishedAt` is the only record of whether Workers KV
+holds the current target — null, or older than `updatedAt`, means it does not, and that is what
+the admin table badges. There is no `clicks` column; counts are a live read from Analytics
+Engine (see Cloudflare).
+
 ### Membership status
 
 ```prisma
@@ -485,18 +520,24 @@ take. It is typed structurally rather than on `Session`, so `lib/permissions.ts`
 it, and either would break the browser bundle.
 
 **Every rule lives in `lib/permissions.ts`.** Nothing else compares a role to a literal — the
-predicates (`canManageMembers`, `canViewAdminArea`, `canAdminister`, `canModifyMember`) drive the
-UI, and the `ensureCan*` guards enforce it in the services. A route's `requirePermission` only
+predicates (`canManageMembers`, `canViewAdminArea`, `canAdminister`, `canModifyMember`,
+`canManageShortLinks`) drive the UI, and the `ensureCan*` guards enforce it in the services.
+
+`canManageShortLinks` has the same body as `canViewAdminArea` today and is a separate predicate
+on purpose: a short link is an open redirector on a studio domain, so narrowing who may *read*
+the admin area must never silently widen who may point one of those URLs anywhere. A route's `requirePermission` only
 fails the request earlier, before a body is parsed; it is not what makes the call safe.
 
 | Role | Derived from | Can |
 | --- | --- | --- |
 | `MEMBER` | everyone else | view member list, view/edit own profile |
-| `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive, reactivate; read the whole admin area — audit log, sync jobs, Google Group reconciliation, app links |
-| `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + retry failed sync jobs, force a full website sync, refresh and annotate the Google Group list, create/edit/reorder/delete app links, delete a computer |
+| `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive, reactivate; read the whole admin area — audit log, sync jobs, Google Group reconciliation, app links, short links; create/retarget/delete a short link |
+| `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + retry failed sync jobs, force a full website sync, refresh and annotate the Google Group list, create/edit/reorder/delete app links, delete a computer, republish every short link |
 
 The admin area splits on read vs write: `LEADER` sees every admin page, `ADMIN` is what the
-mutations on them require.
+mutations on them require. Short links are the one exception — a leader creates and retargets
+them, because they are made for events a leader is already running, and only the whole-store
+republish is `ADMIN`.
 
 `resolveUserRole(groups)` in `types/index.ts` implements the mapping.
 
@@ -755,6 +796,43 @@ The request manager writes a `További információk a <a href="…">felkérésk
 into the description of every event it creates, which is where an event's `url` comes from — the
 first anchor in the description, and only when it is `http(s)`.
 
+### Cloudflare (short links)
+
+`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_KV_NAMESPACE_ID`, `CLOUDFLARE_API_TOKEN`,
+`CLOUDFLARE_ANALYTICS_DATASET` and `SHORT_LINK_BASE_URL`. Clearing any of the first three stops
+publishing — links still save and read as unpublished — the same way clearing the Drupal
+credentials stops that sync.
+
+**Backstage never serves a redirect.** `short-link-worker/` does, reading Workers KV at the edge;
+Backstage only writes the projection into that KV. Postgres is authoritative and the two are
+written in separate steps that no transaction spans, which is what `ShortLink.publishedAt`
+records and what the republish repairs.
+
+**Every write goes through the bulk endpoints**, even a single key: `PUT …/bulk` takes JSON and
+accepts one entry where `PUT …/values/{key}` wants multipart, so there is one code path and it is
+the same one the republish uses. KV allows **one write per second to the same key** and answers
+429 past it, which a double-submitted retarget reaches — so any publish failure leaves the row
+saved with a stale `publishedAt` and rides back in `syncErrors` as a warning.
+
+**A 200 carrying `success: false` is a failure.** Cloudflare answers that way for a refused
+operation, so `cloudflareRequest` checks the envelope rather than only `res.ok`.
+
+**Clicks are a separate grant on the same token.** The Worker writes one Analytics Engine data
+point per redirect, read back over the SQL API with **`SUM(_sample_interval)`, never `COUNT(*)`** —
+Analytics Engine downsamples on both read and write, so a count under-reports. The dataset name is
+checked against a pattern because it is interpolated into the SQL. Retention is Cloudflare's, so
+these are a live reading rather than a stored total, and an unset dataset drops the column.
+
+The token Backstage holds needs only **Workers KV Storage: Edit** on that namespace plus
+**Account Analytics: Read** — deliberately not the Workers Scripts: Edit a deploy needs, so
+Backstage cannot rewrite the Worker.
+
+Cloudflare-side setup nothing in the app can detect, like Authentik's subject mode and the avatar
+Cache Rule: the KV namespace, a proxied DNS record for the short host, and Workers Builds pointed
+at `short-link-worker/` as both its root directory and its watch path. The Analytics Engine
+dataset needs no creating — it appears on the Worker's first write. See
+`short-link-worker/README.md`.
+
 ---
 
 ## Sync architecture
@@ -929,8 +1007,9 @@ rather than a Sentry event, see Architectural decisions — and `calendar_page_c
 read stops at `MAX_PAGES`, which at studio scale means something is wrong rather than that a real
 limit was reached. `POST /api/computers/[id]/ping` logs the calling agent and the outcome on every
 path, `registered` marking a machine's first ping and a rejected body carrying the `details`
-tree naming the field that failed — nobody reads the 400 the agent gets back. Nothing else
-logs through it yet.
+tree naming the field that failed — nobody reads the 400 the agent gets back.
+`getShortLinkClicks` logs `short_link_clicks_read_failed` and answers empty, for the same reason
+the calendar does: a blank column is not an incident. Nothing else logs through it yet.
 
 ---
 
@@ -1171,6 +1250,10 @@ Actions. No external consumer exists, so an HTTP API would be surface area for n
 App links follow the same rule for a different reason: `/apps` is a page every member reads, not
 an admin resource, but nothing outside Backstage consumes the list either. `GET /api/apps` is the
 one route worth adding the day another studio app wants to render the same launcher.
+
+Short links need no route at all in either direction — the redirect is served by a Cloudflare
+Worker that reads KV rather than Backstage, so the one caller that would have needed an HTTP
+answer is not in the request path.
 
 Computers too, and the write route does not imply the read one: the agent has to POST from off the
 server, but nothing outside Backstage reads machine status, so `/computers` reads the service
@@ -1498,6 +1581,53 @@ reinstall stacks a second one alongside reporting a different id. The installer 
 install path *and* an owner of `S-1-5-18`: an administrator who pasted a snippet naming that path
 has it in their own shell's command line, and matching on text alone kills the console the
 uninstall is being typed into.
+
+**The short-link redirect runs off this platform on purpose.** A redirect that 502s during a
+Backstage deploy is worse than no short link at all, because the URL is already printed on a
+poster by the time anything goes wrong. So Backstage is the control plane — who may create a
+link, what it points at, who changed it — and a Cloudflare Worker reading Workers KV is the data
+plane. They touch only at write time. The cost is a second copy of the data that can drift, which
+is what `ShortLink.publishedAt` makes visible and the republish repairs.
+
+**A short link is not a `SyncJob` target.** `SyncJob.memberId` is a required FK and a link is
+about no member, the same reason `WEBSITE_FULL_SYNC` and `GOOGLE_GROUP_SYNCED` are audit entries.
+Relaxing that column to nullable would have bought the retry button and `/admin/sync-jobs` for
+free, and it would have weakened an invariant the whole sync layer leans on for one feature
+instead. `publishedAt` plus a per-row "publish again" is the same affordance at the cost of one
+column.
+
+**The slug is immutable; only the target moves.** Renaming would mean deleting one KV key and
+writing another, and the URL it breaks is on a poster nobody can reprint. The edit form therefore
+does not render the slug field at all, which is also why one form schema covers create and edit —
+TanStack validates the whole form value, so a schema without `slug` cannot validate defaults that
+carry one.
+
+**The self-host refusal is why the short-link schemas are factories.** `createShortLinkSchema`
+takes the host rather than reading `SHORT_LINK_BASE_URL` itself, the same shape as
+`updateMemberSchema(memberId)`. The schema module is what the client form imports, and a
+non-`NEXT_PUBLIC_` variable is `undefined` in the browser — so reading it inside would have left
+the server enforcing a rule the form silently skipped. The rule itself exists because a slug
+pointing at the short host chains into another slug, and a pair of them is a redirect loop. The
+protocol is pinned for the same reason an app link's is: the target is handed straight to a
+redirect, and `javascript:` parses as a valid URL.
+
+**The Cloudflare client is hand-rolled rather than the `cloudflare` SDK.** The SDK does carry all
+five KV calls, and it is 69.5 MB unpacked and does not cover Analytics Engine at all — so the
+click read would be hand-rolled anyway and the feature would carry two HTTP styles in one
+directory. The one SDK this repo does take, `@aws-sdk/client-s3`, earns it because SigV4 signing
+is hard and dangerous to hand-roll; KV is a bearer `PUT`. `lib/google/client.ts` skipping
+`googleapis` for `jose` is the standing precedent.
+
+**The Worker is deployed by Cloudflare, not by this repository's CI.** A workflow would need a
+GitHub secret holding an API token with Workers Scripts: Edit — far broader than the KV-only
+token Backstage holds, and one more place a credential that can rewrite the redirect sits.
+Workers Builds reads the repository itself and needs no token here, with the root directory and
+watch paths set to `short-link-worker/`. A failed build leaves the previous version serving, so
+there is nothing a pre-deploy check would have protected.
+
+**The Worker answers 302, never 301.** A browser caches a 301 indefinitely, so retargeting a slug
+would leave everyone who followed the old one going to the old target forever — on a link whose
+whole point is that it can be repointed after the poster is printed.
 
 **Studio leaders history lives on the wiki.** Not an in-app page — the sidebar links to
 `https://wiki.bsstudio.hu/doc/studiovezetok-AdWWlRMuAI`. Edits are rare, pre-2010 entries lack
