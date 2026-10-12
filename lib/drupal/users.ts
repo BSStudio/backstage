@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { isHeadOfStudio } from "@/lib/members";
 import {
   DrupalError,
   type DrupalSession,
@@ -335,25 +336,26 @@ export async function updateDrupalUser(
   }
 
   // BSS adatok — position / role / joined
-  const roleChanged = input.role !== undefined && input.role !== current.role;
+  // A leader is the flag with the HQ role left blank, so the role text alone
+  // cannot tell whether the role changed.
+  const isLeader =
+    input.role === undefined ? current.isLeader : isHeadOfStudio(input.role);
+  const hqRole = isLeader ? "" : (input.role ?? current.role);
+  const roleChanged =
+    input.role !== undefined &&
+    (isLeader !== current.isLeader || hqRole !== current.role);
   if (
     input.position !== undefined ||
     roleChanged ||
     input.joined !== undefined
   ) {
-    const isLeader =
-      input.role === "Stúdióvezető" ||
-      (current.role === "Stúdióvezető" && !roleChanged);
-    const effectiveRole = input.role !== undefined ? input.role : current.role;
-    const hasRole = Boolean(effectiveRole && !isLeader);
-
     const data = {
       profile_BSS_state: input.position ?? current.position,
       // The post replaces the whole tab, so omitting the flag would un-archive the member.
       profile_passive: Number(current.passive),
       profile_BSS_is_leader: Number(isLeader),
-      profile_BSS_is_in_BSS_HQ: Number(hasRole),
-      profile_BSS_HQ_role: isLeader ? "" : effectiveRole,
+      profile_BSS_is_in_BSS_HQ: Number(hqRole !== ""),
+      profile_BSS_HQ_role: hqRole,
       profile_BSS_join_year: input.joined ?? current.joined,
       form_token: formToken,
       form_id: "user_profile_form",

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getInitials, STATUS_BADGE_CLASS, STATUS_ORDER } from "@/lib/members";
+import {
+  getInitials,
+  isHeadOfStudio,
+  STATUS_BADGE_CLASS,
+  STATUS_ORDER,
+} from "@/lib/members";
 
 describe("getInitials", () => {
   it("returns last initial + first initial uppercased", () => {
@@ -12,6 +17,26 @@ describe("getInitials", () => {
 
   it("preserves diacritics in initials", () => {
     expect(getInitials("Áron", "Öreg")).toBe("ÖÁ");
+  });
+});
+
+describe("isHeadOfStudio", () => {
+  it("recognises the bare title", () => {
+    expect(isHeadOfStudio("Stúdióvezető")).toBe(true);
+  });
+
+  it("recognises the title with a second role after it", () => {
+    expect(isHeadOfStudio("Stúdióvezető, tanfolyamfelelős")).toBe(true);
+    expect(isHeadOfStudio("Stúdióvezető és tanfolyamfelelős")).toBe(true);
+  });
+
+  it("does not mistake the deputy for the head", () => {
+    expect(isHeadOfStudio("Stúdióvezető-helyettes")).toBe(false);
+  });
+
+  it("ignores other roles and a missing one", () => {
+    expect(isHeadOfStudio("Főszerkesztő")).toBe(false);
+    expect(isHeadOfStudio(undefined)).toBe(false);
   });
 });
 

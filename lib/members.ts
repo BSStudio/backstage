@@ -5,6 +5,12 @@ export function getInitials(firstName: string, lastName: string) {
   return `${lastName[0]}${firstName[0]}`.toUpperCase();
 }
 
+// The label is free text and may name a second role after the title, but
+// "Stúdióvezető-helyettes" is the deputy, so a hyphen must not count.
+export function isHeadOfStudio(label?: string) {
+  return /^Stúdióvezető(?:$|[\s,])/.test(label ?? "");
+}
+
 /** Tailwind classes for the status badge, per membership status. */
 export const STATUS_BADGE_CLASS: Record<MembershipStatus, string> = {
   MEMBER_CANDIDATE_CANDIDATE:
