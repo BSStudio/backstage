@@ -507,8 +507,8 @@ describe("updateDrupalUser", () => {
     expect(postTo(BSS_TAB)).toBeUndefined();
   });
 
-  // A leader's HQ role is blank once synced, so only the flag still says so.
-  it("keeps an existing Stúdióvezető marked as leader on an unrelated edit", async () => {
+  // What a synced leader looks like: the flag set and the HQ role blank.
+  function serveLeaderBssTab() {
     mockDrupalGet.mockImplementation((_s, path: string) =>
       Promise.resolve(
         path === BSS_TAB
@@ -525,6 +525,30 @@ describe("updateDrupalUser", () => {
           : PAGES[path],
       ),
     );
+  }
+
+  it("clears the leader flag when a Stúdióvezető's role is removed", async () => {
+    serveLeaderBssTab();
+
+    await updateDrupalUser(USER_ID, { role: "" });
+
+    expect(postTo(BSS_TAB)).toMatchObject({
+      profile_BSS_is_leader: 0,
+      profile_BSS_is_in_BSS_HQ: 0,
+      profile_BSS_HQ_role: "",
+    });
+  });
+
+  it("skips the BSS tab when a Stúdióvezető is assigned the title again", async () => {
+    serveLeaderBssTab();
+
+    await updateDrupalUser(USER_ID, { role: "Stúdióvezető, tanfolyamfelelős" });
+
+    expect(postTo(BSS_TAB)).toBeUndefined();
+  });
+
+  it("keeps an existing Stúdióvezető marked as leader on an unrelated edit", async () => {
+    serveLeaderBssTab();
 
     await updateDrupalUser(USER_ID, { joined: "2024 tavasz" });
 
