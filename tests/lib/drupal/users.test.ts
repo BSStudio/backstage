@@ -462,6 +462,26 @@ describe("updateDrupalUser", () => {
     });
   });
 
+  it("treats Stúdióvezető followed by a second role as the leader", async () => {
+    await updateDrupalUser(USER_ID, { role: "Stúdióvezető, tanfolyamfelelős" });
+
+    expect(postTo(BSS_TAB)).toMatchObject({
+      profile_BSS_is_leader: 1,
+      profile_BSS_is_in_BSS_HQ: 0,
+      profile_BSS_HQ_role: "",
+    });
+  });
+
+  it("keeps the deputy an HQ role", async () => {
+    await updateDrupalUser(USER_ID, { role: "Stúdióvezető-helyettes" });
+
+    expect(postTo(BSS_TAB)).toMatchObject({
+      profile_BSS_is_leader: 0,
+      profile_BSS_is_in_BSS_HQ: 1,
+      profile_BSS_HQ_role: "Stúdióvezető-helyettes",
+    });
+  });
+
   it("sets a non-leader role as an HQ role", async () => {
     await updateDrupalUser(USER_ID, { role: "Gyártásvezető" });
 
@@ -487,11 +507,21 @@ describe("updateDrupalUser", () => {
     expect(postTo(BSS_TAB)).toBeUndefined();
   });
 
+  // A leader's HQ role is blank once synced, so only the flag still says so.
   it("keeps an existing Stúdióvezető marked as leader on an unrelated edit", async () => {
     mockDrupalGet.mockImplementation((_s, path: string) =>
       Promise.resolve(
         path === BSS_TAB
-          ? PAGES[path].replace("Főszerkesztő", "Stúdióvezető")
+          ? PAGES[path]
+              .replace(
+                '<input id="edit-profile-BSS-is-in-BSS-HQ" checked="checked">',
+                '<input id="edit-profile-BSS-is-in-BSS-HQ">',
+              )
+              .replace('value="Főszerkesztő"', 'value=""')
+              .replace(
+                '<input id="edit-profile-BSS-is-leader">',
+                '<input id="edit-profile-BSS-is-leader" checked="checked">',
+              )
           : PAGES[path],
       ),
     );

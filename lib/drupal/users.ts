@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { isHeadOfStudio } from "@/lib/members";
 import {
   DrupalError,
   type DrupalSession,
@@ -341,9 +342,10 @@ export async function updateDrupalUser(
     roleChanged ||
     input.joined !== undefined
   ) {
-    const isLeader =
-      input.role === "Stúdióvezető" ||
-      (current.role === "Stúdióvezető" && !roleChanged);
+    // A leader's HQ role is written blank, so on an unrelated edit only the flag remembers.
+    const isLeader = roleChanged
+      ? isHeadOfStudio(input.role)
+      : current.isLeader;
     const effectiveRole = input.role !== undefined ? input.role : current.role;
     const hasRole = Boolean(effectiveRole && !isLeader);
 
