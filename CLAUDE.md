@@ -368,8 +368,8 @@ device, `lastUsedAt` moves at most once every five minutes. Deleting the row rev
 
 ```prisma
 enum MembershipStatus {
-  MEMBER_CANDIDATE_CANDIDATE // jelölt-jelölt
-  MEMBER_CANDIDATE           // jelölt
+  MEMBER_CANDIDATE_CANDIDATE // stúdiós-jelölt jelölt
+  MEMBER_CANDIDATE           // stúdiós-jelölt
   MEMBER                     // stúdiós
   ACTIVE_ALUMNI              // aktív öregtag
   ALUMNI                     // öregtag
