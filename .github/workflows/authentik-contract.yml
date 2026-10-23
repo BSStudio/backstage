@@ -14,7 +14,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,10 +28,14 @@ jobs:
     name: Diff the published schema
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
+    permissions:
+      contents: read
+      issues: write
     steps:
-      - name: Checkout
+      - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up toolchain
         uses: ./.github/actions/setup
@@ -48,11 +51,11 @@ jobs:
           exit "$status"
 
       - name: Note an unreadable schema
-        if: ${{ failure() && steps.contract.outputs.status == '2' }}
+        if: failure() && steps.contract.outputs.status == '2'
         run: echo "::warning::Could not read the authentik schema — this run proves nothing about drift."
 
       - name: Open an issue on drift
-        if: ${{ failure() && steps.contract.outputs.status == '1' && github.event_name == 'schedule' }}
+        if: failure() && steps.contract.outputs.status == '1' && github.event_name == 'schedule'
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: Authentik API contract drift
@@ -73,6 +76,6 @@ jobs:
             cat contract.log
             echo '```'
             echo
-            echo "[Workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            echo "[Workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
           } > issue.md
           gh issue create --title "$TITLE" --body-file issue.md --assignee "$ASSIGNEE" --label contract-drift
