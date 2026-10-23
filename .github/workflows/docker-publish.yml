@@ -11,8 +11,8 @@ on:
       - "**.md"
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,21 +22,26 @@ defaults:
   run:
     shell: bash
 
+env:
+  REGISTRY: ghcr.io
+
 jobs:
   build-and-push:
     name: Build and push
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Pull requests build without logging in, pushing or attesting, so the write scopes are never used there.
     permissions:
       contents: read
       packages: write
       # Mint the OIDC token and write the build provenance attestation.
       id-token: write
       attestations: write
-
     steps:
-      - name: Checkout
+      - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Resolve build metadata
         id: build-meta
@@ -105,7 +110,7 @@ jobs:
           sbom: false
 
       - name: Attest build provenance
-        if: ${{ github.event_name != 'pull_request' }}
+        if: github.event_name != 'pull_request'
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ steps.build-meta.outputs.image }}
