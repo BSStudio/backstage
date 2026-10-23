@@ -22,10 +22,13 @@ export class ForbiddenError extends ServiceError {
 
 export class ValidationError extends ServiceError {
   readonly details: unknown;
+  // Hungarian and safe to show as is; `details` is written for API clients and may be English.
+  readonly userMessage?: string;
 
-  constructor(details: unknown) {
+  constructor(details: unknown, userMessage?: string) {
     super("Validation failed");
     this.details = details;
+    this.userMessage = userMessage;
   }
 }
 

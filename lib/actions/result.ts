@@ -27,7 +27,7 @@ export function mapActionError(
   if (error instanceof ValidationError)
     return {
       success: false,
-      error: messages.validation ?? "Érvénytelen adatok",
+      error: error.userMessage ?? messages.validation ?? "Érvénytelen adatok",
     };
   /* v8 ignore next -- @preserve */
   throw error;

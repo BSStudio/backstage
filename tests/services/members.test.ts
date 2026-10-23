@@ -610,6 +610,7 @@ describe("createMember", () => {
     ).rejects.toMatchObject({
       name: "ValidationError",
       details: { email: "Ezzel az email-címmel már van tag" },
+      userMessage: "Ezzel az email-címmel már van tag",
     });
 
     expect(mockCreateAuthentikUser).not.toHaveBeenCalled();
@@ -911,6 +912,7 @@ describe("updateMember", () => {
     ).rejects.toMatchObject({
       name: "ValidationError",
       details: { email: "Ezzel az email-címmel már van tag" },
+      userMessage: "Ezzel az email-címmel már van tag",
     });
   });
 

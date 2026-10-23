@@ -142,7 +142,8 @@ async function ensureEmailIsFree(
     },
   });
   if (taken) {
-    throw new ValidationError({ email: "Ezzel az email-címmel már van tag" });
+    const message = "Ezzel az email-címmel már van tag";
+    throw new ValidationError({ email: message }, message);
   }
 }
 
