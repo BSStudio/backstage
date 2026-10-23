@@ -77,8 +77,8 @@ export type AppLinkIconName = (typeof APP_LINK_ICON_NAMES)[number];
 // ─── Display labels ───────────────────────────────────────────────────────────
 
 export const MEMBERSHIP_STATUS_LABELS: Record<MembershipStatus, string> = {
-  MEMBER_CANDIDATE_CANDIDATE: "Stúdiós jelölt-jelölt",
-  MEMBER_CANDIDATE: "Stúdiós jelölt",
+  MEMBER_CANDIDATE_CANDIDATE: "Stúdiós-jelölt jelölt",
+  MEMBER_CANDIDATE: "Stúdiós-jelölt",
   MEMBER: "Stúdiós",
   ACTIVE_ALUMNI: "Aktív öregtag",
   ALUMNI: "Öregtag",
