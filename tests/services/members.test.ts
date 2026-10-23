@@ -615,6 +615,27 @@ describe("createMember", () => {
     expect(mockCreateAuthentikUser).not.toHaveBeenCalled();
   });
 
+  it("refuses a duplicate email in different letter case", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      createMember(
+        prisma,
+        {
+          firstName: "Another",
+          lastName: "Target",
+          email: "Target@Test.com",
+          mobile: "+36301234567",
+        },
+        ACTOR,
+      ),
+    ).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { email: "Ezzel az email-címmel már van tag" },
+    });
+
+    expect(mockCreateAuthentikUser).not.toHaveBeenCalled();
+  });
+
   it("stores null for empty optional fields", async () => {
     const prisma = getTestPrisma();
     const { member } = await createMember(
@@ -881,6 +902,59 @@ describe("updateMember", () => {
     );
 
     expect(updated.email).toBe("moved@test.com");
+  });
+
+  it("refuses an email another member holds", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      updateMember(prisma, MEMBER_ID, { email: "actor@test.com" }, ACTOR),
+    ).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { email: "Ezzel az email-címmel már van tag" },
+    });
+  });
+
+  it("refuses an email another member holds in different letter case", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      updateMember(prisma, MEMBER_ID, { email: "Actor@Test.com" }, ACTOR),
+    ).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { email: "Ezzel az email-címmel már van tag" },
+    });
+  });
+
+  it("refuses an email an archived member holds", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.create({
+      data: {
+        id: "archived-member-id",
+        firstName: "Gone",
+        lastName: "Member",
+        email: "gone@test.com",
+        joinedSemester: "2025/2026/1",
+        archived: true,
+      },
+    });
+
+    await expect(
+      updateMember(prisma, MEMBER_ID, { email: "gone@test.com" }, ACTOR),
+    ).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { email: "Ezzel az email-címmel már van tag" },
+    });
+  });
+
+  it("lets a leader change only the letter case of an email", async () => {
+    const prisma = getTestPrisma();
+    const { member: updated } = await updateMember(
+      prisma,
+      MEMBER_ID,
+      { email: "Target@test.com" },
+      ACTOR,
+    );
+
+    expect(updated.email).toBe("Target@test.com");
   });
 
   // ─── Status changes ─────────────────────────────────────────────────────────

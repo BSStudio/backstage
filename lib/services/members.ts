@@ -128,6 +128,24 @@ export async function getMember(prisma: PrismaClient, id: string) {
   return member;
 }
 
+// One address per member regardless of letter case: the applications that
+// receive it compare addresses case-insensitively.
+async function ensureEmailIsFree(
+  prisma: PrismaClient,
+  email: string,
+  exceptMemberId?: string,
+) {
+  const taken = await prisma.member.count({
+    where: {
+      email: { equals: email, mode: "insensitive" },
+      id: { not: exceptMemberId },
+    },
+  });
+  if (taken) {
+    throw new ValidationError({ email: "Ezzel az email-címmel már van tag" });
+  }
+}
+
 export async function createMember(
   prisma: PrismaClient,
   input: unknown,
@@ -141,9 +159,7 @@ export async function createMember(
   const data = parsed.data;
   const status: MembershipStatus = "MEMBER_CANDIDATE_CANDIDATE";
 
-  if (await prisma.member.count({ where: { email: data.email } })) {
-    throw new ValidationError({ email: "Ezzel az email-címmel már van tag" });
-  }
+  await ensureEmailIsFree(prisma, data.email);
 
   const authentikUser = await createAuthentikUser({
     firstName: data.firstName,
@@ -359,6 +375,9 @@ export async function updateMember(
   const emailChanging = data.email && data.email !== member.email;
   if (emailChanging && !isLeaderOrAdmin) {
     throw new ForbiddenError("Only leaders and admins can change the email");
+  }
+  if (data.email && emailChanging) {
+    await ensureEmailIsFree(prisma, data.email, member.id);
   }
 
   // Build diff for audit log
