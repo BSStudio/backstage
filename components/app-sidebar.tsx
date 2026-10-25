@@ -187,11 +187,11 @@ export function AppSidebar({ role }: { role: UserRole }) {
       <SidebarFooter>
         <a
           href={
-            process.env.NEXT_PUBLIC_APP_VERSION?.startsWith("dev")
-              ? process.env.NEXT_PUBLIC_COMMIT_HASH
+            /^\d+\.\d+\.\d+$/.test(process.env.NEXT_PUBLIC_APP_VERSION ?? "")
+              ? `https://github.com/BSStudio/backstage/releases/tag/v${process.env.NEXT_PUBLIC_APP_VERSION}`
+              : process.env.NEXT_PUBLIC_COMMIT_HASH
                 ? `https://github.com/BSStudio/backstage/commit/${process.env.NEXT_PUBLIC_COMMIT_HASH}`
                 : "https://github.com/BSStudio/backstage"
-              : `https://github.com/BSStudio/backstage/releases/tag/${process.env.NEXT_PUBLIC_APP_VERSION?.split("-")[0]}`
           }
           target="_blank"
           rel="noopener noreferrer"

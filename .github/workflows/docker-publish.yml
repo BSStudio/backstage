@@ -41,6 +41,8 @@ jobs:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The version is counted from the last release tag.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Resolve build metadata
@@ -50,13 +52,29 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          hash="${SHA:0:7}"
+          echo "hash=${SHA:0:7}" >> "$GITHUB_OUTPUT"
+
           if [ "$REF_TYPE" = "tag" ]; then
-            echo "version=$REF_NAME-$hash" >> "$GITHUB_OUTPUT"
+            echo "version=${REF_NAME#v}" >> "$GITHUB_OUTPUT"
           else
-            echo "version=dev-$hash" >> "$GITHUB_OUTPUT"
+            # Mirrors `appVersion` in next.config.ts, which versions local builds.
+            describe=$(git describe --tags --first-parent --long --abbrev=7 --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude '*-*')
+            [[ $describe =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)-g([0-9a-f]+)$ ]]
+            tag=${BASH_REMATCH[1]}
+            distance=${BASH_REMATCH[2]}
+            hash=${BASH_REMATCH[3]}
+            branch=${REF_NAME//[^0-9A-Za-z-]/-}
+
+            # Later commits must sort higher in Sentry, which compares the revision numerically and prereleases as text.
+            if [ "$distance" = 0 ]; then
+              echo "version=$tag" >> "$GITHUB_OUTPUT"
+            elif [ "$branch" = main ]; then
+              echo "version=$tag.$distance+$hash" >> "$GITHUB_OUTPUT"
+            else
+              echo "version=$tag.$distance+$branch.$hash" >> "$GITHUB_OUTPUT"
+            fi
           fi
-          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+
           # ghcr has no uppercase in image names. metadata-action lowercases its own
           # input, the attest step does not, so both read this one.
           echo "image=$REGISTRY/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"

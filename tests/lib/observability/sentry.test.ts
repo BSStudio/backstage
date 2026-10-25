@@ -7,7 +7,7 @@ import { isExpectedError, sentryInitOptions } from "@/lib/observability/sentry";
 const envKeys = [
   "NEXT_PUBLIC_SENTRY_DSN",
   "NEXT_PUBLIC_SENTRY_ENVIRONMENT",
-  "NEXT_PUBLIC_APP_VERSION",
+  "NEXT_PUBLIC_SENTRY_RELEASE",
 ] as const;
 
 const original = Object.fromEntries(
@@ -45,13 +45,13 @@ describe("sentryInitOptions", () => {
 
   it("tags the release from the build version and collects no PII", () => {
     process.env.NEXT_PUBLIC_SENTRY_DSN = "https://key@sentry.example/1";
-    process.env.NEXT_PUBLIC_APP_VERSION = "v1.2.3-abc1234";
+    process.env.NEXT_PUBLIC_SENTRY_RELEASE = "backstage@1.2.3.4+abc1234";
     process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT = "production";
 
     const options = sentryInitOptions();
 
     expect(options.enabled).toBe(true);
-    expect(options.release).toBe("v1.2.3-abc1234");
+    expect(options.release).toBe("backstage@1.2.3.4+abc1234");
     expect(options.environment).toBe("production");
     expect(options.dataCollection).toEqual({
       userInfo: false,
