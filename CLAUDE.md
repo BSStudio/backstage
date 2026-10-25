@@ -910,10 +910,25 @@ nothing while tracing is off, and the pin is what keeps enabling tracing from sh
 Prisma binds. The remaining span-scoped categories (`queues`, `genAI`, `graphQL`) have no integration
 behind them at all and are left alone.
 
-**Release tagging** reuses `NEXT_PUBLIC_APP_VERSION` from `next.config.ts` (git tag + short hash, or
-whatever the image build passes in), so an event points at a known build. Source map upload is
-wired through `withSentryConfig` but switches itself off unless `SENTRY_AUTH_TOKEN` is present —
-that secret belongs to the Docker build, not to a local `pnpm build`.
+**Release tagging.** Every version string has to parse as semver in Sentry, or the release gets no
+ordering, no `release.version` filter and no regression detection. Release tags stay `vX.Y.Z`, but
+the version drops the `v`, which Sentry's parser refuses. A commit carrying a release tag builds as
+`X.Y.Z`; anything else as `X.Y.Z.<commits since the tag>+<hash>`, or `…+<branch>.<hash>` off `main`,
+the branch reduced to `[0-9A-Za-z-]`. The distance goes in the fourth, *revision* number because
+Sentry compares that numerically but a prerelease as plain text, where `dev.10` sorts below
+`dev.9`; the build code after `+` takes no part in the ordering. Only `vX.Y.Z` tags count, so a prerelease
+tag never resets the count, and only along the first-parent line, so neither does a tag on a merged
+branch. A working tree with uncommitted
+changes never builds as the bare tag. `next.config.ts` derives this locally and the publish
+workflow in CI, which passes it in as `NEXT_PUBLIC_APP_VERSION` — the two are written to match and
+nothing ties them together.
+
+The release name is `backstage@<version>`: release names are shared across the whole Sentry
+organization, so the project slug keeps them apart. `next.config.ts` builds it once into
+`NEXT_PUBLIC_SENTRY_RELEASE`, which `sentryInitOptions` sets on every runtime and `withSentryConfig`
+uploads source maps under, so the two cannot name different releases. Source map upload switches
+itself off unless `SENTRY_AUTH_TOKEN` is present — that secret belongs to the Docker build, not to
+a local `pnpm build`.
 
 **Client events tunnel through `/monitoring`.** `tunnelRoute` in `next.config.ts` makes the browser
 POST envelopes to our own origin instead of `sentry.io`, which ad blockers filter by hostname.
@@ -954,12 +969,14 @@ requires both eagerly and the CLI stops loading at all.
 `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, `NEXT_PUBLIC_APP_VERSION` and
 `NEXT_PUBLIC_COMMIT_HASH`. A DSN is public, the rest name the build or the environment, and
 `next build` freezes all of them into the bundle, so setting any of them on the running container
-reports nothing at all. An empty
+reports nothing at all. `NEXT_PUBLIC_SENTRY_RELEASE` is the exception: `next.config.ts` derives it
+from the version and it is not an input. An empty
 `NEXT_PUBLIC_SENTRY_ENVIRONMENT` falls back to `NODE_ENV`, which is what an unconfigured image
 reports as. `SENTRY_ORG` and `SENTRY_PROJECT` are build args too: they only address the upload
 target, and without them `withSentryConfig` has nowhere to send source maps. `SENTRY_AUTH_TOKEN`
 is the only real secret and comes in as a BuildKit secret mount; a build arg would land in the
-image history. The publish workflow derives the version and the hash from the ref it is building,
+image history. The publish workflow derives the version from the ref it is building and its
+distance to the last release tag — hence the full-history checkout — and the hash from the commit,
 and reads `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, `SENTRY_ORG` and
 `SENTRY_PROJECT` from repository *variables*, the token from a repository *secret*.
 
