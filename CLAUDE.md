@@ -59,13 +59,12 @@ Environment variables: see `.env.example`. It is the complete list and is kept i
 
 `pnpm db:seed` wipes the dev database and writes ~43 invented members (Hungarian names, none
 real), leadership roles, an `AuthentikGroup` registry, per-member timeline and audit history, and
-sync jobs including three FAILED and three SKIPPED ones so `/admin/sync-jobs`, its retry button and
-every status badge have something to show. Every member carries a `WEBSITE` push beside their Drupal
-one, because both sites are synced in parallel; the skipped website job carries the
-unconfigured-webhook reason, which is what a local `.env` without a token actually produces. One
-`WEBSITE_FULL_SYNC` audit entry gives `/admin/audit` that action and its null target to render.
-Semesters are relative to `currentSemester()`, and member ids are the local prefix plus a hash of
-the seeded email, so member URLs survive a reseed.
+sync jobs including two FAILED and three SKIPPED ones so `/admin/sync-jobs`, its retry button and
+every status badge have something to show. Every member carries a `WEBSITE` push; the skipped
+website job carries the unconfigured-webhook reason, which is what a local `.env` without a token
+actually produces. One `WEBSITE_FULL_SYNC` audit entry gives `/admin/audit` that action and its
+null target to render. Semesters are relative to `currentSemester()`, and member ids are the local
+prefix plus a hash of the seeded email, so member URLs survive a reseed.
 
 The first run asks for your name and your Authentik `sub` and stores the answers in
 `.dev-user.json` (gitignored). That row is created with your `sub` as its `id`, so logging in
@@ -293,12 +292,6 @@ to the constant, not the literal. Giving such a member an account later means re
 the new UUID; Prisma's required relations default to `onUpdate: Cascade`, so a single
 `UPDATE "Member" SET id = …` carries every child row with it.
 
-`drupalUserId` is the Drupal numeric uid on bsstudio.hu. Nullable, internal, never user-editable
-and not shown in the UI. Populated from the Drupal `CREATE_USER` response, or by the import script
-for pre-existing members. Later Drupal syncs target the account by this uid directly. The Drupal
-*username* is whatever Authentik settled on at create time and is not stored. The column goes when
-Drupal does — see Retiring Drupal.
-
 **LeadershipRole** — only *active* roles, one per member (1:1 via `@unique` on `memberId`). Holds a
 free-text `label` and an array of `authentikGroupIds`. When a role ends the row is deleted and a
 `TimelineEntry` snapshot is written instead. Archiving the member is one of the ways it ends — see
@@ -320,8 +313,7 @@ an entry is about when that is not a member either — an app link, say. It is a
 than a relation, so the log still reads correctly after the row it names is renamed or deleted;
 an `APP_LINK_UPDATED` entry stores the name the link goes by *after* the change.
 
-**SyncJob** — one row per external call, against Authentik, Drupal, the website or a Google
-Group.
+**SyncJob** — one row per external call, against Authentik, the website or a Google Group.
 PENDING → IN_PROGRESS → SUCCESS | FAILED, plus `SKIPPED` for a call that was never attempted
 (see Sync architecture). `memberId` is a required FK. Failed
 jobs surface at `/admin/sync-jobs` and are individually retryable, and so is a row left
@@ -594,8 +586,6 @@ toast instead of navigating the member onto the route's JSON.
 
 `GET /api/health` — container liveness. Public to the proxy and unauthenticated: it answers
 `{ status: "ok" }`, or 503 once the database round trip fails.
-
-`drupalUserId` is never accepted on any write — it is set by sync and import only.
 
 Admin-area resources (sync jobs, audit log, Google Group), app links and computers deliberately
 have **no** REST read routes; see Architectural Decisions.

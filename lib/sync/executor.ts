@@ -22,7 +22,6 @@ export type OperationHandlers = Partial<
 
 const HANDLERS_BY_TARGET: Record<SyncTarget, OperationHandlers> = {
   AUTHENTIK: authentikHandlers,
-  DRUPAL: {},
   WEBSITE: websiteHandlers,
   GOOGLE_GROUP: googleGroupHandlers,
 };

@@ -31,7 +31,6 @@ export function isRetryableSyncJob(status: SyncJobStatus): boolean {
 
 export const SYNC_TARGET_LABELS: Record<SyncTarget, string> = {
   AUTHENTIK: "Authentik",
-  DRUPAL: "Régi honlap",
   WEBSITE: "Honlap",
   GOOGLE_GROUP: "Google Group",
 };
