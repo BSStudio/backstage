@@ -201,10 +201,10 @@ export async function createMember(
     }),
   ]);
 
-  const results: SyncResult[] = [
-    await orchestrateAddToGoogleGroup(prisma, member.id, data.email),
-    await orchestrateSyncWebsiteMember(prisma, member.id),
-  ];
+  const results = await Promise.all([
+    orchestrateAddToGoogleGroup(prisma, member.id, data.email),
+    orchestrateSyncWebsiteMember(prisma, member.id),
+  ]);
 
   return {
     member,

@@ -988,10 +988,10 @@ container; routes and actions get smoke tests for auth and error mapping only.
   route tests. `mockAuthApi(getSession)` mocks `next/headers` and `@/lib/auth` *underneath* it
   instead, so action and session tests run the real helpers and genuinely exercise the role
   predicates. `mockWebsiteOrchestrators()` and `mockGoogleGroupOrchestrators()` stub the external
-  fan-out and return their mocks, so a test can
-  fail one call and assert on it. Each factory is annotated with the module it replaces, because
-  `vi.doMock` swaps one wholesale: an orchestrator a factory leaves out is `undefined` at the call
-  site, and the annotation turns that into a typecheck failure in the helper.
+  fan-out and return their mocks, so a test can fail one call and assert on it. Each factory is
+  annotated with the module it replaces, because `vi.doMock` swaps one wholesale: an orchestrator a
+  factory leaves out is `undefined` at the call site, and the annotation turns that into a
+  typecheck failure in the helper.
 - Route tests use `vi.resetModules()` + `vi.doMock()` + dynamic `import()` to swap in the test
   database and session before each test.
 
@@ -1051,9 +1051,9 @@ hand from `/admin/sync-jobs`. At ~30 members the failure rate does not justify a
 table or the operational surface of pg-boss or a CronJob. Revisit only if manual retries become
 routine.
 
-**A new member's username is shown once.** `createMember` returns the name
-`createAuthentikUser` settled on after its collision loop alongside the member, and the create
-form shows it on its success screen with a copy button. Nothing stores it, so that screen is the only place it is ever
+**A new member's username is shown once.** `createMember` returns the name `createAuthentikUser`
+settled on after its collision loop alongside the member, and the create form shows it on its
+success screen with a copy button. Nothing stores it, so that screen is the only place it is ever
 visible — and the welcome email carrying it is written by hand.
 
 **Avatar upload and removal are separate audit actions.** The avatar URL is deterministic from the
