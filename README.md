@@ -7,8 +7,8 @@
 # Backstage
 
 Internal portal for [Budavári Schönherz Stúdió](https://bsstudio.hu). Source of truth for member
-data, syncing to Authentik and the legacy Drupal website, plus tooling to reconcile the studio
-mailing list.
+data, syncing to Authentik and the studio website, plus tooling to reconcile the studio mailing
+list.
 
 [![CI](https://github.com/BSStudio/backstage/actions/workflows/ci.yml/badge.svg)](https://github.com/BSStudio/backstage/actions/workflows/ci.yml)
 [![Docker](https://github.com/BSStudio/backstage/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/BSStudio/backstage/actions/workflows/docker-publish.yml)

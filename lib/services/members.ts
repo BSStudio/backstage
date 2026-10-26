@@ -4,7 +4,6 @@ import type {
   Prisma,
   PrismaClient,
 } from "@/app/generated/prisma/client";
-import type { UpdateDrupalUserInput } from "@/lib/drupal/users";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import {
   type Actor,
@@ -29,13 +28,6 @@ import {
   orchestrateStatusChange,
   orchestrateUpdateAttributes,
 } from "@/lib/sync/authentik/orchestrators";
-import { getDrupalStatusLabel } from "@/lib/sync/drupal/group-mapping";
-import {
-  orchestrateCreateDrupalUser,
-  orchestrateDeactivateDrupalUser,
-  orchestrateReactivateDrupalUser,
-  orchestrateUpdateDrupalUser,
-} from "@/lib/sync/drupal/orchestrators";
 import { collectSyncErrors, type SyncResult } from "@/lib/sync/executor";
 import {
   orchestrateAddToAlumniGroup,
@@ -67,15 +59,6 @@ const WEBSITE_SYNCED_FIELDS = new Set([
   "firstName",
   "lastName",
   "nickname",
-  "status",
-]);
-
-const DRUPAL_SYNCED_FIELDS = new Set([
-  "firstName",
-  "lastName",
-  "nickname",
-  "email",
-  "mobile",
   "status",
 ]);
 
@@ -170,9 +153,6 @@ export async function createMember(
     status,
   });
 
-  const drupalUsername = authentikUser.username;
-  const joinedSemester = currentSemester();
-
   const [member] = await prisma.$transaction([
     prisma.member.create({
       data: {
@@ -186,7 +166,7 @@ export async function createMember(
         major: data.major || null,
         dormRoom: data.dormRoom || null,
         status,
-        joinedSemester,
+        joinedSemester: currentSemester(),
       },
     }),
     prisma.timelineEntry.create({
@@ -221,34 +201,10 @@ export async function createMember(
     }),
   ]);
 
-  const results: SyncResult[] = [];
-  const drupalResult = await orchestrateCreateDrupalUser(prisma, member.id, {
-    username: drupalUsername,
-    fullname: `${data.lastName} ${data.firstName}`.trim(),
-    nickname: data.nickname ?? "",
-    email: data.email,
-    mobile: data.mobile,
-    joinedSemester,
-  });
-  if (drupalResult.success) {
-    // Persist the Drupal uid returned by CREATE_USER so later syncs can target
-    // the account directly without a username lookup.
-    const userId = (drupalResult.result as { userId?: string } | null)?.userId;
-    if (userId) {
-      await prisma.member.update({
-        where: { id: member.id },
-        data: { drupalUserId: userId },
-      });
-      member.drupalUserId = userId;
-    }
-  }
-  results.push(drupalResult);
-
-  results.push(
-    await orchestrateAddToGoogleGroup(prisma, member.id, data.email),
-  );
-
-  results.push(await orchestrateSyncWebsiteMember(prisma, member.id));
+  const results = await Promise.all([
+    orchestrateAddToGoogleGroup(prisma, member.id, data.email),
+    orchestrateSyncWebsiteMember(prisma, member.id),
+  ]);
 
   return {
     member,
@@ -481,23 +437,6 @@ export async function updateMember(
     }
   }
 
-  // Sync Drupal if any Drupal-tracked field changed
-  const drupalFieldChanged = Object.keys(diff).some((k) =>
-    DRUPAL_SYNCED_FIELDS.has(k),
-  );
-  if (drupalFieldChanged) {
-    const fields: UpdateDrupalUserInput = {};
-    if (diff.firstName || diff.lastName) {
-      fields.fullname = `${updated.lastName} ${updated.firstName}`.trim();
-    }
-    if (diff.nickname) fields.nickname = updated.nickname ?? "";
-    if (diff.email) fields.email = updated.email;
-    if (diff.mobile) fields.mobile = updated.mobile ?? "";
-    if (diff.status) fields.position = getDrupalStatusLabel(updated.status);
-
-    results.push(await orchestrateUpdateDrupalUser(prisma, member.id, fields));
-  }
-
   const websiteFieldChanged = Object.keys(diff).some((k) =>
     WEBSITE_SYNCED_FIELDS.has(k),
   );
@@ -579,7 +518,6 @@ export async function archiveMember(
 
   const results: SyncResult[] = await Promise.all([
     orchestrateDeactivate(prisma, member.id),
-    orchestrateDeactivateDrupalUser(prisma, member.id),
     orchestrateSyncWebsiteMember(prisma, member.id),
   ]);
 
@@ -630,7 +568,6 @@ export async function reactivateMember(
   const results: SyncResult[] = await Promise.all([
     orchestrateReactivate(prisma, member.id),
     orchestrateAddToStatusGroup(prisma, member.id, member.status),
-    orchestrateReactivateDrupalUser(prisma, member.id),
     orchestrateSyncWebsiteMember(prisma, member.id),
   ]);
 
@@ -683,7 +620,6 @@ export async function batchArchive(
   const syncResults = await Promise.all(
     members.flatMap((m) => [
       orchestrateDeactivate(prisma, m.id),
-      orchestrateDeactivateDrupalUser(prisma, m.id),
       orchestrateSyncWebsiteMember(prisma, m.id),
       ...(options.removeFromGoogleGroup
         ? [orchestrateRemoveFromGoogleGroup(prisma, m.id, m.email)]
@@ -741,20 +677,12 @@ export async function batchUpdateStatus(
       .filter((m) => becomesAlumni(m.status, status))
       .map((m) => orchestrateAddToAlumniGroup(prisma, m.id, m.email)),
   );
-  const drupalResults = await Promise.all(
-    members.map((m) =>
-      orchestrateUpdateDrupalUser(prisma, m.id, {
-        position: getDrupalStatusLabel(status),
-      }),
-    ),
-  );
   const websiteResults = await Promise.all(
     members.map((m) => orchestrateSyncWebsiteMember(prisma, m.id)),
   );
   const syncErrors = collectSyncErrors([
     ...groupResultsPerMember.flat(),
     ...alumniResults,
-    ...drupalResults,
     ...websiteResults,
   ]);
 
@@ -864,16 +792,12 @@ export async function assignRole(
     ),
   );
 
-  const drupalResult = await orchestrateUpdateDrupalUser(prisma, memberId, {
-    role: label,
-  });
   const websiteResult = await orchestrateSyncWebsiteMember(prisma, memberId);
 
   return {
     syncErrors: collectSyncErrors([
       ...addResults,
       ...removeResults,
-      drupalResult,
       websiteResult,
     ]),
   };
@@ -918,16 +842,9 @@ export async function removeRole(
     ),
   );
 
-  const drupalResult = await orchestrateUpdateDrupalUser(prisma, memberId, {
-    role: "",
-  });
   const websiteResult = await orchestrateSyncWebsiteMember(prisma, memberId);
 
   return {
-    syncErrors: collectSyncErrors([
-      ...removeResults,
-      drupalResult,
-      websiteResult,
-    ]),
+    syncErrors: collectSyncErrors([...removeResults, websiteResult]),
   };
 }

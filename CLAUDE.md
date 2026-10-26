@@ -6,10 +6,6 @@ Internal portal for a university TV studio (BSS). Source of truth for member dat
 Authentik (identity provider), the studio's public website and its Google Group mailing lists,
 which it also reconciles against the member roster. Also the studio's landing page.
 
-The website is mid-replacement: a new one takes member data over a webhook, the outgoing Drupal
-site is scraped, and **both are synced in parallel** until the switch. See Retiring Drupal for
-how the old half is turned off and later deleted.
-
 Scale: ~30 active members, growing alumni list (~10 per semester). Single deployment, no tenancy,
 no public traffic.
 
@@ -63,13 +59,12 @@ Environment variables: see `.env.example`. It is the complete list and is kept i
 
 `pnpm db:seed` wipes the dev database and writes ~43 invented members (Hungarian names, none
 real), leadership roles, an `AuthentikGroup` registry, per-member timeline and audit history, and
-sync jobs including three FAILED and three SKIPPED ones so `/admin/sync-jobs`, its retry button and
-every status badge have something to show. Every member carries a `WEBSITE` push beside their Drupal
-one, because both sites are synced in parallel; the skipped website job carries the
-unconfigured-webhook reason, which is what a local `.env` without a token actually produces. One
-`WEBSITE_FULL_SYNC` audit entry gives `/admin/audit` that action and its null target to render.
-Semesters are relative to `currentSemester()`, and member ids are the local prefix plus a hash of
-the seeded email, so member URLs survive a reseed.
+sync jobs including two FAILED and three SKIPPED ones so `/admin/sync-jobs`, its retry button and
+every status badge have something to show. Every member carries a `WEBSITE` push; the skipped
+website job carries the unconfigured-webhook reason, which is what a local `.env` without a token
+actually produces. One `WEBSITE_FULL_SYNC` audit entry gives `/admin/audit` that action and its
+null target to render. Semesters are relative to `currentSemester()`, and member ids are the local
+prefix plus a hash of the seeded email, so member URLs survive a reseed.
 
 The first run asks for your name and your Authentik `sub` and stores the answers in
 `.dev-user.json` (gitignored). That row is created with your `sub` as its `id`, so logging in
@@ -123,16 +118,13 @@ The scripts refuse to run against a database whose host is not local unless pass
   `ActionResult` shape they all return, the two failure constants and `mapActionError`
 - `lib/authentik/` — Authentik REST client (`client`, `users`, `groups`), plus `issuer.ts`,
   which owns the one spelling of `AUTHENTIK_ISSUER` every path is joined onto
-- `lib/drupal/` — the outgoing Drupal site's client (`client.ts` transport, `users.ts`
-  operations). Named for the technology so the whole integration deletes by grep — see
-  Retiring Drupal
-- `lib/website/` — `webhook.ts`, the whole client for the new site: one bearer POST of the
-  member push contract — see The new website
+- `lib/website/` — `webhook.ts`, the whole client for the website: one bearer POST of the
+  member push contract — see The website
 - `lib/google/` — the Google clients sharing one signer: `client.ts` (token minting + transport,
   `googleFetch` for an absolute URL, `googleRequest` for a Cloud Identity path), `groups.ts`
   (membership operations), `calendar.ts` (the studio calendar read)
 - `lib/sync/` — `executor.ts` + per-target
-  `{authentik,drupal}/{operations,orchestrators,group-mapping}.ts`,
+  `authentik/{operations,orchestrators,group-mapping}.ts`,
   `google/{operations,orchestrators}.ts` and `website/{operations,orchestrators,payload}.ts`
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
 - `lib/http.ts` — the timeout every outgoing request carries, and what a rejection that never
@@ -214,21 +206,18 @@ The scripts refuse to run against a database whose host is not local unless pass
    from `members.ts`) — the forms validate against the `*FormSchema` variants derived there
 3. Should it reach Authentik? Add to `AUTHENTIK_SYNCED_FIELDS` *and* `buildAuthentikAttributes()`
    (`lib/sync/authentik/orchestrators.ts`) — the attribute set is sent wholesale, see below
-4. Should it reach Drupal? Add to `DRUPAL_SYNCED_FIELDS` *and* the field mapping inside
-   `updateMember`, and to `UpdateDrupalUserInput` (`lib/drupal/users.ts`)
-5. Should it reach the new website? Only if the contract names it — it is theirs, not ours.
+4. Should it reach the website? Only if the contract names it — it is theirs, not ours.
    Then `WebsiteMember` (`lib/website/webhook.ts`), `buildWebsiteMember`
    (`lib/sync/website/payload.ts`) and, if a change to it should trigger a push,
    `WEBSITE_SYNCED_FIELDS`
-6. Should it reach a synced phone? Almost certainly not — a vCard carries contact details only,
+5. Should it reach a synced phone? Almost certainly not — a vCard carries contact details only,
    see Architectural decisions. If it does, `VCardMember` and `renderVCard`
    (`lib/carddav/vcard.ts`) *and* the projection in `listCardDavMembers`
-7. UI: `members/new/page.tsx`, `members/[id]/member-edit-sheet.tsx`, table `columns.tsx`
-8. Tests: `tests/services/members.test.ts`
+6. UI: `members/new/page.tsx`, `members/[id]/member-edit-sheet.tsx`, table `columns.tsx`
+7. Tests: `tests/services/members.test.ts`
 
 **Add a sync operation**
-1. Low-level call in `lib/authentik/*` (then see below), `lib/drupal/users.ts` or
-   `lib/google/groups.ts`
+1. Low-level call in `lib/authentik/*` (then see below) or `lib/google/groups.ts`
 2. Register the handler in `lib/sync/<target>/operations.ts` — it receives
    `(payload, memberId, prisma, jobId)` and resolves external IDs itself at execute time —
    `jobId` is there for a target whose endpoint takes an idempotency key
@@ -303,12 +292,6 @@ to the constant, not the literal. Giving such a member an account later means re
 the new UUID; Prisma's required relations default to `onUpdate: Cascade`, so a single
 `UPDATE "Member" SET id = …` carries every child row with it.
 
-`drupalUserId` is the Drupal numeric uid on bsstudio.hu. Nullable, internal, never user-editable
-and not shown in the UI. Populated from the Drupal `CREATE_USER` response, or by the import script
-for pre-existing members. Later Drupal syncs target the account by this uid directly. The Drupal
-*username* is whatever Authentik settled on at create time and is not stored. The column goes when
-Drupal does — see Retiring Drupal.
-
 **LeadershipRole** — only *active* roles, one per member (1:1 via `@unique` on `memberId`). Holds a
 free-text `label` and an array of `authentikGroupIds`. When a role ends the row is deleted and a
 `TimelineEntry` snapshot is written instead. Archiving the member is one of the ways it ends — see
@@ -330,8 +313,7 @@ an entry is about when that is not a member either — an app link, say. It is a
 than a relation, so the log still reads correctly after the row it names is renamed or deleted;
 an `APP_LINK_UPDATED` entry stores the name the link goes by *after* the change.
 
-**SyncJob** — one row per external call, against Authentik, Drupal, the website or a Google
-Group.
+**SyncJob** — one row per external call, against Authentik, the website or a Google Group.
 PENDING → IN_PROGRESS → SUCCESS | FAILED, plus `SKIPPED` for a call that was never attempted
 (see Sync architecture). `memberId` is a required FK. Failed
 jobs surface at `/admin/sync-jobs` and are individually retryable, and so is a row left
@@ -605,8 +587,6 @@ toast instead of navigating the member onto the route's JSON.
 `GET /api/health` — container liveness. Public to the proxy and unauthenticated: it answers
 `{ status: "ok" }`, or 503 once the database round trip fails.
 
-`drupalUserId` is never accepted on any write — it is set by sync and import only.
-
 Admin-area resources (sync jobs, audit log, Google Group), app links and computers deliberately
 have **no** REST read routes; see Architectural Decisions.
 
@@ -659,14 +639,7 @@ Nothing links it to `lib/authentik/*` automatically. It also covers only the `/a
 surface: the OIDC endpoints behind `lib/auth.ts` and `lib/api-client-auth.ts`
 (`.well-known/openid-configuration`, `/jwks/`) are not in Authentik's spec at all.
 
-### Drupal (the outgoing site at bsstudio.hu)
-
-`DRUPAL_URL`, `DRUPAL_ADMIN_USERNAME`, `DRUPAL_ADMIN_PASSWORD`. There is no API — the client
-logs in as an admin and scrapes/posts Drupal admin forms, with a hand-rolled cookie jar (Node's
-`fetch` has none) and form-token extraction via cheerio. Expect it to be slow and brittle relative
-to Authentik.
-
-### The new website (members webhook)
+### The website (members webhook)
 
 `WEBSITE_WEBHOOK_URL` and `WEBSITE_WEBHOOK_TOKEN`. One endpoint, one verb: a bearer `POST` of
 members, either as targeted operations or as a whole-roster `replace`. The contract is **theirs**,
@@ -684,27 +657,6 @@ goes over the wire.
 `x-bss-delivery-id` is an idempotency key, and the sync layer passes the `SyncJob` id: a push that
 landed but never answered comes back as a duplicate instead of applying twice, and a push the
 endpoint *rejected* leaves the key unclaimed, so the same job can retry once the payload is fixed.
-
-### Retiring Drupal
-
-The site is on its way out. Everything that belongs to it alone carries the name, so the removal
-is a grep rather than an audit:
-
-| What | Where |
-| --- | --- |
-| Client and sync target | `lib/drupal/`, `lib/sync/drupal/`, and their mirrors under `tests/` |
-| The uid it resolves accounts by | `Member.drupalUserId` — schema, the persist step in `createMember`, `seed-dev.ts` |
-| The enum value | `SyncTarget.DRUPAL` and its label in `lib/sync-jobs.ts` |
-| Its credentials | `DRUPAL_URL`, `DRUPAL_ADMIN_USERNAME`, `DRUPAL_ADMIN_PASSWORD` |
-| Its one dependency | `cheerio` — nothing else parses HTML |
-| Its call sites | `DRUPAL_SYNCED_FIELDS` and the `orchestrate*DrupalUser` calls in `lib/services/members.ts` |
-
-That is the *deletion*, and it is not the switch-off. **Clearing any of `DRUPAL_URL`,
-`DRUPAL_ADMIN_USERNAME` or `DRUPAL_ADMIN_PASSWORD` stops the sync** — `runDrupalJob` checks
-`isDrupalConfigured()` and passes `runSyncJob` a skip reason, so every job records as `SKIPPED`
-instead of failing on a `getConfig()` throw. The cutover is an environment change with no deploy
-behind it, and it is reversible by putting the values back. Deleting the code is the tidy-up
-afterwards.
 
 ### Google Workspace (Cloud Identity)
 
@@ -773,16 +725,16 @@ SUCCESS row afterwards.
 
 Handlers receive `(payload, memberId, prisma, jobId)` and resolve external identifiers **at execute
 time** —
-Authentik via `getUserPk(memberId)`, Drupal via `drupalUserId` on the member row. Resolving
-late rather than baking IDs into the payload is what makes retry work: a job that failed because a
-member had no `drupalUserId` succeeds on retry once an admin backfills it. A missing link throws,
-so it lands as a visible `FAILED` row instead of being silently skipped.
+Authentik via `getUserPk(memberId)`. Resolving late rather than baking IDs into the payload is
+what makes retry work: a job that failed because Authentik could not resolve the member succeeds
+on retry once the account is fixed. A missing link throws, so it lands as a visible `FAILED` row
+instead of being silently skipped.
 
 **Members with no Authentik account are skipped, not failed.** Every Authentik orchestrator goes
 through one choke point (`runAuthentikJob`, `lib/sync/authentik/orchestrators.ts`) that checks
 `hasAuthentikAccount(memberId)` and passes `runSyncJob` a skip reason when it is false. A prefixed
-id has no user to resolve a pk from, so unlike a missing `drupalUserId` no admin action could ever
-make the job succeed. The row is still written,
+id has no user to resolve a pk from, so unlike an account Authentik fails to resolve, no admin
+action could ever make the job succeed. The row is still written,
 as `SKIPPED` with `result: { reason }` — an id wrongly carrying the prefix would otherwise stop
 syncing silently forever. No handler runs, `attempts` stays 0, nothing reaches Sentry.
 
@@ -793,18 +745,8 @@ a sync step failed; `syncJson` and `syncJsonResource` (`lib/api-response.ts`) ar
 between that and the normal answer, and services build the list with `collectSyncErrors`. The UI
 shows a warning toast, not an error.
 
-Drupal specifics: `CREATE_USER` / `UPDATE_USER` / `DEACTIVATE_USER` / `REACTIVATE_USER` are wired
-into create, update, status change, archive, reactivate and bulk operations. Status changes flow
-through `UPDATE_USER` via the `position` field — there is no dedicated status orchestrator on this
-target. `REACTIVATE_USER` is the reverse of `DEACTIVATE_USER` on both targets and shares its enum
-value with the Authentik one, the way `DEACTIVATE_USER` already does: Authentik goes back to
-`is_active` and the `users` path, Drupal gets its role boxes re-checked and `profile_passive`
-cleared.
-
-Drupal is skipped the same way when it is unconfigured. `runDrupalJob`
-(`lib/sync/drupal/orchestrators.ts`) is that target's choke point, and unlike a missing
-`drupalUserId` — which a backfill fixes, so it fails — absent credentials mean there is nothing to
-call and, after the cutover, never will be. See Retiring Drupal.
+Authentik specifics: `REACTIVATE_USER` is the reverse of `DEACTIVATE_USER` — the account goes
+back to `is_active` and the `users` path.
 
 Website specifics: one operation, `SYNC_MEMBER` on the `WEBSITE` target, with an empty payload.
 The handler reads the member row at execute time and sends an `upsert` or — when the row is
@@ -858,7 +800,7 @@ worker and no alerting elsewhere, so this is the only thing that tells anyone a 
 
 `tracesSampleRate` is deliberately **absent** rather than `0`. Sentry's `hasSpansEnabled()` treats
 `0` as "tracing on, sample nothing", which still builds spans and attaches `sentry-trace` /
-`baggage` headers to every outgoing Authentik and Drupal call.
+`baggage` headers to every outgoing call.
 
 **Bootstrap.** `instrumentation.ts` `register()` imports `sentry.server.config.ts` or
 `sentry.edge.config.ts` depending on `NEXT_RUNTIME`; the browser gets `instrumentation-client.ts`.
@@ -1045,16 +987,13 @@ container; routes and actions get smoke tests for auth and error mapping only.
 - `tests/helpers.ts` — `mockSession(overrides)` / `mockNoSession()` replace `@/lib/session` for
   route tests. `mockAuthApi(getSession)` mocks `next/headers` and `@/lib/auth` *underneath* it
   instead, so action and session tests run the real helpers and genuinely exercise the role
-  predicates. `mockDrupalOrchestrators()`, `mockWebsiteOrchestrators()` and
-  `mockGoogleGroupOrchestrators()` stub the external fan-out and return their mocks, so a test can
-  fail one call and assert on it. Each factory is annotated with the module it replaces, because
-  `vi.doMock` swaps one wholesale: an orchestrator a factory leaves out is `undefined` at the call
-  site, and the annotation turns that into a typecheck failure in the helper.
+  predicates. `mockWebsiteOrchestrators()` and `mockGoogleGroupOrchestrators()` stub the external
+  fan-out and return their mocks, so a test can fail one call and assert on it. Each factory is
+  annotated with the module it replaces, because `vi.doMock` swaps one wholesale: an orchestrator a
+  factory leaves out is `undefined` at the call site, and the annotation turns that into a
+  typecheck failure in the helper.
 - Route tests use `vi.resetModules()` + `vi.doMock()` + dynamic `import()` to swap in the test
   database and session before each test.
-- Drupal client tests stub `fetch` with real `Response`/`Headers` objects so `getSetCookie()`
-  behaves as in production. Drupal operation tests mock only the transport, leaving `parseHtml`
-  and `getFormToken` real so the scraping selectors are genuinely exercised.
 
 Coverage includes `app/**/*.ts`, `lib/**/*.ts`, `types/**/*.ts` and, named one by one because
 a root glob would pull in every config file, `proxy.ts` and `instrumentation.ts` — route
@@ -1112,18 +1051,8 @@ hand from `/admin/sync-jobs`. At ~30 members the failure rate does not justify a
 table or the operational surface of pg-boss or a CronJob. Revisit only if manual retries become
 routine.
 
-**The Drupal password never leaves `createWebsiteUser`.** Drupal demands a password at account
-creation but nobody uses it — members log in through Authentik. It is minted inside the function,
-is not part of `CreateWebsiteUserInput`, and therefore never reaches a SyncJob payload at all.
-`/admin/sync-jobs` renders only `result`, but the payload is one column change away from being
-shown and is readable by anyone with database access. A retry mints a fresh one.
-
-**Both systems share one username.** `createMember` reuses `authentikUser.username` — the name
-`createAuthentikUser` settled on after its collision loop — rather than re-deriving. Otherwise a
-collision gives Authentik `jkovacs2` and Drupal `jkovacs`. Drupal has its own namespace, so a
-collision *there* still fails the create and lands as a `FAILED` job.
-
-`createMember` returns that name alongside the member, and the create form shows it on its
+**A new member's username is shown once.** `createMember` returns the name `createAuthentikUser`
+settled on after its collision loop alongside the member, and the create form shows it on its
 success screen with a copy button. Nothing stores it, so that screen is the only place it is ever
 visible — and the welcome email carrying it is written by hand.
 
