@@ -8,10 +8,6 @@ const {
   mockOrchestrateAddToGroup,
   mockOrchestrateAddToStatusGroup,
   mockOrchestrateRemoveFromGroup,
-  mockOrchestrateCreateDrupalUser,
-  mockOrchestrateUpdateDrupalUser,
-  mockOrchestrateDeactivateDrupalUser,
-  mockOrchestrateReactivateDrupalUser,
   mockOrchestrateAddToGoogleGroup,
   mockOrchestrateRemoveFromGoogleGroup,
   mockOrchestrateAddToAlumniGroup,
@@ -25,10 +21,6 @@ const {
   mockOrchestrateAddToGroup: vi.fn(),
   mockOrchestrateAddToStatusGroup: vi.fn(),
   mockOrchestrateRemoveFromGroup: vi.fn(),
-  mockOrchestrateCreateDrupalUser: vi.fn(),
-  mockOrchestrateUpdateDrupalUser: vi.fn(),
-  mockOrchestrateDeactivateDrupalUser: vi.fn(),
-  mockOrchestrateReactivateDrupalUser: vi.fn(),
   mockOrchestrateAddToGoogleGroup: vi.fn(),
   mockOrchestrateRemoveFromGoogleGroup: vi.fn(),
   mockOrchestrateAddToAlumniGroup: vi.fn(),
@@ -61,13 +53,7 @@ vi.mock("@/lib/sync/authentik/orchestrators", () => ({
   },
 }));
 
-const drupalOk = { success: true as const, result: null };
-vi.mock("@/lib/sync/drupal/orchestrators", () => ({
-  orchestrateCreateDrupalUser: mockOrchestrateCreateDrupalUser,
-  orchestrateUpdateDrupalUser: mockOrchestrateUpdateDrupalUser,
-  orchestrateDeactivateDrupalUser: mockOrchestrateDeactivateDrupalUser,
-  orchestrateReactivateDrupalUser: mockOrchestrateReactivateDrupalUser,
-}));
+const ok = { success: true as const, result: null };
 
 vi.mock("@/lib/sync/website/orchestrators", () => ({
   orchestrateSyncWebsiteMember: mockOrchestrateSyncWebsiteMember,
@@ -145,15 +131,11 @@ beforeEach(async () => {
     success: true,
     result: null,
   });
-  mockOrchestrateCreateDrupalUser.mockResolvedValue(drupalOk);
-  mockOrchestrateUpdateDrupalUser.mockResolvedValue(drupalOk);
-  mockOrchestrateDeactivateDrupalUser.mockResolvedValue(drupalOk);
-  mockOrchestrateReactivateDrupalUser.mockResolvedValue(drupalOk);
   mockOrchestrateReactivate.mockResolvedValue({ success: true, result: null });
-  mockOrchestrateAddToGoogleGroup.mockResolvedValue(drupalOk);
-  mockOrchestrateRemoveFromGoogleGroup.mockResolvedValue(drupalOk);
-  mockOrchestrateAddToAlumniGroup.mockResolvedValue(drupalOk);
-  mockOrchestrateSyncWebsiteMember.mockResolvedValue(drupalOk);
+  mockOrchestrateAddToGoogleGroup.mockResolvedValue(ok);
+  mockOrchestrateRemoveFromGoogleGroup.mockResolvedValue(ok);
+  mockOrchestrateAddToAlumniGroup.mockResolvedValue(ok);
+  mockOrchestrateSyncWebsiteMember.mockResolvedValue(ok);
 
   const prisma = getTestPrisma();
 
@@ -167,7 +149,6 @@ beforeEach(async () => {
       lastName: "Actor",
       email: "actor@test.com",
       joinedSemester: "2025/2026/1",
-      drupalUserId: "9001",
     },
   });
 
@@ -181,7 +162,6 @@ beforeEach(async () => {
       lastName: "Member",
       email: "target@test.com",
       joinedSemester: "2025/2026/1",
-      drupalUserId: "9002",
     },
   });
 });
@@ -373,32 +353,7 @@ describe("createMember", () => {
     });
   });
 
-  it("persists the Drupal uid returned by the Drupal CREATE_USER", async () => {
-    const prisma = getTestPrisma();
-    mockOrchestrateCreateDrupalUser.mockResolvedValueOnce({
-      success: true,
-      result: { userId: "4242", username: "nmember" },
-    });
-
-    const { member } = await createMember(
-      prisma,
-      {
-        firstName: "New",
-        lastName: "Member",
-        email: "new@test.com",
-        mobile: "+36301234567",
-      },
-      ACTOR,
-    );
-
-    expect(member.drupalUserId).toBe("4242");
-    const persisted = await prisma.member.findUnique({
-      where: { id: member.id },
-    });
-    expect(persisted?.drupalUserId).toBe("4242");
-  });
-
-  it("creates the Drupal user with the username Authentik resolved", async () => {
+  it("returns the username Authentik resolved", async () => {
     const prisma = getTestPrisma();
     // Collision: Authentik hands back jkovacs2, not the derived base.
     mockCreateAuthentikUser.mockResolvedValueOnce({
@@ -424,37 +379,7 @@ describe("createMember", () => {
       ACTOR,
     );
 
-    expect(mockOrchestrateCreateDrupalUser.mock.calls[0][2]).toMatchObject({
-      username: "jkovacs2",
-    });
     expect(username).toBe("jkovacs2");
-  });
-
-  it("reports a syncError but still creates the member when the Drupal create fails", async () => {
-    const prisma = getTestPrisma();
-    mockOrchestrateCreateDrupalUser.mockResolvedValueOnce({
-      success: false,
-      error: "User creation failed for nmember",
-    });
-
-    const { member, syncErrors } = await createMember(
-      prisma,
-      {
-        firstName: "New",
-        lastName: "Member",
-        email: "new@test.com",
-        mobile: "+36301234567",
-      },
-      ACTOR,
-    );
-
-    expect(syncErrors).toEqual(["User creation failed for nmember"]);
-    expect(member.drupalUserId).toBeNull();
-
-    const persisted = await prisma.member.findUnique({
-      where: { id: member.id },
-    });
-    expect(persisted?.drupalUserId).toBeNull();
   });
 
   it("throws ValidationError for missing required fields", async () => {
@@ -532,9 +457,6 @@ describe("createMember", () => {
 
     expect(member.mobile).toBe("+421903123456");
     expect(mockCreateAuthentikUser.mock.calls[0][0]).toMatchObject({
-      mobile: "+421903123456",
-    });
-    expect(mockOrchestrateCreateDrupalUser.mock.calls[0][2]).toMatchObject({
       mobile: "+421903123456",
     });
   });
@@ -658,10 +580,6 @@ describe("createMember", () => {
     expect(member.university).toBeNull();
     expect(member.major).toBeNull();
     expect(member.dormRoom).toBeNull();
-
-    expect(mockOrchestrateCreateDrupalUser.mock.calls[0][2]).toMatchObject({
-      nickname: "",
-    });
   });
 
   it("ignores unknown fields in input", async () => {
@@ -1144,49 +1062,6 @@ describe("updateMember", () => {
     ]);
   });
 
-  it("maps every Drupal-tracked field onto the Drupal update payload", async () => {
-    const prisma = getTestPrisma();
-
-    await updateMember(
-      prisma,
-      MEMBER_ID,
-      {
-        firstName: "János",
-        lastName: "Kovács",
-        nickname: "Jani",
-        email: "jkovacs@bsstudio.hu",
-        mobile: "+36301234567",
-        status: "MEMBER",
-      },
-      ACTOR,
-    );
-
-    expect(mockOrchestrateUpdateDrupalUser).toHaveBeenCalledTimes(1);
-    const [, memberId, fields] = mockOrchestrateUpdateDrupalUser.mock.calls[0];
-    expect(memberId).toBe(MEMBER_ID);
-    expect(fields).toEqual({
-      fullname: "Kovács János",
-      nickname: "Jani",
-      email: "jkovacs@bsstudio.hu",
-      mobile: "+36301234567",
-      position: "stúdiós",
-    });
-  });
-
-  it("sends an empty string when a Drupal-tracked field is cleared", async () => {
-    const prisma = getTestPrisma();
-    await prisma.member.update({
-      where: { id: MEMBER_ID },
-      data: { nickname: "Jani" },
-    });
-
-    await updateMember(prisma, MEMBER_ID, { nickname: "" }, ACTOR);
-
-    expect(mockOrchestrateUpdateDrupalUser.mock.calls[0][2]).toEqual({
-      nickname: "",
-    });
-  });
-
   it("refuses to clear the mobile of a member with an Authentik account", async () => {
     const prisma = getTestPrisma();
     const error = await updateMember(
@@ -1221,9 +1096,6 @@ describe("updateMember", () => {
     const { member } = await updateMember(prisma, id, { mobile: "" }, ACTOR);
 
     expect(member.mobile).toBeNull();
-    expect(mockOrchestrateUpdateDrupalUser.mock.calls[0][2]).toEqual({
-      mobile: "",
-    });
   });
 
   it("normalises the separators out of an updated mobile", async () => {
@@ -1257,32 +1129,6 @@ describe("updateMember", () => {
         },
       },
     });
-  });
-
-  it("collects a syncError when the Drupal update fails", async () => {
-    const prisma = getTestPrisma();
-    mockOrchestrateUpdateDrupalUser.mockResolvedValueOnce({
-      success: false,
-      error: "Update Személyes adatok failed for 9002",
-    });
-
-    const result = await updateMember(
-      prisma,
-      MEMBER_ID,
-      { nickname: "Nicknamed" },
-      ACTOR,
-    );
-
-    expect(result.syncErrors).toEqual([
-      "Update Személyes adatok failed for 9002",
-    ]);
-  });
-
-  it("does not touch Drupal when only non-tracked fields change", async () => {
-    const prisma = getTestPrisma();
-    await updateMember(prisma, MEMBER_ID, { university: "BME" }, ACTOR);
-
-    expect(mockOrchestrateUpdateDrupalUser).not.toHaveBeenCalled();
   });
 });
 
@@ -1415,7 +1261,7 @@ describe("archiveMember", () => {
 
     expect(result.syncErrors).toEqual([]);
     expect(mockOrchestrateDeactivate).not.toHaveBeenCalled();
-    expect(mockOrchestrateDeactivateDrupalUser).not.toHaveBeenCalled();
+    expect(mockOrchestrateSyncWebsiteMember).not.toHaveBeenCalled();
 
     const member = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
     expect(member?.archivedAt).toEqual(first?.archivedAt);
@@ -1518,7 +1364,6 @@ describe("archiveMember", () => {
       "a pozíció megszüntetése nem sikerült: Missing Authentik group UUID for Leadership",
     ]);
     expect(mockOrchestrateDeactivate).toHaveBeenCalledTimes(1);
-    expect(mockOrchestrateDeactivateDrupalUser).toHaveBeenCalledTimes(1);
   });
 
   it("names a thrown non-Error in the position failure", async () => {
@@ -1558,26 +1403,23 @@ describe("archiveMember", () => {
     expect(member?.archived).toBe(true);
   });
 
-  it("returns syncErrors from both systems when each deactivation fails", async () => {
+  it("returns syncErrors from every target that failed", async () => {
     const prisma = getTestPrisma();
     mockOrchestrateDeactivate.mockResolvedValueOnce({
       success: false,
       error: "Authentik unreachable",
     });
-    mockOrchestrateDeactivateDrupalUser.mockResolvedValueOnce({
+    mockOrchestrateSyncWebsiteMember.mockResolvedValueOnce({
       success: false,
-      error: "Deactivation step 1 failed for user 9002",
+      error: "Website webhook error: HTTP 500",
     });
 
     const result = await archiveMember(prisma, MEMBER_ID, ACTOR);
 
     expect(result.syncErrors).toEqual([
       "Authentik unreachable",
-      "Deactivation step 1 failed for user 9002",
+      "Website webhook error: HTTP 500",
     ]);
-    expect(mockOrchestrateDeactivateDrupalUser.mock.calls[0][1]).toBe(
-      MEMBER_ID,
-    );
   });
 
   it("leaves the Google Group alone unless asked", async () => {
@@ -1630,7 +1472,6 @@ describe("reactivateMember", () => {
       success: true,
       result: null,
     });
-    mockOrchestrateReactivateDrupalUser.mockResolvedValue(drupalOk);
     return prisma;
   }
 
@@ -1670,7 +1511,7 @@ describe("reactivateMember", () => {
     });
   });
 
-  it("re-enables both accounts and re-adds the status group", async () => {
+  it("re-enables the account and re-adds the status group", async () => {
     const prisma = await archived();
     await prisma.member.update({
       where: { id: MEMBER_ID },
@@ -1681,7 +1522,6 @@ describe("reactivateMember", () => {
 
     expect(mockOrchestrateReactivate).toHaveBeenCalledTimes(1);
     expect(mockOrchestrateReactivate.mock.calls[0][1]).toBe(MEMBER_ID);
-    expect(mockOrchestrateReactivateDrupalUser).toHaveBeenCalledTimes(1);
     expect(mockOrchestrateAddToStatusGroup).toHaveBeenCalledTimes(1);
     expect(mockOrchestrateAddToStatusGroup.mock.calls[0][2]).toBe("MEMBER");
   });
@@ -1716,7 +1556,6 @@ describe("reactivateMember", () => {
       success: true,
       result: null,
     });
-    mockOrchestrateReactivateDrupalUser.mockResolvedValue(drupalOk);
 
     await reactivateMember(prisma, MEMBER_ID, ACTOR);
 
@@ -1738,7 +1577,7 @@ describe("reactivateMember", () => {
 
     expect(result.syncErrors).toEqual([]);
     expect(mockOrchestrateReactivate).not.toHaveBeenCalled();
-    expect(mockOrchestrateReactivateDrupalUser).not.toHaveBeenCalled();
+    expect(mockOrchestrateSyncWebsiteMember).not.toHaveBeenCalled();
     expect(mockOrchestrateAddToStatusGroup).not.toHaveBeenCalled();
     expect(
       await prisma.auditLog.count({
@@ -1753,16 +1592,16 @@ describe("reactivateMember", () => {
       success: false,
       error: "Authentik unreachable",
     });
-    mockOrchestrateReactivateDrupalUser.mockResolvedValueOnce({
+    mockOrchestrateSyncWebsiteMember.mockResolvedValueOnce({
       success: false,
-      error: "Reactivation step 1 failed for user 9002",
+      error: "Website webhook error: HTTP 500",
     });
 
     const result = await reactivateMember(prisma, MEMBER_ID, ACTOR);
 
     expect(result.syncErrors).toEqual([
       "Authentik unreachable",
-      "Reactivation step 1 failed for user 9002",
+      "Website webhook error: HTTP 500",
     ]);
     const member = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
     expect(member?.archived).toBe(false);
@@ -1805,7 +1644,6 @@ describe("batchArchive", () => {
         lastName: "Target",
         email: "second@test.com",
         joinedSemester: "2025/2026/1",
-        drupalUserId: "9003",
       },
     });
 

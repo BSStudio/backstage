@@ -29,8 +29,8 @@ describe("redactString", () => {
   });
 
   it("leaves ordinary text alone", () => {
-    expect(redactString("Drupal returned 500 for uid 9001")).toBe(
-      "Drupal returned 500 for uid 9001",
+    expect(redactString("Authentik returned 500 for pk 9001")).toBe(
+      "Authentik returned 500 for pk 9001",
     );
     expect(redactString("2025/2026/1")).toBe("2025/2026/1");
   });
@@ -107,7 +107,7 @@ describe("scrubEvent", () => {
       message: "sync failed for a@b.co",
       exception: {
         values: [
-          { type: "Error", value: "Drupal rejected +36301234567" },
+          { type: "Error", value: "Authentik rejected +36301234567" },
           { type: "Error" },
         ],
       },
@@ -116,7 +116,10 @@ describe("scrubEvent", () => {
     expect(scrubEvent(event)).toMatchObject({
       message: `sync failed for ${REDACTED}`,
       exception: {
-        values: [{ value: `Drupal rejected ${REDACTED}` }, { type: "Error" }],
+        values: [
+          { value: `Authentik rejected ${REDACTED}` },
+          { type: "Error" },
+        ],
       },
     });
   });
@@ -131,13 +134,13 @@ describe("scrubEvent", () => {
   it("redacts extra, contexts and breadcrumbs", () => {
     const event = {
       extra: { payload: { email: "a@b.co" }, attempts: 2 },
-      contexts: { drupal: { form: "user-register", mail: "a@b.co" } },
+      contexts: { authentik: { endpoint: "core/users", mail: "a@b.co" } },
       breadcrumbs: [{ message: "logged in as a@b.co" }],
     } as unknown as ErrorEvent;
 
     expect(scrubEvent(event)).toEqual({
       extra: { payload: REDACTED, attempts: 2 },
-      contexts: { drupal: { form: "user-register", mail: REDACTED } },
+      contexts: { authentik: { endpoint: "core/users", mail: REDACTED } },
       breadcrumbs: [{ message: `logged in as ${REDACTED}` }],
     });
   });

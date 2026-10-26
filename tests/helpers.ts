@@ -29,38 +29,6 @@ export function mockSession(
 
 const ok: SyncResult = { success: true, result: null };
 
-export function mockDrupalOrchestrators() {
-  const orchestrateCreateDrupalUser = vi.fn(
-    async (): Promise<SyncResult> => ok,
-  );
-  const orchestrateUpdateDrupalUser = vi.fn(
-    async (): Promise<SyncResult> => ok,
-  );
-  const orchestrateDeactivateDrupalUser = vi.fn(
-    async (): Promise<SyncResult> => ok,
-  );
-  const orchestrateReactivateDrupalUser = vi.fn(
-    async (): Promise<SyncResult> => ok,
-  );
-
-  vi.doMock(
-    "@/lib/sync/drupal/orchestrators",
-    (): typeof import("@/lib/sync/drupal/orchestrators") => ({
-      orchestrateCreateDrupalUser,
-      orchestrateUpdateDrupalUser,
-      orchestrateDeactivateDrupalUser,
-      orchestrateReactivateDrupalUser,
-    }),
-  );
-
-  return {
-    orchestrateCreateDrupalUser,
-    orchestrateUpdateDrupalUser,
-    orchestrateDeactivateDrupalUser,
-    orchestrateReactivateDrupalUser,
-  };
-}
-
 export function mockWebsiteOrchestrators() {
   const orchestrateSyncWebsiteMember = vi.fn(
     async (): Promise<SyncResult> => ok,
