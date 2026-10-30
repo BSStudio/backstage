@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24-alpine AS base
+FROM node:26-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -79,7 +79,7 @@ RUN PRISMA_VERSION="$(node -p "require('./package.json').devDependencies.prisma"
 
 # Stage 4 - Runtime
 
-FROM node:24-alpine AS runner
+FROM node:26-alpine AS runner
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
