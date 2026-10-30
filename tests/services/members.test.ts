@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockCreateAuthentikUser,
@@ -13,6 +13,8 @@ const {
   mockOrchestrateAddToAlumniGroup,
   mockOrchestrateReactivate,
   mockOrchestrateSyncWebsiteMember,
+  mockOrchestrateCreateActiveDirectoryUser,
+  mockOrchestrateSyncActiveDirectoryUser,
 } = vi.hoisted(() => ({
   mockCreateAuthentikUser: vi.fn(),
   mockOrchestrateDeactivate: vi.fn(),
@@ -26,6 +28,8 @@ const {
   mockOrchestrateAddToAlumniGroup: vi.fn(),
   mockOrchestrateReactivate: vi.fn(),
   mockOrchestrateSyncWebsiteMember: vi.fn(),
+  mockOrchestrateCreateActiveDirectoryUser: vi.fn(),
+  mockOrchestrateSyncActiveDirectoryUser: vi.fn(),
 }));
 
 vi.mock("@/lib/sync/authentik/orchestrators", () => ({
@@ -59,6 +63,12 @@ vi.mock("@/lib/sync/website/orchestrators", () => ({
   orchestrateSyncWebsiteMember: mockOrchestrateSyncWebsiteMember,
 }));
 
+vi.mock("@/lib/sync/active-directory/orchestrators", () => ({
+  orchestrateCreateActiveDirectoryUser:
+    mockOrchestrateCreateActiveDirectoryUser,
+  orchestrateSyncActiveDirectoryUser: mockOrchestrateSyncActiveDirectoryUser,
+}));
+
 vi.mock("@/lib/sync/google/orchestrators", () => ({
   orchestrateAddToGoogleGroup: mockOrchestrateAddToGoogleGroup,
   orchestrateRemoveFromGoogleGroup: mockOrchestrateRemoveFromGoogleGroup,
@@ -84,6 +94,7 @@ import {
   uploadMemberAvatar,
 } from "@/lib/services/members";
 import { localMemberId } from "@/types";
+import { stubActiveDirectoryEnv } from "../helpers";
 import { getTestPrisma } from "../setup";
 
 const ACTOR: Actor = { id: "test-actor-id", role: "LEADER" };
@@ -136,6 +147,8 @@ beforeEach(async () => {
   mockOrchestrateRemoveFromGoogleGroup.mockResolvedValue(ok);
   mockOrchestrateAddToAlumniGroup.mockResolvedValue(ok);
   mockOrchestrateSyncWebsiteMember.mockResolvedValue(ok);
+  mockOrchestrateCreateActiveDirectoryUser.mockResolvedValue(ok);
+  mockOrchestrateSyncActiveDirectoryUser.mockResolvedValue(ok);
 
   const prisma = getTestPrisma();
 
@@ -164,6 +177,10 @@ beforeEach(async () => {
       joinedSemester: "2025/2026/1",
     },
   });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 // ─── listMembers ─────────────────────────────────────────────────────────────
@@ -2697,5 +2714,173 @@ describe("website sync", () => {
 
     expect(result.member.nickname).toBe("Jani");
     expect(result.syncErrors).toContain("Website webhook error: HTTP 500");
+  });
+});
+
+describe("active directory sync", () => {
+  function syncedIds() {
+    return mockOrchestrateSyncActiveDirectoryUser.mock.calls.map((c) => c[1]);
+  }
+
+  async function createJanos() {
+    mockCreateAuthentikUser.mockResolvedValue({
+      uuid: crypto.randomUUID(),
+      username: "jkovacs",
+      name: "János Kovács",
+      email: "jkovacs@bsstudio.hu",
+    });
+    return createMember(
+      getTestPrisma(),
+      {
+        firstName: "János",
+        lastName: "Kovács",
+        email: "jkovacs@bsstudio.hu",
+        mobile: "+36301234567",
+      },
+      ACTOR,
+    );
+  }
+
+  it("creates the AD account with the Authentik username", async () => {
+    const { member } = await createJanos();
+
+    expect(mockOrchestrateCreateActiveDirectoryUser).toHaveBeenCalledWith(
+      getTestPrisma(),
+      member.id,
+      "jkovacs",
+    );
+  });
+
+  it("pushes the DN to Authentik when AD is configured", async () => {
+    stubActiveDirectoryEnv();
+
+    const { member } = await createJanos();
+
+    expect(mockOrchestrateUpdateAttributes).toHaveBeenCalledOnce();
+    expect(mockOrchestrateUpdateAttributes).toHaveBeenCalledWith(
+      getTestPrisma(),
+      member.id,
+      { attributes: expect.objectContaining({ first_name: "János" }) },
+    );
+  });
+
+  it("sends no extra Authentik update without AD", async () => {
+    await createJanos();
+
+    expect(mockOrchestrateUpdateAttributes).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed AD create without failing the member", async () => {
+    mockOrchestrateCreateActiveDirectoryUser.mockResolvedValue({
+      success: false,
+      error: "Active Directory error: x",
+    });
+
+    const { member, syncErrors } = await createJanos();
+
+    expect(member.firstName).toBe("János");
+    expect(syncErrors).toContain("Active Directory error: x");
+  });
+
+  it.each([[{ firstName: "János" }], [{ lastName: "Kovács" }]])(
+    "syncs AD when %j changes",
+    async (patch) => {
+      await updateMember(getTestPrisma(), MEMBER_ID, patch, ACTOR);
+
+      expect(syncedIds()).toEqual([MEMBER_ID]);
+    },
+  );
+
+  it.each([
+    [{ nickname: "Jani" }],
+    [{ email: "moved@bsstudio.hu" }],
+    [{ mobile: "+36301234567" }],
+    [{ status: "MEMBER" as const }],
+  ])("leaves AD alone when only %j changes", async (patch) => {
+    await updateMember(getTestPrisma(), MEMBER_ID, patch, ACTOR);
+
+    expect(mockOrchestrateSyncActiveDirectoryUser).not.toHaveBeenCalled();
+  });
+
+  it("syncs AD on archive and again on reactivation", async () => {
+    const prisma = getTestPrisma();
+
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    expect(syncedIds()).toEqual([MEMBER_ID]);
+
+    await reactivateMember(prisma, MEMBER_ID, ACTOR);
+    expect(syncedIds()).toEqual([MEMBER_ID, MEMBER_ID]);
+  });
+
+  it("does not sync AD for a member already archived", async () => {
+    const prisma = getTestPrisma();
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    mockOrchestrateSyncActiveDirectoryUser.mockClear();
+
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    await archiveMember(prisma, MEMBER_ID, ACTOR, {
+      removeFromGoogleGroup: true,
+    });
+
+    expect(mockOrchestrateSyncActiveDirectoryUser).not.toHaveBeenCalled();
+  });
+
+  it("does not sync AD when reactivating a member who is not archived", async () => {
+    await reactivateMember(getTestPrisma(), MEMBER_ID, ACTOR);
+
+    expect(mockOrchestrateSyncActiveDirectoryUser).not.toHaveBeenCalled();
+  });
+
+  it("syncs AD once per member a batch archive archives", async () => {
+    const prisma = getTestPrisma();
+    const id2 = crypto.randomUUID();
+    const alreadyArchived = crypto.randomUUID();
+    await prisma.member.createMany({
+      data: [
+        {
+          id: id2,
+          firstName: "Second",
+          lastName: "Member",
+          email: "second@bsstudio.hu",
+          joinedSemester: "2025/2026/1",
+        },
+        {
+          id: alreadyArchived,
+          firstName: "Gone",
+          lastName: "Member",
+          email: "gone@bsstudio.hu",
+          joinedSemester: "2025/2026/1",
+          archived: true,
+          archivedAt: new Date(),
+        },
+      ],
+    });
+
+    await batchArchive(prisma, [MEMBER_ID, id2, alreadyArchived], ACTOR);
+
+    expect(syncedIds().sort()).toEqual([MEMBER_ID, id2].sort());
+  });
+
+  it("leaves AD alone on role, avatar and status changes", async () => {
+    const prisma = getTestPrisma();
+
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      { label: "Főszerkesztő", authentikGroupIds: [] },
+      ACTOR,
+    );
+    await removeRole(prisma, MEMBER_ID, ACTOR);
+    await uploadMemberAvatar(
+      prisma,
+      MEMBER_ID,
+      { avatarUrl: "/a.webp", portraitUrl: "/p.webp" },
+      ACTOR,
+    );
+    await removeMemberAvatar(prisma, MEMBER_ID, ACTOR);
+    await batchUpdateStatus(prisma, [MEMBER_ID], "MEMBER", ACTOR);
+
+    expect(mockOrchestrateCreateActiveDirectoryUser).not.toHaveBeenCalled();
+    expect(mockOrchestrateSyncActiveDirectoryUser).not.toHaveBeenCalled();
   });
 });

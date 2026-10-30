@@ -4,6 +4,7 @@ import type {
   Prisma,
   PrismaClient,
 } from "@/app/generated/prisma/client";
+import { isActiveDirectoryConfigured } from "@/lib/active-directory/config";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import {
   type Actor,
@@ -16,6 +17,10 @@ import {
   CreateMemberSchema,
   updateMemberSchema,
 } from "@/lib/services/member-schemas";
+import {
+  orchestrateCreateActiveDirectoryUser,
+  orchestrateSyncActiveDirectoryUser,
+} from "@/lib/sync/active-directory/orchestrators";
 import { getLeadershipGroupUuid } from "@/lib/sync/authentik/group-mapping";
 import {
   buildAuthentikAttributes,
@@ -61,6 +66,8 @@ const WEBSITE_SYNCED_FIELDS = new Set([
   "nickname",
   "status",
 ]);
+
+const ACTIVE_DIRECTORY_SYNCED_FIELDS = new Set(["firstName", "lastName"]);
 
 // ─── Service functions ───────────────────────────────────────────────────────
 
@@ -204,6 +211,19 @@ export async function createMember(
   const results = await Promise.all([
     orchestrateAddToGoogleGroup(prisma, member.id, data.email),
     orchestrateSyncWebsiteMember(prisma, member.id),
+    orchestrateCreateActiveDirectoryUser(
+      prisma,
+      member.id,
+      authentikUser.username,
+    ),
+    // The DN names the member id, which is Authentik's answer to the create, so it follows.
+    ...(isActiveDirectoryConfigured()
+      ? [
+          orchestrateUpdateAttributes(prisma, member.id, {
+            attributes: buildAuthentikAttributes(member),
+          }),
+        ]
+      : []),
   ]);
 
   return {
@@ -445,6 +465,13 @@ export async function updateMember(
     results.push(await orchestrateSyncWebsiteMember(prisma, member.id));
   }
 
+  const directoryFieldChanged = Object.keys(diff).some((k) =>
+    ACTIVE_DIRECTORY_SYNCED_FIELDS.has(k),
+  );
+  if (directoryFieldChanged) {
+    results.push(await orchestrateSyncActiveDirectoryUser(prisma, member.id));
+  }
+
   return { member: updated, syncErrors: collectSyncErrors(results) };
 }
 
@@ -520,6 +547,7 @@ export async function archiveMember(
   const results: SyncResult[] = await Promise.all([
     orchestrateDeactivate(prisma, member.id),
     orchestrateSyncWebsiteMember(prisma, member.id),
+    orchestrateSyncActiveDirectoryUser(prisma, member.id),
   ]);
 
   if (options.removeFromGoogleGroup) {
@@ -570,6 +598,7 @@ export async function reactivateMember(
     orchestrateReactivate(prisma, member.id),
     orchestrateAddToStatusGroup(prisma, member.id, member.status),
     orchestrateSyncWebsiteMember(prisma, member.id),
+    orchestrateSyncActiveDirectoryUser(prisma, member.id),
   ]);
 
   return { syncErrors: collectSyncErrors(results) };
@@ -622,6 +651,7 @@ export async function batchArchive(
     members.flatMap((m) => [
       orchestrateDeactivate(prisma, m.id),
       orchestrateSyncWebsiteMember(prisma, m.id),
+      orchestrateSyncActiveDirectoryUser(prisma, m.id),
       ...(options.removeFromGoogleGroup
         ? [orchestrateRemoveFromGoogleGroup(prisma, m.id, m.email)]
         : []),
