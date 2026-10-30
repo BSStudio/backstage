@@ -3,8 +3,9 @@
 # Backstage
 
 Internal portal for a university TV studio (BSS). Source of truth for member data, syncing to
-Authentik (identity provider), the studio's public website and its Google Group mailing lists,
-which it also reconciles against the member roster. Also the studio's landing page.
+Authentik (identity provider), the Active Directory domain behind the studio workstations, the
+studio's public website and its Google Group mailing lists, which it also reconciles against the
+member roster. Also the studio's landing page.
 
 Scale: ~30 active members, growing alumni list (~10 per semester). Single deployment, no tenancy,
 no public traffic.
@@ -59,12 +60,13 @@ Environment variables: see `.env.example`. It is the complete list and is kept i
 
 `pnpm db:seed` wipes the dev database and writes ~43 invented members (Hungarian names, none
 real), leadership roles, an `AuthentikGroup` registry, per-member timeline and audit history, and
-sync jobs including two FAILED and three SKIPPED ones so `/admin/sync-jobs`, its retry button and
+sync jobs including two FAILED and four SKIPPED ones so `/admin/sync-jobs`, its retry button and
 every status badge have something to show. Every member carries a `WEBSITE` push; the skipped
-website job carries the unconfigured-webhook reason, which is what a local `.env` without a token
-actually produces. One `WEBSITE_FULL_SYNC` audit entry gives `/admin/audit` that action and its
-null target to render. Semesters are relative to `currentSemester()`, and member ids are the local
-prefix plus a hash of the seeded email, so member URLs survive a reseed.
+website and Active Directory jobs carry the not-configured reason, which is what a local `.env`
+without a webhook token or the `AD_*` settings actually produces. One `WEBSITE_FULL_SYNC` audit
+entry gives `/admin/audit` that action and its null target to render. Semesters are relative to
+`currentSemester()`, and member ids are the local prefix plus a hash of the seeded email, so member
+URLs survive a reseed.
 
 The first run asks for your name and your Authentik `sub` and stores the answers in
 `.dev-user.json` (gitignored). That row is created with your `sub` as its `id`, so logging in
@@ -120,12 +122,16 @@ The scripts refuse to run against a database whose host is not local unless pass
   which owns the one spelling of `AUTHENTIK_ISSUER` every path is joined onto
 - `lib/website/` — `webhook.ts`, the whole client for the website: one bearer POST of the
   member push contract — see The website
+- `lib/active-directory/` — `config.ts` (the `AD_*` settings and a member's DN) and `client.ts`
+  (one bound LDAPS connection per call: create an account, replace attributes) — see Active
+  Directory
 - `lib/google/` — the Google clients sharing one signer: `client.ts` (token minting + transport,
   `googleFetch` for an absolute URL, `googleRequest` for a Cloud Identity path), `groups.ts`
   (membership operations), `calendar.ts` (the studio calendar read)
 - `lib/sync/` — `executor.ts` + per-target
   `authentik/{operations,orchestrators,group-mapping}.ts`,
-  `google/{operations,orchestrators}.ts` and `website/{operations,orchestrators,payload}.ts`
+  `google/{operations,orchestrators}.ts`, `website/{operations,orchestrators,payload}.ts` and
+  `active-directory/{attributes,operations,orchestrators}.ts`
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
 - `lib/http.ts` — the timeout every outgoing request carries, and what a rejection that never
   became an HTTP answer says
@@ -168,10 +174,10 @@ The scripts refuse to run against a database whose host is not local unless pass
 - `components/ui/` — shadcn/ui primitives
 - `scripts/` — dev tooling run with `tsx`: `dev-setup.ts`, `seed-dev.ts` (+ `seed-data.ts` roster,
   `dev-user.ts` identity prompt, `dev-groups.ts` Authentik group UUIDs), `reset-db.ts`,
-  `authentik-contract.ts` + its `authentik-contract.json` snapshot, and the two credential probes,
-  `google-group-probe.ts` and `google-calendar-probe.ts`, which read the configured group and
-  calendar through the real clients. Everything here runs on a developer's own machine against
-  their `.env`, and nothing here is shipped
+  `authentik-contract.ts` + its `authentik-contract.json` snapshot, and the three credential
+  probes, `google-group-probe.ts`, `google-calendar-probe.ts` and `active-directory-probe.ts`,
+  which read the configured group, calendar and members OU through the real clients. Everything
+  here runs on a developer's own machine against their `.env`, and nothing here is shipped
 - `workstation-agent/` — the studio workstation agent: `backstage-agent.ps1` (the ping loop),
   `install-agent.ps1` (the scheduled task, the ACL and the DPAPI-encrypted credential),
   `bootstrap.ps1` (the one-liner that fetches the other two at the latest release tag), and their
@@ -210,14 +216,19 @@ The scripts refuse to run against a database whose host is not local unless pass
    Then `WebsiteMember` (`lib/website/webhook.ts`), `buildWebsiteMember`
    (`lib/sync/website/payload.ts`) and, if a change to it should trigger a push,
    `WEBSITE_SYNCED_FIELDS`
-5. Should it reach a synced phone? Almost certainly not — a vCard carries contact details only,
+5. Should it reach Active Directory? Almost certainly not — an AD account carries the names and
+   the enabled flag and nothing else, see Active Directory. If it does,
+   `buildDirectoryAttributes` (`lib/sync/active-directory/attributes.ts`) and
+   `ACTIVE_DIRECTORY_SYNCED_FIELDS`
+6. Should it reach a synced phone? Almost certainly not — a vCard carries contact details only,
    see Architectural decisions. If it does, `VCardMember` and `renderVCard`
    (`lib/carddav/vcard.ts`) *and* the projection in `listCardDavMembers`
-6. UI: `members/new/page.tsx`, `members/[id]/member-edit-sheet.tsx`, table `columns.tsx`
-7. Tests: `tests/services/members.test.ts`
+7. UI: `members/new/page.tsx`, `members/[id]/member-edit-sheet.tsx`, table `columns.tsx`
+8. Tests: `tests/services/members.test.ts`
 
 **Add a sync operation**
-1. Low-level call in `lib/authentik/*` (then see below) or `lib/google/groups.ts`
+1. Low-level call in `lib/authentik/*` (then see below), `lib/google/groups.ts` or
+   `lib/active-directory/client.ts`
 2. Register the handler in `lib/sync/<target>/operations.ts` — it receives
    `(payload, memberId, prisma, jobId)` and resolves external IDs itself at execute time —
    `jobId` is there for a target whose endpoint takes an idempotency key
@@ -292,6 +303,18 @@ to the constant, not the literal. Giving such a member an account later means re
 the new UUID; Prisma's required relations default to `onUpdate: Cascade`, so a single
 `UPDATE "Member" SET id = …` carries every child row with it.
 
+No Backstage code runs in that procedure, so nothing writes the AD `CREATE_USER` job either, and
+the member's next edit sends Authentik a DN for an account that does not exist. Insert the job
+`createMember` would have written, then retry it from `/admin/sync-jobs`, which offers retry on a
+`PENDING` row. `id` and `updatedAt` are filled by Prisma rather than the database, so the SQL
+supplies them:
+
+```sql
+INSERT INTO "SyncJob" (id, target, operation, "memberId", payload, "updatedAt")
+VALUES (gen_random_uuid()::text, 'ACTIVE_DIRECTORY', 'CREATE_USER', '<uuid>',
+        '{"username": "<authentik username>"}', now());
+```
+
 **LeadershipRole** — only *active* roles, one per member (1:1 via `@unique` on `memberId`). Holds a
 free-text `label` and an array of `authentikGroupIds`. When a role ends the row is deleted and a
 `TimelineEntry` snapshot is written instead. Archiving the member is one of the ways it ends — see
@@ -313,7 +336,8 @@ an entry is about when that is not a member either — an app link, say. It is a
 than a relation, so the log still reads correctly after the row it names is renamed or deleted;
 an `APP_LINK_UPDATED` entry stores the name the link goes by *after* the change.
 
-**SyncJob** — one row per external call, against Authentik, the website or a Google Group.
+**SyncJob** — one row per external call, against Authentik, Active Directory, the website or a
+Google Group.
 PENDING → IN_PROGRESS → SUCCESS | FAILED, plus `SKIPPED` for a call that was never attempted
 (see Sync architecture). `memberId` is a required FK. Failed
 jobs surface at `/admin/sync-jobs` and are individually retryable, and so is a row left
@@ -707,6 +731,43 @@ The request manager writes a `További információk a <a href="…">felkérésk
 into the description of every event it creates, which is where an event's `url` comes from — the
 first anchor in the description, and only when it is `http(s)`.
 
+### Active Directory
+
+`AD_LDAP_URL`, `AD_BIND_DN`, `AD_BIND_PASSWORD`, `AD_USERS_OU` and `AD_UPN_SUFFIX`, plus the
+optional `AD_LDAP_CA_CERT` and `AD_LDAP_TLS_VERIFY`. The domain exists for logging in to the studio
+workstations, at the console and over RDP, and for nothing else — so a member's account carries
+the username, the UPN, the names and whether it is enabled. Leaving any of the five required
+values empty records every AD job as `SKIPPED`.
+
+**Backstage owns the account; Authentik owns the password.** Authentik cannot create accounts in an
+on-prem AD — its LDAP source imports in the other direction — but that source's password writeback
+sets the AD password of any Authentik user carrying a `distinguishedName` attribute, whether or not
+the source imported them. So Backstage creates, renames, disables and enables the account over
+LDAPS, and every password a member sets in Authentik — enrollment, recovery, a change — lands in AD
+through the DN `buildAuthentikAttributes` carries whenever AD is configured. Writeback checks the
+password against AD's complexity policy first and fails the Authentik change if AD refuses, so the
+two cannot diverge.
+
+The account's CN is the member id and its `sAMAccountName` the Authentik username: the DN is
+`CN=<id>,<AD_USERS_OU>` (`memberDistinguishedName`), and the UPN `<username>@<AD_UPN_SUFFIX>`.
+`userAccountControl` is `NORMAL_ACCOUNT | DONT_EXPIRE_PASSWORD` (66048), plus `ACCOUNTDISABLE`
+(66050) for an archived member. `DONT_EXPIRE_PASSWORD` is load-bearing: an expiry would force a
+change at the Windows logon screen, which never reaches Authentik.
+
+AD accepts `unicodePwd` only over an encrypted connection, so the URL must be `ldaps://`. The DC's
+certificate is self-signed: `AD_LDAP_CA_CERT` pins it (base64-encoded PEM, replacing the system
+trust store rather than adding to it, and it has to name the host in the URL), or
+`AD_LDAP_TLS_VERIFY=false` switches verification off, which wins over a pinned certificate.
+`scripts/active-directory-probe.ts` binds with the configured values and lists the OU.
+
+The domain-side and Authentik-side setup is instance configuration nothing in the app can detect,
+like Authentik's subject mode, and it lives on the studio wiki: the two delegated service
+accounts; the LDAP source, with writeback on and user and group sync off; `LDAPBackend` removed
+from every password stage, without which every wrong Authentik password is also a failed AD bind
+counting toward lockout; the "Remove Change Password" GPO; a finite lockout duration, since an
+Authentik reset does not unlock an AD account; and an `adm-` or `svc-` prefix on every account made
+by hand, since Authentik's username collision check sees only Authentik.
+
 ---
 
 ## Sync architecture
@@ -770,6 +831,19 @@ manual on purpose — an email change leaves the old address on the list (the ed
 nobody is removed on becoming alumni, leaving alumni does not undo the membership, and reactivating
 an archived member does not put back an address the archive took off. The reconciliation page is
 where those leftovers surface, and the archive dialog's checkbox says as much.
+
+Active Directory specifics: `CREATE_USER` and `SYNC_MEMBER` on the `ACTIVE_DIRECTORY` target.
+`CREATE_USER` carries `{ username }`, because Backstage stores no username and the one
+`createAuthentikUser` settled on cannot be re-derived later; everything else both handlers read
+from the member row at execute time, so a create retried after an archive makes the account
+disabled. AD answers code 68 for a taken DN, `sAMAccountName` or UPN alike, so the client counts it
+as success only when a base search finds the DN — otherwise another account holds the name and the
+job fails. `SYNC_MEMBER` replaces the names and the whole `userAccountControl`, so it is also the
+disable and the enable. `runActiveDirectoryJob` is the choke point: it skips a member with no
+Authentik account first, then an unconfigured AD. `createMember` creates the account and, with AD
+configured, sends Authentik a second `UPDATE_USER` carrying the DN, which names the member id
+`createAuthentikUser` only returns; `updateMember` syncs a first or last name change; archiving,
+the batch archive and reactivation sync the enabled flag.
 
 ---
 
@@ -1023,8 +1097,9 @@ let an unauthorised caller move bytes and be told no afterwards.
 
 **Authentik attributes are replaced, not merged.** `PATCH /core/users/{pk}/` overwrites the whole
 `attributes` object, so `buildAuthentikAttributes(member)` always sends the full managed set
-(`first_name`, `last_name`, `mobile`, `avatar_url`). Trade-off: attributes set by hand in the
-Authentik admin UI get wiped on the next update. Acceptable for a managed fleet.
+(`first_name`, `last_name`, `mobile`, `avatar_url`, and `distinguishedName` when AD is
+configured). Trade-off: attributes set by hand in the Authentik admin UI get wiped on the next
+update. Acceptable for a managed fleet.
 
 `avatar_url` is absolutised against `APP_URL` on the way out, while the DB and the UI keep the
 `/avatars/…` path. Authentik renders the attribute verbatim and has no placeholder for our origin,
@@ -1170,6 +1245,23 @@ than the app guessing that the old one should go.
 every permanently-fine address — another list, an external contact — stays `UNKNOWN` forever, and
 nobody can tell a reviewed row from an unreviewed one. The value is in the state, not the note; the
 note is mandatory anyway because with no member link it is the only thing identifying the address.
+
+**The AD password is Authentik's, not Backstage's.** Backstage must never see a member's password,
+and Authentik already runs enrollment and recovery; what it cannot do is create the AD account. So
+each side does the half it can: Backstage creates the account with a random password nobody is
+told — AD will not enable an account without one — and the member's next password set in
+Authentik replaces it. Authentik's hashes cannot be copied across, so an account has no password
+anyone knows until its member next sets one in Authentik.
+
+**The DN is sent before the AD account is known to exist.** `createMember` sends it alongside the
+AD create, not after it succeeds, and every later update carries it. That locks a member whose AD
+create failed out of every Authentik password set — the complexity check base-searches the DN and
+requires an entry — until the job is retried. Accepted because onboarding mail goes out only once a
+batch's jobs succeeded, so nobody is sent to set a password on an account that is not there.
+Sending it only on success would need a record of that success to send on every later update.
+
+**The CN is the member id, not the username.** The DN is then derivable from the id with nothing
+stored, the way the avatar URL is, and a rename never moves the entry.
 
 **Avatar storage is backend-agnostic.** `lib/avatar-storage.ts` is the facade: it validates member
 ID shape, 5MB size and WebP magic bytes, then delegates to a backend implementing `AvatarStorage`
