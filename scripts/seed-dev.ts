@@ -449,7 +449,7 @@ function buildSyncJobs(
     ...jobs,
     ...buildFailedSyncJobs(devUser),
     ...buildSkippedSyncJobs(members, devUser),
-    ...buildSkippedWebsiteJob(devUser),
+    ...buildUnconfiguredSyncJobs(devUser),
   ];
 }
 
@@ -477,24 +477,22 @@ function buildSkippedSyncJobs(
     }));
 }
 
-// A local .env usually has no webhook, which is the other reason a job is skipped.
-function buildSkippedWebsiteJob(
+// A local .env usually has no webhook and no AD, which is the other reason a job is skipped.
+function buildUnconfiguredSyncJobs(
   devUser: DevUser,
 ): Prisma.SyncJobCreateManyInput[] {
   const skippedAt = daysAgo(1);
 
-  return [
-    {
-      target: "WEBSITE",
-      operation: "SYNC_MEMBER",
-      memberId: devUser.id,
-      payload: {},
-      status: "SKIPPED",
-      result: { reason: NOT_CONFIGURED_REASON },
-      createdAt: skippedAt,
-      updatedAt: skippedAt,
-    },
-  ];
+  return (["WEBSITE", "ACTIVE_DIRECTORY"] as const).map((target) => ({
+    target,
+    operation: "SYNC_MEMBER",
+    memberId: devUser.id,
+    payload: {},
+    status: "SKIPPED",
+    result: { reason: NOT_CONFIGURED_REASON },
+    createdAt: skippedAt,
+    updatedAt: skippedAt,
+  }));
 }
 
 // An Authentik and a website failure, so /admin/sync-jobs and its retry button have something to show.

@@ -5,6 +5,7 @@ import type {
 } from "@/app/generated/prisma/client";
 import { Prisma } from "@/app/generated/prisma/client";
 import { captureSyncJobFailure } from "@/lib/observability/capture";
+import { activeDirectoryHandlers } from "./active-directory/operations";
 import { authentikHandlers } from "./authentik/operations";
 import { googleGroupHandlers } from "./google/operations";
 import { websiteHandlers } from "./website/operations";
@@ -24,6 +25,7 @@ const HANDLERS_BY_TARGET: Record<SyncTarget, OperationHandlers> = {
   AUTHENTIK: authentikHandlers,
   WEBSITE: websiteHandlers,
   GOOGLE_GROUP: googleGroupHandlers,
+  ACTIVE_DIRECTORY: activeDirectoryHandlers,
 };
 
 export type SyncResult =

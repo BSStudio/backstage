@@ -24,6 +24,7 @@ enum SyncTarget {
   AUTHENTIK
   WEBSITE
   GOOGLE_GROUP
+  ACTIVE_DIRECTORY
 }
 
 enum SyncOperation {
