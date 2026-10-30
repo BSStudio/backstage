@@ -71,6 +71,18 @@ export function mockGoogleGroupOrchestrators() {
   };
 }
 
+export function stubActiveDirectoryEnv(overrides: Record<string, string> = {}) {
+  const env: Record<string, string> = {
+    AD_LDAP_URL: "ldaps://dc.studio.test:636",
+    AD_BIND_DN: "CN=svc-backstage,OU=Service,DC=studio,DC=test",
+    AD_BIND_PASSWORD: "bind-secret",
+    AD_USERS_OU: "OU=Members,DC=studio,DC=test",
+    AD_UPN_SUFFIX: "studio.test",
+    ...overrides,
+  };
+  for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+}
+
 // Mocks what `@/lib/session` reads rather than the module itself, so the real session
 // helpers — and the actor derivation the actions rely on — stay under test.
 export function mockAuthApi(getSession: Mock) {
