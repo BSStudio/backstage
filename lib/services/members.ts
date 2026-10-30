@@ -218,6 +218,7 @@ async function syncAvatarUrl(
   memberId: string,
   before: { avatarUrl: string | null },
   after: {
+    id: string;
     firstName: string;
     lastName: string;
     mobile: string | null;

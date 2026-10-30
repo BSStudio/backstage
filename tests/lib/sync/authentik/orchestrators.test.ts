@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { stubActiveDirectoryEnv } from "../../../helpers";
 import { getTestPrisma } from "../../../setup";
 
 const {
@@ -376,8 +377,13 @@ describe("members without an Authentik account", () => {
 });
 
 describe("buildAuthentikAttributes", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("includes first_name and last_name always", () => {
     const attrs = buildAuthentikAttributes({
+      id: MEMBER_ID,
       firstName: "János",
       lastName: "Kovács",
       mobile: null,
@@ -388,6 +394,7 @@ describe("buildAuthentikAttributes", () => {
 
   it("adds mobile when set", () => {
     const attrs = buildAuthentikAttributes({
+      id: MEMBER_ID,
       firstName: "A",
       lastName: "B",
       mobile: "+36301234567",
@@ -402,6 +409,7 @@ describe("buildAuthentikAttributes", () => {
 
   it("adds avatar_url as an absolute URL when set", () => {
     const attrs = buildAuthentikAttributes({
+      id: MEMBER_ID,
       firstName: "A",
       lastName: "B",
       mobile: null,
@@ -416,6 +424,7 @@ describe("buildAuthentikAttributes", () => {
 
   it("includes both mobile and avatar_url when set", () => {
     const attrs = buildAuthentikAttributes({
+      id: MEMBER_ID,
       firstName: "A",
       lastName: "B",
       mobile: "+36301234567",
@@ -433,11 +442,53 @@ describe("buildAuthentikAttributes", () => {
     vi.stubEnv("APP_URL", "");
     expect(() =>
       buildAuthentikAttributes({
+        id: MEMBER_ID,
         firstName: "A",
         lastName: "B",
         mobile: null,
         avatarUrl: "/avatars/x-square.webp",
       }),
     ).toThrow("Missing APP_URL");
+  });
+  it("carries the AD DN when AD is configured, so writeback can find the account", () => {
+    stubActiveDirectoryEnv();
+    expect(
+      buildAuthentikAttributes({
+        id: MEMBER_ID,
+        firstName: "A",
+        lastName: "B",
+        mobile: null,
+        avatarUrl: null,
+      }),
+    ).toEqual({
+      first_name: "A",
+      last_name: "B",
+      distinguishedName: `CN=${MEMBER_ID},OU=Members,DC=studio,DC=test`,
+    });
+  });
+
+  it("leaves the DN out when AD is not configured", () => {
+    expect(
+      buildAuthentikAttributes({
+        id: MEMBER_ID,
+        firstName: "A",
+        lastName: "B",
+        mobile: null,
+        avatarUrl: null,
+      }),
+    ).not.toHaveProperty("distinguishedName");
+  });
+
+  it("leaves the DN out when AD is only partly configured", () => {
+    stubActiveDirectoryEnv({ AD_BIND_PASSWORD: "" });
+    expect(
+      buildAuthentikAttributes({
+        id: MEMBER_ID,
+        firstName: "A",
+        lastName: "B",
+        mobile: null,
+        avatarUrl: null,
+      }),
+    ).not.toHaveProperty("distinguishedName");
   });
 });

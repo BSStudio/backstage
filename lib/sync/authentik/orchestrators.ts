@@ -3,6 +3,10 @@ import type {
   PrismaClient,
   SyncOperation,
 } from "@/app/generated/prisma/client";
+import {
+  isActiveDirectoryConfigured,
+  memberDistinguishedName,
+} from "@/lib/active-directory/config";
 import { absoluteAppUrl } from "@/lib/app-url";
 import { createUser } from "@/lib/authentik/users";
 import { resolveAvailableUsername } from "@/lib/services/usernames";
@@ -28,6 +32,7 @@ async function runAuthentikJob(
 }
 
 export function buildAuthentikAttributes(member: {
+  id: string;
   firstName: string;
   lastName: string;
   mobile: string | null;
@@ -39,6 +44,11 @@ export function buildAuthentikAttributes(member: {
   };
   if (member.mobile) attrs.mobile = member.mobile;
   if (member.avatarUrl) attrs.avatar_url = absoluteAppUrl(member.avatarUrl);
+  // Authentik's LDAP source writes a password back only to a user carrying this, and the
+  // attribute set is replaced wholesale, so an update without it stops writeback for the member.
+  if (isActiveDirectoryConfigured()) {
+    attrs.distinguishedName = memberDistinguishedName(member.id);
+  }
   return attrs;
 }
 
