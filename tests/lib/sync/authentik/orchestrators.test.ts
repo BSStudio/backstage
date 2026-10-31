@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { stubActiveDirectoryEnv } from "../../../helpers";
 import { getTestPrisma } from "../../../setup";
 
 const {
@@ -40,6 +41,7 @@ import {
   orchestrateStatusChange,
   orchestrateUpdateAttributes,
 } from "@/lib/sync/authentik/orchestrators";
+import { executeSyncJob } from "@/lib/sync/executor";
 
 const MEMBER_ID = "uuid-member-1";
 const LOCAL_MEMBER_ID = "x_uuid-member-2";
@@ -83,6 +85,10 @@ beforeEach(async () => {
       joinedSemester: "2012/2013/1",
     },
   });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 // ─── createAuthentikUser ─────────────────────────────────────────────────────
@@ -153,6 +159,35 @@ describe("orchestrateUpdateAttributes", () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0].operation).toBe("UPDATE_USER");
     expect(jobs[0].status).toBe("SUCCESS");
+  });
+
+  it("rebuilds the attributes from the member row, so a stale retry keeps the DN", async () => {
+    const prisma = getTestPrisma();
+    mockUpdateUser.mockResolvedValue({ pk: 42 });
+    const job = await prisma.syncJob.create({
+      data: {
+        target: "AUTHENTIK",
+        operation: "UPDATE_USER",
+        memberId: MEMBER_ID,
+        payload: {
+          name: "Old Name",
+          attributes: { first_name: "Old", last_name: "Name" },
+        },
+        status: "FAILED",
+      },
+    });
+    stubActiveDirectoryEnv();
+
+    await executeSyncJob(prisma, job.id);
+
+    expect(mockUpdateUser).toHaveBeenCalledWith(42, {
+      name: "Old Name",
+      attributes: {
+        first_name: "Test",
+        last_name: "Member",
+        distinguishedName: `CN=${MEMBER_ID},OU=Members,DC=studio,DC=test`,
+      },
+    });
   });
 });
 
@@ -378,6 +413,7 @@ describe("members without an Authentik account", () => {
 describe("buildAuthentikAttributes", () => {
   it("includes first_name and last_name always", () => {
     const attrs = buildAuthentikAttributes({
+      id: MEMBER_ID,
       firstName: "János",
       lastName: "Kovács",
       mobile: null,
@@ -388,6 +424,7 @@ describe("buildAuthentikAttributes", () => {
 
   it("adds mobile when set", () => {
     const attrs = buildAuthentikAttributes({
+      id: MEMBER_ID,
       firstName: "A",
       lastName: "B",
       mobile: "+36301234567",
@@ -402,6 +439,7 @@ describe("buildAuthentikAttributes", () => {
 
   it("adds avatar_url as an absolute URL when set", () => {
     const attrs = buildAuthentikAttributes({
+      id: MEMBER_ID,
       firstName: "A",
       lastName: "B",
       mobile: null,
@@ -416,6 +454,7 @@ describe("buildAuthentikAttributes", () => {
 
   it("includes both mobile and avatar_url when set", () => {
     const attrs = buildAuthentikAttributes({
+      id: MEMBER_ID,
       firstName: "A",
       lastName: "B",
       mobile: "+36301234567",
@@ -433,11 +472,72 @@ describe("buildAuthentikAttributes", () => {
     vi.stubEnv("APP_URL", "");
     expect(() =>
       buildAuthentikAttributes({
+        id: MEMBER_ID,
         firstName: "A",
         lastName: "B",
         mobile: null,
         avatarUrl: "/avatars/x-square.webp",
       }),
     ).toThrow("Missing APP_URL");
+  });
+  it("carries the AD DN when AD is configured, so writeback can find the account", () => {
+    stubActiveDirectoryEnv();
+    expect(
+      buildAuthentikAttributes({
+        id: MEMBER_ID,
+        firstName: "A",
+        lastName: "B",
+        mobile: null,
+        avatarUrl: null,
+      }),
+    ).toEqual({
+      first_name: "A",
+      last_name: "B",
+      distinguishedName: `CN=${MEMBER_ID},OU=Members,DC=studio,DC=test`,
+    });
+  });
+
+  it("leaves the DN out when AD is not configured", () => {
+    expect(
+      buildAuthentikAttributes({
+        id: MEMBER_ID,
+        firstName: "A",
+        lastName: "B",
+        mobile: null,
+        avatarUrl: null,
+      }),
+    ).not.toHaveProperty("distinguishedName");
+  });
+
+  it.each([
+    ["a CA certificate pasted as raw PEM", { AD_LDAP_CA_CERT: "-----BEGIN" }],
+    ["a plain ldap:// URL", { AD_LDAP_URL: "ldap://dc.studio.test:389" }],
+  ])(
+    "still carries the DN with %s, which only the AD jobs refuse",
+    (_, overrides) => {
+      stubActiveDirectoryEnv(overrides);
+      expect(
+        buildAuthentikAttributes({
+          id: MEMBER_ID,
+          firstName: "A",
+          lastName: "B",
+          mobile: null,
+          avatarUrl: null,
+        }).distinguishedName,
+      ).toBe(`CN=${MEMBER_ID},OU=Members,DC=studio,DC=test`);
+    },
+  );
+
+  it("leaves the DN out when AD is only partly configured", () => {
+    stubActiveDirectoryEnv({ AD_BIND_PASSWORD: "" });
+    expect(
+      buildAuthentikAttributes({
+        id: MEMBER_ID,
+        firstName: "A",
+        lastName: "B",
+        mobile: null,
+        avatarUrl: null,
+      }),
+    ).not.toHaveProperty("distinguishedName");
   });
 });

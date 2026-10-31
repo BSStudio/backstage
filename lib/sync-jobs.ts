@@ -33,6 +33,7 @@ export const SYNC_TARGET_LABELS: Record<SyncTarget, string> = {
   AUTHENTIK: "Authentik",
   WEBSITE: "Honlap",
   GOOGLE_GROUP: "Google Group",
+  ACTIVE_DIRECTORY: "Active Directory",
 };
 
 export const SYNC_OPERATION_LABELS: Record<SyncOperation, string> = {
