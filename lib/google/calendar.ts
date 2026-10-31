@@ -140,6 +140,7 @@ function toEvent(raw: ApiEvent, timeZone: string): CalendarEvent | null {
     url,
     allDay: false,
     date,
+    // biome-ignore lint/complexity/useMathMinMax: "YYYY-MM-DD" strings, which Math.max turns into NaN
     endDate: endDate > date ? endDate : date,
     startsAt,
     endsAt,
