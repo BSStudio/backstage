@@ -28,11 +28,6 @@
       "matchUpdateTypes": ["minor", "patch"]
     },
     {
-      "description": "@types/node majors track Node majors, so anything above the .nvmrc line types APIs the runtime does not have. Raise this bound in the same change that raises .nvmrc.",
-      "matchPackageNames": ["@types/node"],
-      "allowedVersions": "<25"
-    },
-    {
       "description": "Postgres runs in both compose files and in the Testcontainers suite; a split bump means tests pass against a version production is not running.",
       "groupName": "Postgres",
       "matchDatasources": ["docker"],
