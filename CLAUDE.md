@@ -129,7 +129,7 @@ The scripts refuse to run against a database whose host is not local unless pass
   `googleFetch` for an absolute URL, `googleRequest` for a Cloud Identity path), `groups.ts`
   (membership operations), `calendar.ts` (the studio calendar read)
 - `lib/sync/` — `executor.ts` + per-target
-  `authentik/{operations,orchestrators,group-mapping}.ts`,
+  `authentik/{operations,orchestrators,attributes,group-mapping}.ts`,
   `google/{operations,orchestrators}.ts`, `website/{operations,orchestrators,payload}.ts` and
   `active-directory/{attributes,operations,orchestrators}.ts`
 - `lib/storage/` + `lib/avatar-storage.ts` — avatar storage facade and local/S3 backends
@@ -211,7 +211,7 @@ The scripts refuse to run against a database whose host is not local unless pass
 2. `CreateMemberSchema` / `UpdateMemberSchema` in `lib/services/member-schemas.ts` (re-exported
    from `members.ts`) — the forms validate against the `*FormSchema` variants derived there
 3. Should it reach Authentik? Add to `AUTHENTIK_SYNCED_FIELDS` *and* `buildAuthentikAttributes()`
-   (`lib/sync/authentik/orchestrators.ts`) — the attribute set is sent wholesale, see below
+   (`lib/sync/authentik/attributes.ts`) — the attribute set is sent wholesale, see below
 4. Should it reach the website? Only if the contract names it — it is theirs, not ours.
    Then `WebsiteMember` (`lib/website/webhook.ts`), `buildWebsiteMember`
    (`lib/sync/website/payload.ts`) and, if a change to it should trigger a push,
@@ -807,7 +807,10 @@ between that and the normal answer, and services build the list with `collectSyn
 shows a warning toast, not an error.
 
 Authentik specifics: `REACTIVATE_USER` is the reverse of `DEACTIVATE_USER` — the account goes
-back to `is_active` and the `users` path.
+back to `is_active` and the `users` path. `UPDATE_USER` rebuilds `attributes` from the member row
+at execute time whenever its payload carries them, because Authentik replaces the set wholesale
+and a retried snapshot could predate newer values or the DN. The payload's `attributes` are the
+record of what was asked, not what is sent.
 
 Website specifics: one operation, `SYNC_MEMBER` on the `WEBSITE` target, with an empty payload.
 The handler reads the member row at execute time and sends an `upsert` or — when the row is
@@ -843,7 +846,9 @@ disable and the enable. `runActiveDirectoryJob` is the choke point: it skips a m
 Authentik account first, then an unconfigured AD. `createMember` creates the account and, with AD
 configured, sends Authentik a second `UPDATE_USER` carrying the DN, which names the member id
 `createAuthentikUser` only returns; `updateMember` syncs a first or last name change; archiving,
-the batch archive and reactivation sync the enabled flag.
+the batch archive and reactivation sync the enabled flag. A `CREATE_USER` skipped for missing
+configuration stays skipped once AD is configured, and the member's next edit sends the DN anyway,
+which locks them out of Authentik password sets; insert the job by hand, as for an `x_` member.
 
 ---
 

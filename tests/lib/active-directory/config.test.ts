@@ -93,4 +93,18 @@ describe("memberDistinguishedName", () => {
       "CN=3f0c9a1e-0000-4000-8000-000000000001,OU=Members,DC=studio,DC=test",
     );
   });
+
+  it("derives the DN even when the TLS settings do not parse", () => {
+    stubActiveDirectoryEnv({ AD_LDAP_CA_CERT: PEM });
+    expect(memberDistinguishedName("x")).toBe(
+      "CN=x,OU=Members,DC=studio,DC=test",
+    );
+  });
+
+  it("refuses to name a DN without AD_USERS_OU", () => {
+    stubActiveDirectoryEnv({ AD_USERS_OU: "" });
+    expect(() => memberDistinguishedName("x")).toThrow(
+      "Missing AD_USERS_OU environment variable",
+    );
+  });
 });

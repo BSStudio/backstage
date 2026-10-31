@@ -216,7 +216,7 @@ export async function createMember(
       member.id,
       authentikUser.username,
     ),
-    // The DN names the member id, which is Authentik's answer to the create, so it follows.
+    // The DN names the member id, which exists only once Authentik has answered the create.
     ...(isActiveDirectoryConfigured()
       ? [
           orchestrateUpdateAttributes(prisma, member.id, {

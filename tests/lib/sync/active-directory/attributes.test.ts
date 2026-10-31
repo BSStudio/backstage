@@ -60,4 +60,10 @@ describe("generateInitialPassword", () => {
     expect(password).toMatch(/[0-9]/);
     expect(generateInitialPassword()).not.toBe(password);
   });
+
+  it("keeps letters out of the random part, so no run of a name can appear in it", () => {
+    for (let i = 0; i < 200; i++) {
+      expect(generateInitialPassword()).not.toMatch(/[A-Za-z]{3}/);
+    }
+  });
 });

@@ -61,6 +61,9 @@ export function activeDirectoryConfig(): ActiveDirectoryConfig {
   };
 }
 
+// Must not validate the connection settings: every Authentik attribute update calls this.
 export function memberDistinguishedName(memberId: string): string {
-  return `CN=${memberId},${activeDirectoryConfig().usersOu}`;
+  const { usersOu } = requiredSettings();
+  if (!usersOu) throw new Error("Missing AD_USERS_OU environment variable");
+  return `CN=${memberId},${usersOu}`;
 }

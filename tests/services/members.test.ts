@@ -15,6 +15,7 @@ const {
   mockOrchestrateSyncWebsiteMember,
   mockOrchestrateCreateActiveDirectoryUser,
   mockOrchestrateSyncActiveDirectoryUser,
+  mockBuildAuthentikAttributes,
 } = vi.hoisted(() => ({
   mockCreateAuthentikUser: vi.fn(),
   mockOrchestrateDeactivate: vi.fn(),
@@ -30,6 +31,22 @@ const {
   mockOrchestrateSyncWebsiteMember: vi.fn(),
   mockOrchestrateCreateActiveDirectoryUser: vi.fn(),
   mockOrchestrateSyncActiveDirectoryUser: vi.fn(),
+  mockBuildAuthentikAttributes: vi.fn(
+    (m: {
+      firstName: string;
+      lastName: string;
+      mobile: string | null;
+      avatarUrl: string | null;
+    }) => {
+      const attrs: Record<string, unknown> = {
+        first_name: m.firstName,
+        last_name: m.lastName,
+      };
+      if (m.mobile) attrs.mobile = m.mobile;
+      if (m.avatarUrl) attrs.avatar_url = m.avatarUrl;
+      return attrs;
+    },
+  ),
 }));
 
 vi.mock("@/lib/sync/authentik/orchestrators", () => ({
@@ -41,20 +58,7 @@ vi.mock("@/lib/sync/authentik/orchestrators", () => ({
   orchestrateAddToGroup: mockOrchestrateAddToGroup,
   orchestrateAddToStatusGroup: mockOrchestrateAddToStatusGroup,
   orchestrateRemoveFromGroup: mockOrchestrateRemoveFromGroup,
-  buildAuthentikAttributes: (m: {
-    firstName: string;
-    lastName: string;
-    mobile: string | null;
-    avatarUrl: string | null;
-  }) => {
-    const attrs: Record<string, unknown> = {
-      first_name: m.firstName,
-      last_name: m.lastName,
-    };
-    if (m.mobile) attrs.mobile = m.mobile;
-    if (m.avatarUrl) attrs.avatar_url = m.avatarUrl;
-    return attrs;
-  },
+  buildAuthentikAttributes: mockBuildAuthentikAttributes,
 }));
 
 const ok = { success: true as const, result: null };
@@ -2756,11 +2760,14 @@ describe("active directory sync", () => {
 
     const { member } = await createJanos();
 
+    expect(mockBuildAuthentikAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({ id: member.id }),
+    );
     expect(mockOrchestrateUpdateAttributes).toHaveBeenCalledOnce();
     expect(mockOrchestrateUpdateAttributes).toHaveBeenCalledWith(
       getTestPrisma(),
       member.id,
-      { attributes: expect.objectContaining({ first_name: "János" }) },
+      { attributes: mockBuildAuthentikAttributes.mock.results[0].value },
     );
   });
 

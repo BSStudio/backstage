@@ -10,7 +10,6 @@ import {
 import { hasAuthentikAccount } from "@/types";
 import { runSyncJob, type SyncResult } from "../executor";
 
-// The missing account is named first: configuring AD would not make that job runnable.
 function skipReason(memberId: string): string | undefined {
   if (!hasAuthentikAccount(memberId)) return NO_AUTHENTIK_ACCOUNT_REASON;
   if (!isActiveDirectoryConfigured()) return NOT_CONFIGURED_REASON;
