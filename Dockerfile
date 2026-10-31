@@ -4,7 +4,8 @@ FROM node:26-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN corepack enable
+RUN --mount=type=bind,source=package.json,target=/tmp/package.json \
+  npm install -g "$(node -p "require('/tmp/package.json').packageManager")"
 WORKDIR /app
 
 ##################################################
