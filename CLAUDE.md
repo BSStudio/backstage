@@ -28,7 +28,7 @@ pnpm check           # biome check + tsc --noEmit
 pnpm test:coverage   # Docker must be running: Testcontainers spins a real PostgreSQL
 ```
 
-CI runs the same two.
+CI runs the same two, plus commitlint over the PR's commits and BSStudio/.github's shared checks: actionlint and zizmor over `.github/workflows/`, and a review of dependency changes. All of them are required to merge (see [releases.md](docs/releases.md)).
 
 ### Commands
 

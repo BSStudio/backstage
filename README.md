@@ -6,7 +6,7 @@
 
 # Backstage
 
-Internal portal for [Budavári Schönherz Stúdió](https://bsstudio.hu). Source of truth for member data, syncing to Authentik and the studio website, plus tooling to reconcile the studio mailing list.
+Internal portal for [Budavári Schönherz Stúdió](https://bsstudio.hu). Source of truth for member data, syncing to Authentik, the Active Directory domain behind the studio workstations, the studio website and its Google Group mailing lists, which it also reconciles against the member roster.
 
 [![CI](https://github.com/BSStudio/backstage/actions/workflows/ci.yml/badge.svg)](https://github.com/BSStudio/backstage/actions/workflows/ci.yml)
 [![Docker](https://github.com/BSStudio/backstage/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/BSStudio/backstage/actions/workflows/docker-publish.yml)
@@ -60,7 +60,7 @@ Branch off `main`, open a PR. Three things are enforced rather than suggested, a
 - **100% coverage** — statements, branches, functions and lines, thresholded in [vitest.config.ts](vitest.config.ts) over `app/`, `lib/` and `types/`. Land tests with the change. A defensive branch that genuinely cannot be reached takes a `/* v8 ignore next -- reason */` instead of dragging the number down.
 - **Biome**, not ESLint or Prettier. lint-staged formats staged files on commit, so this rarely needs running by hand.
 
-`pnpm test` needs Docker running — Testcontainers starts a real PostgreSQL. Run `pnpm check` and `pnpm test` before pushing; CI runs the same two plus commitlint.
+`pnpm test` needs Docker running — Testcontainers starts a real PostgreSQL. Run `pnpm check` and `pnpm test` before pushing; CI runs the same two plus commitlint, and BSStudio/.github's shared checks over the workflows and dependency changes.
 
 ## Deployment
 

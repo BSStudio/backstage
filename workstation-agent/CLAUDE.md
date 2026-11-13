@@ -7,3 +7,5 @@ The scripts run on Windows PowerShell 5.1, not PowerShell 7 (see [Architectural 
 ```powershell
 powershell.exe -NoProfile -Command 'foreach ($f in Get-ChildItem workstation-agent\*.ps1) { $e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$e); "{0}: {1} errors" -f $f.Name, $e.Count }'
 ```
+
+Parsing catches 7-only syntax, not 7-only parameters, which fail only when the line runs: run any command you change under `powershell.exe` too.

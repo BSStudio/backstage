@@ -15,7 +15,7 @@
 | `docker-publish.yml` | PR (build only), push to `main`, `v*.*.*` tags | Buildx → `ghcr.io/bsstudio/backstage`, provenance attestation |
 | `authentik-contract.yml` | Weekly cron, dispatch, PRs touching `lib/authentik/**` | Diffs Authentik's published spec against `scripts/authentik-contract.json` |
 
-`ci.yml` and `checks.yml` carry no `paths` filter on purpose: they are what `main` is protected on, and a required check that never runs on a docs-only PR blocks that PR instead of passing it. Both node jobs run `prisma generate` first — `app/generated/prisma/` is gitignored and `tsc` resolves through it.
+`ci.yml` and `checks.yml` carry no `paths` filter on purpose: they are what `main` is protected on, and a required check that never runs on a docs-only PR blocks that PR instead of passing it. `ci.yml`'s `Lint and typecheck` and `Test` run `prisma generate` first — `app/generated/prisma/` is gitignored and `tsc` resolves through it.
 
 The contract check reads goauthentik's `main` rather than a release, so a field rename shows up before the studio instance is upgraded into it. A scheduled run that drifts opens an issue (deduplicated by title); on a PR the red job is the notification. The snapshot is refreshed by hand with `pnpm authentik:contract --update` once the change is understood.
 
