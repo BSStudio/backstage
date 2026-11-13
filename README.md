@@ -62,8 +62,7 @@ Branch off `main`, open a PR. Three things are enforced rather than suggested, a
 the build rather than warning:
 
 - **Conventional commits.** commitlint runs in the husky `commit-msg` hook and again in CI over the
-  PR's whole commit range, so an older commit cannot slip through. Subject lowercase, ≤72
-  characters.
+  PR's whole commit range, so an older commit cannot slip through. Subject lowercase.
 - **100% coverage** — statements, branches, functions and lines, thresholded in
   [vitest.config.ts](vitest.config.ts) over `app/`, `lib/` and `types/`. Land tests with the change.
   A defensive branch that genuinely cannot be reached takes a

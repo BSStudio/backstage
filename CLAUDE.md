@@ -54,7 +54,7 @@ Environment variables: see `.env.example`. It is the complete list and is kept i
 
 ## Commits and branches
 
-Conventional commits — enforced by commitlint. Subject lowercase, ≤72 chars. PRs are squash-merged: the PR title becomes the commit on `main`, so it follows the same convention.
+Conventional commits — enforced by commitlint. Subject lowercase. PRs are squash-merged: the PR title becomes the commit on `main`, so it follows the same convention.
 
 ## Rules
 
