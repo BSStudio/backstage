@@ -25,8 +25,8 @@ list.
 | Auth | Better Auth against Authentik OIDC |
 | Quality | Biome, Vitest + Testcontainers, Sentry |
 
-The user interface is in Hungarian. Architecture, data model and conventions are documented in
-[CLAUDE.md](CLAUDE.md).
+The user interface is in Hungarian. Architecture and data model are documented in
+[docs/](docs/), conventions in [CLAUDE.md](CLAUDE.md).
 
 ## Getting started
 
@@ -88,5 +88,5 @@ The image runs `prisma migrate deploy` from its entrypoint before starting the s
 `NEXT_PUBLIC_*` values are frozen into the bundle by `next build`, so the DSN, the version and the
 commit hash have to be passed as build args — setting them on the running container has no effect.
 The same is true of the Sentry source map upload, which happens at build time. The publish workflow
-supplies all of them from repository variables and secrets; see Release engineering in
-[CLAUDE.md](CLAUDE.md).
+supplies all of them from repository variables and secrets; see
+[Release engineering](docs/releases.md).
