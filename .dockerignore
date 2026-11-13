@@ -1,6 +1,5 @@
 # Anything the image build does not read.
 
-.agents
 .claude
 .dev-authentik-groups.json
 .dev-user.json
