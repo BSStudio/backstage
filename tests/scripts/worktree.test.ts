@@ -16,6 +16,7 @@ import {
   staleDatabases,
   withDatabase,
   worktreeKey,
+  worktreeRoot,
   worktreeRoots,
 } from "@/scripts/worktree";
 
@@ -82,6 +83,21 @@ describe("setEnvValue", () => {
       'A=1\nDATABASE_URL="v"\n',
     );
   });
+
+  it("keeps a comment after the value", () => {
+    expect(
+      setEnvValue('DATABASE_URL="a" # main db\n', "DATABASE_URL", "b"),
+    ).toBe('DATABASE_URL="b" # main db\n');
+    expect(setEnvValue("DATABASE_URL=a # main db\n", "DATABASE_URL", "b")).toBe(
+      "DATABASE_URL=b # main db\n",
+    );
+  });
+
+  it("rewrites an export line instead of appending a second key", () => {
+    expect(setEnvValue('export DATABASE_URL="a"\n', "DATABASE_URL", "b")).toBe(
+      'export DATABASE_URL="b"\n',
+    );
+  });
 });
 
 describe("staleDatabases", () => {
@@ -140,6 +156,15 @@ describe("mainCheckoutOf", () => {
   it("names the main checkout from inside a linked worktree", () => {
     const main = mainCheckoutOf(path.join(root, ".claude", "worktrees", "w"));
     expect(main && realpathSync.native(main)).toBe(root);
+  });
+
+  it("finds a worktree's root from any folder inside it", () => {
+    const inside = path.join(root, ".claude", "worktrees", "w", "nested");
+    mkdirSync(inside, { recursive: true });
+    const found = worktreeRoot(inside);
+    expect(found && realpathSync.native(found)).toBe(
+      path.join(root, ".claude", "worktrees", "w"),
+    );
   });
 
   it("lists every worktree root, the main checkout included", () => {

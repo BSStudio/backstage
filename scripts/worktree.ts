@@ -29,6 +29,11 @@ export function mainCheckoutOf(cwd: string): string | null {
   return path.dirname(path.resolve(commonDir));
 }
 
+export function worktreeRoot(cwd: string): string | null {
+  const root = git(cwd, "rev-parse", "--show-toplevel");
+  return root ? path.resolve(root) : null;
+}
+
 export function worktreeRoots(cwd: string): string[] {
   const porcelain = git(cwd, "worktree", "list", "--porcelain") ?? "";
   return porcelain
@@ -70,14 +75,17 @@ export function withDatabase(url: string, name: string): string {
 export function setEnvValue(text: string, key: string, value: string): string {
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
   const lines = text.split(eol);
-  const keyLine = new RegExp(`^(\\s*${key}\\s*=\\s*)(["']?)`);
+  // Lead (optional `export`, the key, `=`), a quoted or bare value, then whatever follows it.
+  const keyLine = new RegExp(
+    `^(\\s*(?:export\\s+)?${key}\\s*=\\s*)(?:(["'])(?:.*?)\\2|[^\\s#]*)(.*)$`,
+  );
   const index = lines.findIndex((line) => keyLine.test(line));
   if (index === -1) {
     const body = text === "" || text.endsWith(eol) ? text : `${text}${eol}`;
     return `${body}${key}="${value}"${eol}`;
   }
-  const [, lead, quote] = lines[index].match(keyLine) ?? ["", "", ""];
-  lines[index] = `${lead}${quote}${value}${quote}`;
+  const [, lead, quote = "", rest] = lines[index].match(keyLine) ?? [];
+  lines[index] = `${lead}${quote}${value}${quote}${rest}`;
   return lines.join(eol);
 }
 

@@ -52,7 +52,7 @@ CI runs the same two, plus commitlint over the PR's commits and BSStudio/.github
 
 Environment variables: see `.env.example`. It is the complete list and is kept in sync.
 
-In a fresh worktree, run `pnpm install` and `pnpm dev:setup` before anything that touches the dev database: it copies `.env` and the `.dev-*.json` files from the main checkout and gives the worktree its own `backstage_<name>` database, seeded once. `pnpm dev:setup --prune` drops the databases of removed worktrees.
+In a fresh worktree, run `pnpm install` and `pnpm dev:setup` before anything that touches the dev database: it copies `.env` and the `.dev-*.json` files from the main checkout and gives the worktree its own `backstage_<name>` database, seeded once. `pnpm dev:setup --prune` drops the databases of removed worktrees (`--dry-run` lists them first).
 
 ## Commits and branches
 

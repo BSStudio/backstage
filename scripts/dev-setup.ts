@@ -13,6 +13,7 @@ import {
   WORKTREE_FILES,
   withDatabase,
   worktreeKey,
+  worktreeRoot,
   worktreeRoots,
 } from "./worktree";
 
@@ -40,8 +41,10 @@ async function devSetup(): Promise<void> {
 
   let worktreeDatabase: string | null = null;
   if (mainCheckout) {
+    // git's spelling of the root, the one --prune sees, so both derive the same name.
+    const root = worktreeRoot(process.cwd()) ?? process.cwd();
     worktreeDatabase = databaseName(
-      worktreeKey(process.cwd(), mainCheckout),
+      worktreeKey(root, mainCheckout),
       WORKTREE_PREFIX,
     );
     pointEnvAt(worktreeDatabase);
@@ -60,11 +63,9 @@ async function devSetup(): Promise<void> {
   );
   info("Postgres accepting connections.");
 
-  let seed = true;
   if (worktreeDatabase) {
     step(`Creating ${worktreeDatabase}`);
-    seed = await createDatabase(worktreeDatabase);
-    info(seed ? "Created." : "Exists — migrating only, not seeding.");
+    info((await createDatabase(worktreeDatabase)) ? "Created." : "Exists.");
   }
 
   step("Generating the Prisma client");
@@ -73,7 +74,15 @@ async function devSetup(): Promise<void> {
   step("Applying migrations");
   run("pnpm", ["exec", "prisma", "migrate", "deploy"]);
 
-  if (seed) run("pnpm", ["exec", "tsx", "scripts/seed-dev.ts"]);
+  // The seed wipes data, so a worktree database gets it only while empty: fresh, or left so by
+  // an interrupted first run.
+  if (!worktreeDatabase || (await memberCount()) === 0) {
+    run("pnpm", ["exec", "tsx", "scripts/seed-dev.ts"]);
+  } else {
+    info(
+      "Already seeded — skipping the seed, which would wipe this worktree's data.",
+    );
+  }
 
   done("Dev environment ready — start it with: pnpm dev");
 }
@@ -119,8 +128,26 @@ async function createDatabase(database: string): Promise<boolean> {
   });
 }
 
+async function memberCount(): Promise<number> {
+  const client = new Client({ connectionString: databaseUrl() });
+  await client.connect();
+  try {
+    const { rows } = await client.query<{ count: number }>(
+      'SELECT count(*)::int AS count FROM "Member"',
+    );
+    return rows[0].count;
+  } finally {
+    await client.end();
+  }
+}
+
 async function prune(): Promise<void> {
-  step("Dropping the databases of removed worktrees");
+  const dryRun = hasFlag("--dry-run");
+  step(
+    dryRun
+      ? "Listing the databases of removed worktrees (dry run)"
+      : "Dropping the databases of removed worktrees",
+  );
   const mainCheckout = mainCheckoutOf(process.cwd()) ?? process.cwd();
   const live = worktreeRoots(process.cwd())
     .filter((root) => path.resolve(root) !== path.resolve(mainCheckout))
@@ -139,6 +166,10 @@ async function prune(): Promise<void> {
     );
     if (stale.length === 0) info("Nothing to drop.");
     for (const database of stale) {
+      if (dryRun) {
+        info(`Would drop ${database}.`);
+        continue;
+      }
       try {
         await client.query(`DROP DATABASE "${database}"`);
         info(`Dropped ${database}.`);
@@ -147,7 +178,7 @@ async function prune(): Promise<void> {
       }
     }
   });
-  done("Pruned.");
+  done(dryRun ? "Dry run — nothing dropped." : "Pruned.");
 }
 
 async function withMaintenanceClient<T>(

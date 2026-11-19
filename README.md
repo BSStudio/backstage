@@ -37,7 +37,7 @@ pnpm dev
 
 `pnpm dev:setup` asks for your name and your Authentik `sub` on first run so the seeded database contains a member row that your SSO login lands on. The ~43 other members are invented.
 
-In a git worktree, `pnpm dev:setup` copies `.env` and the `.dev-*.json` files from the main checkout and creates the worktree's own database, so worktrees never share dev data; `pnpm dev:setup --prune` drops the databases of removed worktrees.
+In a git worktree, `pnpm dev:setup` copies `.env` and the `.dev-*.json` files from the main checkout and creates the worktree's own database, so worktrees never share dev data; `pnpm dev:setup --prune` drops the databases of removed worktrees, and `--prune --dry-run` lists them without dropping.
 
 ## Commands
 
