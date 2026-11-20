@@ -160,6 +160,8 @@ A refresh re-runs the whole route, so the dashboard pays for its other widgets t
 
 **The Worker is deployed by Cloudflare, not by this repository's CI.** A workflow would need a GitHub secret holding an API token with Workers Scripts: Edit — far broader than the KV-only token Backstage holds, and one more place a credential that can rewrite the redirect sits. Workers Builds reads the repository itself and needs no token here, with the root directory and watch paths set to `short-link-worker/`. A failed build leaves the previous version serving, so there is nothing a pre-deploy check would have protected.
 
+**Wrangler is not a dependency.** It brings workerd, a runtime binary of its own, and every `pnpm install` — on a laptop, in CI and in the image build — would fetch it for a worker that Cloudflare builds without this repository's install. `pnpm wrangler` runs a pinned version through `pnpm dlx` instead, and a Renovate regex manager keeps that pin moving with the other npm updates.
+
 **Short links live under `bsstudio.hu/s/`, not on a subdomain of their own.** The poster carries the domain people already know, and a Worker route matches by path, so only `/s/` requests run the Worker — the rest of the site is untouched and costs nothing against the Workers quota. The price is that the website can never have a page under `/s/`.
 
 **The Worker answers 302, never 301.** A browser caches a 301 indefinitely, so retargeting a slug would leave everyone who followed the old one going to the old target forever — on a link whose whole point is that it can be repointed after the poster is printed.

@@ -4,7 +4,7 @@ Serves the studio's short links. A request to `bsstudio.hu/s/<slug>` is answered
 
 It is deliberately independent of Backstage: the redirect has to keep working during a deploy, a Postgres restart, or a Backstage outage, because the short URL is already printed on a poster. Backstage is the control plane — it decides what a slug points at and writes it into KV — and nothing in the request path touches it.
 
-Plain JavaScript on purpose. The repository's `tsconfig.json` includes `**/*.ts`, so a TypeScript worker here would be typechecked by the root `pnpm typecheck` under the Next.js `lib` and module resolution, and a local `tsconfig.json` would not displace that. `.js` avoids pulling `@cloudflare/workers-types` into the root dependency list for twenty lines of code.
+Plain JavaScript on purpose. The repository's `tsconfig.json` includes `**/*.ts`, so a TypeScript worker here would be typechecked by the root `pnpm typecheck` under the Next.js `lib` and module resolution, and a local `tsconfig.json` would not displace that. `.js` avoids pulling `@cloudflare/workers-types` into the root dependency list for twenty lines of code, and wrangler is kept out of it too: `pnpm wrangler` runs a pinned version through `pnpm dlx`.
 
 ## Cloudflare setup, once
 
@@ -40,7 +40,7 @@ pnpm worker:dev
 `wrangler dev` serves the worker against a local KV namespace, which starts empty — seed a key to exercise a redirect:
 
 ```bash
-pnpm exec wrangler kv key put --config short-link-worker/wrangler.jsonc --local --binding LINKS gala https://example.com
+pnpm wrangler kv key put --config short-link-worker/wrangler.jsonc --local --binding LINKS gala https://example.com
 ```
 
 then open `http://localhost:8787/s/gala`.

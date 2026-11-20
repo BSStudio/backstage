@@ -17,6 +17,15 @@
         "new PostgreSqlContainer\\(\\s*\"(?<depName>[^:\"]+):(?<currentValue>[^\"]+)\""
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Wrangler runs through `pnpm dlx` from a package.json script rather than as a dependency, so the npm manager does not see its version.",
+      "managerFilePatterns": ["package.json"],
+      "matchStrings": [
+        "pnpm dlx [^\"]*?(?<depName>wrangler)@(?<currentValue>[^\"]+)"
+      ],
+      "datasourceTemplate": "npm"
     }
   ],
   "packageRules": [
