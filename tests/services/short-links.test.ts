@@ -25,7 +25,7 @@ vi.mock(
   (): typeof import("@/lib/cloudflare/analytics") => ({
     readShortLinkClicks: mockReadClicks,
     analyticsDataset: vi.fn(),
-    CLICK_WINDOW_DAYS: 30,
+    isAnalyticsConfigured: vi.fn(),
   }),
 );
 
@@ -138,16 +138,10 @@ describe("getShortLinkClicks", () => {
     expect(await getShortLinkClicks(LEADER)).toEqual({ promo: 12 });
   });
 
-  it("answers null when no dataset is configured", async () => {
-    mockReadClicks.mockResolvedValue(null);
-
-    expect(await getShortLinkClicks(LEADER)).toBeNull();
-  });
-
-  it("logs a warning and answers empty when Cloudflare will not say", async () => {
+  it("logs a warning and answers null when Cloudflare will not say", async () => {
     mockReadClicks.mockRejectedValue(new Error("Analytics down"));
 
-    expect(await getShortLinkClicks(ADMIN)).toEqual({});
+    expect(await getShortLinkClicks(ADMIN)).toBeNull();
     expect(mockWarn).toHaveBeenCalledWith("short_link_clicks_read_failed", {
       error: "Analytics down",
     });
@@ -156,7 +150,7 @@ describe("getShortLinkClicks", () => {
   it("stringifies a rejection that is not an Error", async () => {
     mockReadClicks.mockRejectedValue("nope");
 
-    expect(await getShortLinkClicks(ADMIN)).toEqual({});
+    expect(await getShortLinkClicks(ADMIN)).toBeNull();
     expect(mockWarn).toHaveBeenCalledWith("short_link_clicks_read_failed", {
       error: "nope",
     });

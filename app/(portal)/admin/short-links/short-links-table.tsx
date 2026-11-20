@@ -2,7 +2,7 @@
 
 import { Check, Copy, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { Suspense, use, useState, useTransition } from "react";
 import { toast } from "sonner";
 import type { ShortLink } from "@/app/generated/prisma/client";
 import {
@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -37,6 +38,7 @@ import {
   publishShortLinkAction,
 } from "@/lib/actions/short-links";
 import {
+  CLICK_WINDOW_DAYS,
   PUBLISH_STATE_BADGE_CLASS,
   PUBLISH_STATE_LABELS,
   publishState,
@@ -45,6 +47,18 @@ import {
 import { toastSync } from "@/lib/toast";
 import { RepublishButton } from "./republish-button";
 import { ShortLinkForm } from "./short-link-form";
+
+// Null means Cloudflare did not answer; a slug it has no rows for had no clicks in the window.
+function ClickCount({
+  clicks,
+  slug,
+}: {
+  clicks: Promise<Record<string, number> | null>;
+  slug: string;
+}) {
+  const counts = use(clicks);
+  return counts ? (counts[slug] ?? 0) : "—";
+}
 
 export function ShortLinksTable({
   links,
@@ -55,7 +69,7 @@ export function ShortLinksTable({
   canRepublish,
 }: {
   links: ShortLink[];
-  clicks: Record<string, number> | null;
+  clicks: Promise<Record<string, number> | null> | null;
   baseUrl: string | null;
   canManage: boolean;
   canPublish: boolean;
@@ -149,7 +163,11 @@ export function ShortLinksTable({
               <TableHead>Végződés</TableHead>
               <TableHead>Cél</TableHead>
               <TableHead>Megjegyzés</TableHead>
-              {clicks && <TableHead className="w-px">Kattintás</TableHead>}
+              {clicks && (
+                <TableHead className="w-px">
+                  Kattintás ({CLICK_WINDOW_DAYS} nap)
+                </TableHead>
+              )}
               <TableHead className="w-px">Állapot</TableHead>
               {canManage && <TableHead className="w-px" />}
             </TableRow>
@@ -203,7 +221,11 @@ export function ShortLinksTable({
                     </TableCell>
                     {clicks && (
                       <TableCell className="text-right tabular-nums">
-                        {clicks[link.slug] ?? "—"}
+                        <Suspense
+                          fallback={<Skeleton className="ml-auto h-4 w-6" />}
+                        >
+                          <ClickCount clicks={clicks} slug={link.slug} />
+                        </Suspense>
                       </TableCell>
                     )}
                     <TableCell>

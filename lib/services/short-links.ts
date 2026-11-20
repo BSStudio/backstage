@@ -90,7 +90,8 @@ export async function listShortLinks(prisma: PrismaClient, actor: Actor) {
   return prisma.shortLink.findMany({ orderBy: { createdAt: "desc" } });
 }
 
-// A missing click count is a blank column, not an incident — the same call the calendar makes.
+// Null when Cloudflare will not say: an unknown count is a blank cell, not an incident — the
+// same call the calendar makes.
 export async function getShortLinkClicks(
   actor: Actor,
 ): Promise<Record<string, number> | null> {
@@ -101,7 +102,7 @@ export async function getShortLinkClicks(
     logger.warn("short_link_clicks_read_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return {};
+    return null;
   }
 }
 

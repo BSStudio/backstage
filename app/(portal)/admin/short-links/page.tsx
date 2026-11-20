@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { isAnalyticsConfigured } from "@/lib/cloudflare/analytics";
 import { isCloudflareConfigured } from "@/lib/cloudflare/client";
 import {
   canAdminister,
@@ -18,10 +19,9 @@ export const metadata: Metadata = {
 
 export default async function AdminShortLinksPage() {
   const actor = await pageActor(canViewAdminArea);
-  const [links, clicks] = await Promise.all([
-    listShortLinks(prisma, actor),
-    getShortLinkClicks(actor),
-  ]);
+  // Not awaited: the table renders first and the click column streams in.
+  const clicks = isAnalyticsConfigured() ? getShortLinkClicks(actor) : null;
+  const links = await listShortLinks(prisma, actor);
 
   const baseUrl = shortLinkBaseUrl();
 

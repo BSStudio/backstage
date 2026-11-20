@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   analyticsDataset,
-  CLICK_WINDOW_DAYS,
+  isAnalyticsConfigured,
   readShortLinkClicks,
 } from "@/lib/cloudflare/analytics";
+import { CLICK_WINDOW_DAYS } from "@/lib/short-links";
 
 const mockFetch = vi.fn();
 
@@ -25,6 +26,17 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+});
+
+describe("isAnalyticsConfigured", () => {
+  it("is true when a dataset is named", () => {
+    expect(isAnalyticsConfigured()).toBe(true);
+  });
+
+  it.each(["", "   "])("is false when it is %p", (value) => {
+    vi.stubEnv("CLOUDFLARE_ANALYTICS_DATASET", value);
+    expect(isAnalyticsConfigured()).toBe(false);
+  });
 });
 
 describe("analyticsDataset", () => {
@@ -79,10 +91,12 @@ describe("readShortLinkClicks", () => {
     expect(init.body).toContain(`INTERVAL '${CLICK_WINDOW_DAYS}' DAY`);
   });
 
-  it("answers null and calls out to no one when no dataset is set", async () => {
+  it("refuses and calls out to no one when no dataset is set", async () => {
     vi.stubEnv("CLOUDFLARE_ANALYTICS_DATASET", "");
 
-    expect(await readShortLinkClicks()).toBeNull();
+    await expect(readShortLinkClicks()).rejects.toThrow(
+      "Missing CLOUDFLARE_ANALYTICS_DATASET",
+    );
     expect(mockFetch).not.toHaveBeenCalled();
   });
 

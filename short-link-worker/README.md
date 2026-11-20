@@ -62,7 +62,7 @@ The visitor's query string is carried over to the target, so a QR code printed a
 
 ## Clicks
 
-Each redirect writes one Analytics Engine data point keyed on the slug, which is what fills the click column on `/admin/short-links`. `writeDataPoint` returns immediately and the runtime writes in the background, so the redirect never waits on it, and a failure there cannot fail a redirect.
+Each redirect writes one Analytics Engine data point keyed on the slug, which is what fills the click column on `/admin/short-links`. Only GET requests count, and not those whose user agent names a bot, crawler or link preview: chat apps fetch a URL the moment it is pasted, which no one clicked. `writeDataPoint` returns immediately and the runtime writes in the background, so the redirect never waits on it, and a failure there cannot fail a redirect.
 
 Counts are read back with `SUM(_sample_interval)`, not `COUNT(*)` — Analytics Engine downsamples on both read and write, so a plain count under-reports. Retention is Cloudflare's, so these are a live reading rather than a stored total.
 

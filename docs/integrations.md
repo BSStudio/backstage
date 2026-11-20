@@ -76,7 +76,7 @@ The domain-side and Authentik-side setup is instance configuration nothing in th
 
 **A 200 carrying `success: false` is a failure.** Cloudflare answers that way for a refused operation, so `cloudflareRequest` checks the envelope rather than only `res.ok`.
 
-**Clicks are a separate grant on the same token.** The Worker writes one Analytics Engine data point per redirect, read back over the SQL API with **`SUM(_sample_interval)`, never `COUNT(*)`** — Analytics Engine downsamples on both read and write, so a count under-reports. The dataset name is checked against a pattern because it is interpolated into the SQL. Retention is Cloudflare's, so these are a live reading rather than a stored total, and an unset dataset drops the column.
+**Clicks are a separate grant on the same token.** The Worker writes one Analytics Engine data point per redirect, read back over the SQL API with **`SUM(_sample_interval)`, never `COUNT(*)`** — Analytics Engine downsamples on both read and write, so a count under-reports. The dataset name is checked against a pattern because it is interpolated into the SQL. The read covers the last 30 days and is not awaited by the page: the click column streams in after the table. Retention is Cloudflare's, so these are a live reading rather than a stored total, and an unset dataset drops the column.
 
 The token Backstage holds needs only **Workers KV Storage: Edit** on that namespace plus **Account Analytics: Read** — deliberately not the Workers Scripts: Edit a deploy needs, so Backstage cannot rewrite the Worker.
 

@@ -1,3 +1,5 @@
+export const CLICK_WINDOW_DAYS = 30;
+
 export function shortLinkUrl(base: string, slug: string): string {
   return `${base}/${slug}`;
 }

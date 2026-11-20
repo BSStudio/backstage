@@ -3,6 +3,9 @@ const HOME = "https://bsstudio.hu";
 // The route in wrangler.jsonc and SHORT_LINK_BASE_URL in Backstage both end in this.
 const PREFIX = "/s/";
 
+// Link previews and crawlers fetch a URL when it is shared; none of them is a click.
+const NOT_A_CLICK = /bot|crawl|spider|preview|facebookexternalhit|whatsapp/i;
+
 // Hungarian needs the charset stated, or the browser guesses and mangles it.
 const TEXT = { "content-type": "text/plain; charset=utf-8" };
 
@@ -39,8 +42,11 @@ export default {
     const url = await env.LINKS.get(slug);
     if (!url) return notFound();
 
-    // Returns immediately; the runtime writes the point in the background.
-    env.CLICKS.writeDataPoint({ blobs: [slug], indexes: [slug] });
+    const agent = request.headers.get("user-agent") ?? "";
+    if (request.method === "GET" && !NOT_A_CLICK.test(agent)) {
+      // Returns immediately; the runtime writes the point in the background.
+      env.CLICKS.writeDataPoint({ blobs: [slug], indexes: [slug] });
+    }
 
     // 302, never 301: a browser caches a 301 indefinitely, so a retargeted slug would keep
     // sending that visitor to the old URL forever.
