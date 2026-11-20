@@ -615,8 +615,8 @@ export interface SeedShortLink {
   publishedUrl: string | null;
 }
 
-// Between them covering all three publish states: current, never pushed, and edited since it
-// was pushed.
+// Between them covering all three publish states: current, never pushed, and retargeted since
+// it was pushed.
 export const SEED_SHORT_LINKS: SeedShortLink[] = [
   {
     slug: "gala",

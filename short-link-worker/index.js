@@ -16,14 +16,23 @@ function notFound() {
   });
 }
 
-// The target's own parameters win over the visitor's.
+// The target's own parameters win over the visitor's. The visitor's pairs are appended as
+// they came, so the target's own query is never re-encoded.
 function withQuery(target, search) {
   if (!search) return target;
   const url = new URL(target);
   const own = new Set(url.searchParams.keys());
-  for (const [key, value] of new URLSearchParams(search)) {
-    if (!own.has(key)) url.searchParams.append(key, value);
-  }
+  const extra = search
+    .slice(1)
+    .split("&")
+    .filter((pair) => {
+      const [key] = new URLSearchParams(pair).keys();
+      return key !== undefined && !own.has(key);
+    });
+  if (extra.length === 0) return target;
+  url.search = url.search
+    ? `${url.search}&${extra.join("&")}`
+    : `?${extra.join("&")}`;
   return url.href;
 }
 

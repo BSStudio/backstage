@@ -21,12 +21,25 @@ const noteField = z
   .max(120, "Legfeljebb 120 karakter")
   .optional();
 
+function bareHost(url: URL): string {
+  return url.host.replace(/^www\./, "");
+}
+
+function normalisedPath(url: URL): string {
+  return decodeURIComponent(url.pathname).replace(/\/+/g, "/").toLowerCase();
+}
+
+// Loose on purpose: a www alias, or an encoded, doubled or capitalised prefix, can still
+// reach the Worker once the edge or the website normalises it.
 function isUnderBase(value: string, shortBase: string): boolean {
   try {
     const base = new URL(shortBase);
     const target = new URL(value);
-    const prefix = base.pathname.replace(/\/*$/, "/");
-    return target.host === base.host && target.pathname.startsWith(prefix);
+    const prefix = normalisedPath(base).replace(/\/*$/, "/");
+    return (
+      bareHost(target) === bareHost(base) &&
+      normalisedPath(target).startsWith(prefix)
+    );
   } catch {
     return false;
   }

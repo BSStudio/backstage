@@ -1,6 +1,14 @@
 "use client";
 
-import { Check, Copy, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import {
+  Check,
+  Copy,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Suspense, use, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -247,7 +255,11 @@ export function ShortLinksTable({
                               disabled={busy(`${link.slug}:PUBLISH`)}
                               onClick={() => publish(link)}
                             >
-                              <Upload className="size-4" />
+                              {busy(`${link.slug}:PUBLISH`) ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <Upload className="size-4" />
+                              )}
                             </Button>
                           )}
                           <Button
@@ -265,7 +277,11 @@ export function ShortLinksTable({
                             disabled={busy(`${link.slug}:DELETE`)}
                             onClick={() => setDeleting(link)}
                           >
-                            <Trash2 className="size-4" />
+                            {busy(`${link.slug}:DELETE`) ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-4" />
+                            )}
                           </Button>
                         </div>
                       </TableCell>

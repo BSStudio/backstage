@@ -41,6 +41,26 @@ describe("createShortLinkSchema", () => {
   });
 
   it.each([
+    "https://www.bsstudio.hu/s/gala",
+    "https://bsstudio.hu/%73/gala",
+    "https://bsstudio.hu//s/gala",
+    "https://bsstudio.hu/S/gala",
+  ])("refuses %s, which still reaches the Worker", (url) => {
+    expect(
+      createShortLinkSchema(BASE).safeParse({ slug: "promo", url }).success,
+    ).toBe(false);
+  });
+
+  it("allows a target whose path cannot be decoded", () => {
+    expect(
+      createShortLinkSchema(BASE).safeParse({
+        slug: "promo",
+        url: "https://bsstudio.hu/%E0%A4%A",
+      }).success,
+    ).toBe(true);
+  });
+
+  it.each([
     "https://bsstudio.hu/esemenyek",
     "https://bsstudio.hu/sajto",
     "https://bsstudio.hu/s",
