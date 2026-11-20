@@ -227,6 +227,15 @@ describe("createShortLink", () => {
     expect(mockPutKvPairs).not.toHaveBeenCalled();
   });
 
+  it("rethrows a database failure that is not a slug clash", async () => {
+    const ghost: Actor = { id: "ghost-id", role: "ADMIN" };
+
+    await expect(
+      createShortLink(getTestPrisma(), VALID, ghost),
+    ).rejects.not.toBeInstanceOf(ValidationError);
+    expect(await getTestPrisma().shortLink.count()).toBe(0);
+  });
+
   it.each([
     ["-lead", "a leading hyphen"],
     ["a", "one character"],
@@ -525,6 +534,31 @@ describe("publishShortLink", () => {
     expect(link.publishedUrl).toBeNull();
   });
 
+  it("takes the key back when the row was deleted during the push", async () => {
+    const prisma = getTestPrisma();
+    await seed("promo");
+    mockPutKvPairs.mockImplementation(async () => {
+      await prisma.shortLink.delete({ where: { slug: "promo" } });
+    });
+
+    const { syncErrors } = await publishShortLink(prisma, "promo", ADMIN);
+
+    expect(syncErrors).toEqual([]);
+    expect(mockDeleteKvKeys).toHaveBeenCalledWith(["promo"]);
+  });
+
+  it("refuses when Cloudflare is unconfigured", async () => {
+    unconfigured();
+    await seed("promo");
+
+    await expect(
+      publishShortLink(getTestPrisma(), "promo", ADMIN),
+    ).rejects.toMatchObject({
+      userMessage: "A rövid linkek publikálása nincs beállítva",
+    });
+    expect(mockPutKvPairs).not.toHaveBeenCalled();
+  });
+
   it("refuses an unknown slug", async () => {
     await expect(
       publishShortLink(getTestPrisma(), "nope", ADMIN),
@@ -563,6 +597,38 @@ describe("republishShortLinks", () => {
     expect(log.action).toBe("SHORT_LINK_FULL_SYNC");
     expect(log.targetId).toBeNull();
     expect(log.diff).toEqual({ links: 2, removed: 1 });
+  });
+
+  it("keeps a link created after the key listing", async () => {
+    const prisma = getTestPrisma();
+    await seed("promo");
+    mockListKvKeys.mockImplementation(async () => {
+      await seed("gala", "https://bsstudio.hu/g");
+      return ["promo", "gala"];
+    });
+
+    const result = await republishShortLinks(prisma, ADMIN);
+
+    expect(result).toEqual({ links: 2, removed: 0 });
+    expect(mockPutKvPairs).toHaveBeenCalledWith([
+      { key: "promo", value: "https://bsstudio.hu/a" },
+      { key: "gala", value: "https://bsstudio.hu/g" },
+    ]);
+    expect(mockDeleteKvKeys).toHaveBeenCalledWith([]);
+  });
+
+  it("takes back the key of a link deleted during the push", async () => {
+    const prisma = getTestPrisma();
+    await seed("promo");
+    await seed("gala", "https://bsstudio.hu/g");
+    mockPutKvPairs.mockImplementation(async () => {
+      await prisma.shortLink.delete({ where: { slug: "gala" } });
+    });
+
+    const result = await republishShortLinks(prisma, ADMIN);
+
+    expect(result).toEqual({ links: 2, removed: 0 });
+    expect(mockDeleteKvKeys).toHaveBeenCalledWith(["gala"]);
   });
 
   it("writes no audit entry when the push is refused", async () => {

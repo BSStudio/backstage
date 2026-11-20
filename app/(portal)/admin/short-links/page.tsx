@@ -49,6 +49,7 @@ export default async function AdminShortLinksPage() {
         clicks={clicks}
         baseUrl={baseUrl}
         canManage={canManageShortLinks(actor.role)}
+        canPublish={isCloudflareConfigured()}
         canRepublish={canAdminister(actor.role) && isCloudflareConfigured()}
       />
     </div>

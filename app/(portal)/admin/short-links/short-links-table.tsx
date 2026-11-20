@@ -51,12 +51,14 @@ export function ShortLinksTable({
   clicks,
   baseUrl,
   canManage,
+  canPublish,
   canRepublish,
 }: {
   links: ShortLink[];
   clicks: Record<string, number> | null;
   baseUrl: string | null;
   canManage: boolean;
+  canPublish: boolean;
   canRepublish: boolean;
 }) {
   const router = useRouter();
@@ -215,7 +217,7 @@ export function ShortLinksTable({
                     {canManage && (
                       <TableCell>
                         <div className="flex gap-1">
-                          {state !== "PUBLISHED" && (
+                          {canPublish && state !== "PUBLISHED" && (
                             <Button
                               variant="ghost"
                               size="icon"

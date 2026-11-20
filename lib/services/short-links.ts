@@ -1,5 +1,9 @@
 import { z } from "zod";
-import type { PrismaClient, ShortLink } from "@/app/generated/prisma/client";
+import {
+  Prisma,
+  type PrismaClient,
+  type ShortLink,
+} from "@/app/generated/prisma/client";
 import { readShortLinkClicks } from "@/lib/cloudflare/analytics";
 import {
   CloudflareError,
@@ -42,6 +46,10 @@ function fieldError(field: string, message: string): ValidationError {
   );
 }
 
+function notConfigured(): ValidationError {
+  return fieldError("config", "A rövid linkek publikálása nincs beállítva");
+}
+
 // An unconfigured Cloudflare is not a failure: the row saves and reads as unpublished, the
 // same way an unconfigured target records a SKIPPED sync job.
 async function publish(
@@ -57,11 +65,13 @@ async function publish(
     }
     throw error;
   }
-  const published = await prisma.shortLink.update({
+  const { count } = await prisma.shortLink.updateMany({
     where: { slug: link.slug },
     data: { publishedUrl: link.url },
   });
-  return { link: published, syncErrors: [] };
+  // Deleted while the write was in flight: take back the key it just put.
+  if (count === 0) return { link, syncErrors: await unpublish(link.slug) };
+  return { link: { ...link, publishedUrl: link.url }, syncErrors: [] };
 }
 
 async function unpublish(slug: string): Promise<string[]> {
@@ -107,25 +117,30 @@ export async function createShortLink(
 
   const data = { ...parsed.data, note: parsed.data.note || null };
 
-  const clash = await prisma.shortLink.findUnique({
-    where: { slug: data.slug },
-  });
-  if (clash) throw fieldError("slug", "Ez a végződés már foglalt");
-
-  const link = await prisma.$transaction(async (tx) => {
-    const created = await tx.shortLink.create({
-      data: { ...data, createdById: actor.id },
+  const link = await prisma
+    .$transaction(async (tx) => {
+      const created = await tx.shortLink.create({
+        data: { ...data, createdById: actor.id },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.id,
+          targetLabel: data.slug,
+          action: "SHORT_LINK_CREATED",
+          diff: { created: data } as object,
+        },
+      });
+      return created;
+    })
+    .catch((error) => {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw fieldError("slug", "Ez a végződés már foglalt");
+      }
+      throw error;
     });
-    await tx.auditLog.create({
-      data: {
-        actorId: actor.id,
-        targetLabel: data.slug,
-        action: "SHORT_LINK_CREATED",
-        diff: { created: data } as object,
-      },
-    });
-    return created;
-  });
 
   return publish(prisma, link);
 }
@@ -209,6 +224,8 @@ export async function publishShortLink(
 ): Promise<ShortLinkResult> {
   ensureCanManageShortLinks(actor);
 
+  if (!isCloudflareConfigured()) throw notConfigured();
+
   const link = await prisma.shortLink.findUnique({ where: { slug } });
   if (!link) throw new NotFoundError();
 
@@ -221,19 +238,29 @@ export async function republishShortLinks(
 ): Promise<{ links: number; removed: number }> {
   ensureCanAdminister(actor);
 
-  if (!isCloudflareConfigured()) {
-    throw fieldError("config", "A rövid linkek publikálása nincs beállítva");
-  }
+  if (!isCloudflareConfigured()) throw notConfigured();
 
+  // Keys before rows, so a link created in between is written rather than taken for a stray.
+  const keys = await listKvKeys();
   const links = await prisma.shortLink.findMany({
     orderBy: { createdAt: "asc" },
   });
 
   const wanted = new Set(links.map((link) => link.slug));
-  const strays = (await listKvKeys()).filter((key) => !wanted.has(key));
+  const strays = keys.filter((key) => !wanted.has(key));
 
   await putKvPairs(links.map((link) => ({ key: link.slug, value: link.url })));
-  await deleteKvKeys(strays);
+
+  // A link deleted since the read had its key put back above.
+  const remaining = new Set(
+    (await prisma.shortLink.findMany({ select: { slug: true } })).map(
+      (link) => link.slug,
+    ),
+  );
+  const deleted = links
+    .map((link) => link.slug)
+    .filter((slug) => !remaining.has(slug));
+  await deleteKvKeys([...strays, ...deleted]);
 
   // updateMany rather than update: a row deleted since the read is not an error here.
   await prisma.$transaction(
