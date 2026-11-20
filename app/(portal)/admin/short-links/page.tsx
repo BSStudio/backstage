@@ -9,6 +9,7 @@ import prisma from "@/lib/prisma";
 import { getShortLinkClicks, listShortLinks } from "@/lib/services/short-links";
 import { pageActor } from "@/lib/session";
 import { shortLinkBaseUrl } from "@/lib/short-link-config";
+import { shortLinkPrefix } from "@/lib/short-links";
 import { ShortLinksTable } from "./short-links-table";
 
 export const metadata: Metadata = {
@@ -31,9 +32,15 @@ export default async function AdminShortLinksPage() {
           Rövid linkek kezelése
         </h1>
         <p className="text-muted-foreground">
-          {baseUrl
-            ? `A linkek a ${baseUrl} címen válaszolnak.`
-            : "Nincs beállítva rövid domain, ezért a linkek nem élnek."}
+          {baseUrl ? (
+            <>
+              A linkek a{" "}
+              <span className="font-mono">{shortLinkPrefix(baseUrl)}</span>{" "}
+              alatt érhetők el.
+            </>
+          ) : (
+            "Nincs beállítva, hol érhetők el a linkek, így egyelőre nem működnek."
+          )}
         </p>
       </div>
 

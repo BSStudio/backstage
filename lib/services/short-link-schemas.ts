@@ -5,7 +5,7 @@ const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const SLUG_MESSAGE = "Csak kisbetű, szám és kötőjel, kötőjellel nem kezdődhet";
 
 const slugField = z
-  .string({ error: "A rövidítés megadása kötelező" })
+  .string({ error: "A végződés megadása kötelező" })
   .trim()
   .toLowerCase()
   .min(2, "Legalább 2 karakter")

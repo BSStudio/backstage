@@ -24,7 +24,7 @@ describe("createShortLinkSchema", () => {
 
     expect(result.success).toBe(false);
     expect(JSON.stringify(result.error)).toContain(
-      "A rövidítés megadása kötelező",
+      "A végződés megadása kötelező",
     );
   });
 

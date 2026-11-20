@@ -2,6 +2,10 @@ export function shortLinkUrl(base: string, slug: string): string {
   return `${base}/${slug}`;
 }
 
+export function shortLinkPrefix(base: string): string {
+  return `${base.replace(/^https?:\/\//, "")}/`;
+}
+
 export const PUBLISH_STATES = ["UNPUBLISHED", "STALE", "PUBLISHED"] as const;
 
 export type PublishState = (typeof PUBLISH_STATES)[number];

@@ -50,7 +50,7 @@ then open `http://localhost:8787/s/gala`.
 | Request | Answer |
 | --- | --- |
 | `/s/<slug>` with a key in KV | 302 to the stored URL |
-| `/s/<slug>` with no key | 404, `Nincs ilyen rövidítés.` |
+| `/s/<slug>` with no key | 404, `Nincs ilyen rövid link.` |
 | `/s/` | 302 to bsstudio.hu |
 | Anything outside `/s/` | 404 — the route never sends one, but `wrangler dev` and the `workers.dev` address do |
 

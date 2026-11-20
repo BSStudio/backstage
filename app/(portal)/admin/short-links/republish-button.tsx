@@ -35,7 +35,9 @@ export function RepublishButton() {
 
       const { links, removed } = result.data;
       toastSync(
-        `${links} link publikálva, ${removed} idegen kulcs törölve`,
+        removed > 0
+          ? `${links} link publikálva, ${removed} ismeretlen törölve`
+          : `${links} link publikálva`,
         result.syncErrors,
       );
       router.refresh();
@@ -44,7 +46,11 @@ export function RepublishButton() {
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      <Button
+        variant="outline"
+        disabled={isPending}
+        onClick={() => setOpen(true)}
+      >
         <RefreshCw className="mr-2 size-4" />
         Újrapublikálás
       </Button>
@@ -54,9 +60,9 @@ export function RepublishButton() {
           <AlertDialogHeader>
             <AlertDialogTitle>Újrapublikálás megerősítése</AlertDialogTitle>
             <AlertDialogDescription>
-              Minden link újra kiíródik a Cloudflare tárolójába, és minden olyan
-              kulcs törlődik onnan, amit ez a lista nem tartalmaz — azok is,
-              amiket nem innen vettek fel.
+              Minden link újra felkerül a Cloudflare-re, és ami ebben a listában
+              nincs benne, az onnan törlődik — akkor is, ha nem innen vették
+              fel.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -68,7 +74,7 @@ export function RepublishButton() {
               }}
               disabled={isPending}
             >
-              Újrapublikálás
+              {isPending ? "Újrapublikálás…" : "Újrapublikálás"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

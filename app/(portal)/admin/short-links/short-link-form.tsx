@@ -8,6 +8,7 @@ import {
   updateShortLinkAction,
 } from "@/lib/actions/short-links";
 import { shortLinkFormSchema } from "@/lib/services/short-link-schemas";
+import { shortLinkPrefix } from "@/lib/short-links";
 import { toastSync } from "@/lib/toast";
 
 export function ShortLinkForm({
@@ -59,9 +60,13 @@ export function ShortLinkForm({
         <form.AppField name="slug">
           {(field) => (
             <field.TextField
-              label="Rövidítés"
+              label="Végződés"
               placeholder="gala"
-              hint="Ez kerül a rövid cím végére, és később nem módosítható."
+              hint={
+                baseUrl
+                  ? `Ez kerül a ${shortLinkPrefix(baseUrl)} után.`
+                  : "Ez kerül a rövid cím végére."
+              }
               required
             />
           )}
@@ -81,7 +86,7 @@ export function ShortLinkForm({
       <form.AppField name="note">
         {(field) => (
           <field.TextField
-            label="Jegyzet"
+            label="Megjegyzés"
             placeholder="Őszi gála plakát"
             hint="Csak itt látszik, hogy fél év múlva is kiderüljön, mire készült."
           />

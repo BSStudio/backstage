@@ -124,6 +124,7 @@ export function ShortLinksTable({
   }
 
   const columns = 4 + (clicks ? 1 : 0) + (canManage ? 1 : 0);
+  const deletePending = deleting !== null && busy(`${deleting.slug}:DELETE`);
 
   return (
     <div className="flex flex-col gap-4">
@@ -143,9 +144,9 @@ export function ShortLinksTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Rövidítés</TableHead>
+              <TableHead>Végződés</TableHead>
               <TableHead>Cél</TableHead>
-              <TableHead>Jegyzet</TableHead>
+              <TableHead>Megjegyzés</TableHead>
               {clicks && <TableHead className="w-px">Kattintás</TableHead>}
               <TableHead className="w-px">Állapot</TableHead>
               {canManage && <TableHead className="w-px" />}
@@ -259,7 +260,7 @@ export function ShortLinksTable({
           <DialogHeader>
             <DialogTitle>Új rövid link</DialogTitle>
             <DialogDescription>
-              A rövidítés később nem módosítható, a cél igen.
+              A végződés később nem módosítható, a cél igen.
             </DialogDescription>
           </DialogHeader>
           <ShortLinkForm baseUrl={baseUrl} onDone={handleDone} />
@@ -272,7 +273,9 @@ export function ShortLinksTable({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing?.slug} szerkesztése</DialogTitle>
+            <DialogTitle>
+              <span className="font-mono">{editing?.slug}</span> szerkesztése
+            </DialogTitle>
             <DialogDescription>
               A rövid cím változatlan marad, csak az átirányítás célja változik.
             </DialogDescription>
@@ -293,21 +296,25 @@ export function ShortLinksTable({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Törlés megerősítése</AlertDialogTitle>
+            <AlertDialogTitle>
+              <span className="font-mono">{deleting?.slug}</span> törlése
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              A {deleting?.slug} rövidítés megszűnik, és a már kiosztott cím
-              többé nem működik.
+              A rövid link megszűnik, és a már kiosztott cím többé nem működik.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Mégse</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletePending}>
+              Mégse
+            </AlertDialogCancel>
             <AlertDialogAction
+              disabled={deletePending}
               onClick={(event) => {
                 event.preventDefault();
                 confirmDelete();
               }}
             >
-              Törlés
+              {deletePending ? "Törlés…" : "Törlés"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

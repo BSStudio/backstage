@@ -7,7 +7,10 @@ const PREFIX = "/s/";
 const TEXT = { "content-type": "text/plain; charset=utf-8" };
 
 function notFound() {
-  return new Response("Nincs ilyen rövidítés.", { status: 404, headers: TEXT });
+  return new Response("Nincs ilyen rövid link.", {
+    status: 404,
+    headers: TEXT,
+  });
 }
 
 // The target's own parameters win over the visitor's.

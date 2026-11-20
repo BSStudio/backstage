@@ -36,10 +36,10 @@ export interface ShortLinkResult {
 }
 
 function fieldError(field: string, message: string): ValidationError {
-  return new ValidationError({
-    errors: [],
-    properties: { [field]: { errors: [message] } },
-  });
+  return new ValidationError(
+    { errors: [], properties: { [field]: { errors: [message] } } },
+    message,
+  );
 }
 
 // An unconfigured Cloudflare is not a failure: the row saves and reads as unpublished, the
@@ -110,7 +110,7 @@ export async function createShortLink(
   const clash = await prisma.shortLink.findUnique({
     where: { slug: data.slug },
   });
-  if (clash) throw fieldError("slug", "Ez a rövidítés már létezik");
+  if (clash) throw fieldError("slug", "Ez a végződés már foglalt");
 
   const link = await prisma.$transaction(async (tx) => {
     const created = await tx.shortLink.create({

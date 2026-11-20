@@ -4,6 +4,7 @@ import {
   PUBLISH_STATE_LABELS,
   PUBLISH_STATES,
   publishState,
+  shortLinkPrefix,
   shortLinkUrl,
 } from "@/lib/short-links";
 
@@ -12,6 +13,12 @@ describe("shortLinkUrl", () => {
     expect(shortLinkUrl("https://bsstudio.hu/s", "promo")).toBe(
       "https://bsstudio.hu/s/promo",
     );
+  });
+});
+
+describe("shortLinkPrefix", () => {
+  it("drops the scheme and ends in the slash the slug follows", () => {
+    expect(shortLinkPrefix("https://bsstudio.hu/s")).toBe("bsstudio.hu/s/");
   });
 });
 

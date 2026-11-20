@@ -223,7 +223,7 @@ describe("createShortLink", () => {
 
     await expect(
       createShortLink(getTestPrisma(), VALID, ADMIN),
-    ).rejects.toThrow(ValidationError);
+    ).rejects.toMatchObject({ userMessage: "Ez a végződés már foglalt" });
     expect(mockPutKvPairs).not.toHaveBeenCalled();
   });
 

@@ -639,7 +639,7 @@ export const SEED_SHORT_LINKS: SeedShortLink[] = [
   {
     slug: "studio",
     url: "https://bsstudio.hu/rolunk",
-    note: "Átirányítva az új aloldalra, de a kulcs még a régit tartja",
+    note: "Átirányítva az új aloldalra, de a Cloudflare még a régire visz",
     publishedUrl: "https://bsstudio.hu/a-studiorol",
   },
 ];
