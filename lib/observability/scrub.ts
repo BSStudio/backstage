@@ -1,7 +1,7 @@
 import type { Breadcrumb, ErrorEvent } from "@sentry/nextjs";
 
 // Emails and mobiles leak into error *strings*, not just into fields we control:
-// Drupal echoes submitted form values back in its failure HTML. Tags are not
+// an upstream error body can echo the submitted values back. Tags are not
 // scrubbed — those values are all ours, and PHONE_PATTERN would eat member ids.
 
 export const REDACTED = "[redacted]";

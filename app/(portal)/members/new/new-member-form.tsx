@@ -65,7 +65,7 @@ export function NewMemberForm() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Új tag hozzáadása</h1>
         <p className="text-muted-foreground">
-          Új tag rögzítése jelölt-jelölt státusszal.
+          Új tag rögzítése stúdiós-jelölt jelölt státusszal.
         </p>
       </div>
 

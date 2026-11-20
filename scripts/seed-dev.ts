@@ -138,9 +138,6 @@ function buildMember(
       dormRoom: seed.dormRoom,
       status: seed.status,
       joinedSemester,
-      // Only some members are linked to the Drupal site — the gap is what makes a
-      // FAILED Drupal job realistic to reproduce locally.
-      drupalUserId: index % 3 === 0 ? String(1200 + index) : null,
       archived: archivedAt !== null,
       archivedAt,
       createdAt: joinedAt,
@@ -171,7 +168,6 @@ function buildDevMember(devUser: DevUser): BuiltMember {
       dormRoom: null,
       status: devUser.status,
       joinedSemester,
-      drupalUserId: null,
       archived: false,
       archivedAt: null,
       createdAt: joinedAt,
@@ -451,7 +447,6 @@ function buildSyncJobs(
       });
     }
 
-    // Both sites run in parallel, so every member carries a push to the new one too.
     created.push({
       target: "WEBSITE",
       operation: "SYNC_MEMBER",
@@ -476,34 +471,14 @@ function buildSyncJobs(
       createdAt: joinedAt,
       updatedAt: joinedAt,
     });
-
-    if (row.drupalUserId) {
-      created.push({
-        target: "DRUPAL",
-        operation: "CREATE_USER",
-        memberId: row.id,
-        payload: {
-          username,
-          fullname: `${row.lastName} ${row.firstName}`,
-          nickname: row.nickname,
-          email: row.email,
-          joinYear: parseSemester(row.joinedSemester).startYear,
-        },
-        status: "SUCCESS",
-        attempts: 1,
-        result: { uid: row.drupalUserId },
-        createdAt: joinedAt,
-        updatedAt: joinedAt,
-      });
-    }
     return created;
   });
 
   return [
     ...jobs,
-    ...buildFailedSyncJobs(members, devUser),
+    ...buildFailedSyncJobs(devUser),
     ...buildSkippedSyncJobs(members, devUser),
-    ...buildSkippedWebsiteJob(devUser),
+    ...buildUnconfiguredSyncJobs(devUser),
   ];
 }
 
@@ -531,43 +506,33 @@ function buildSkippedSyncJobs(
     }));
 }
 
-// A local .env usually has no webhook, which is the other reason a job is skipped.
-function buildSkippedWebsiteJob(
+// A local .env usually has no webhook and no AD, which is the other reason a job is skipped.
+function buildUnconfiguredSyncJobs(
   devUser: DevUser,
 ): Prisma.SyncJobCreateManyInput[] {
   const skippedAt = daysAgo(1);
 
-  return [
-    {
-      target: "WEBSITE",
-      operation: "SYNC_MEMBER",
-      memberId: devUser.id,
-      payload: {},
-      status: "SKIPPED",
-      result: { reason: NOT_CONFIGURED_REASON },
-      createdAt: skippedAt,
-      updatedAt: skippedAt,
-    },
-  ];
+  return (["WEBSITE", "ACTIVE_DIRECTORY"] as const).map((target) => ({
+    target,
+    operation: "SYNC_MEMBER",
+    memberId: devUser.id,
+    payload: {},
+    status: "SKIPPED",
+    result: { reason: NOT_CONFIGURED_REASON },
+    createdAt: skippedAt,
+    updatedAt: skippedAt,
+  }));
 }
 
-// One per target that can fail, so /admin/sync-jobs and its retry button have something to show.
+// An Authentik and a website failure, so /admin/sync-jobs and its retry button have something to show.
 function buildFailedSyncJobs(
-  members: BuiltMember[],
   devUser: DevUser,
 ): Prisma.SyncJobCreateManyInput[] {
-  // Never the dev user, whose status is whatever they answered at the prompt — it would
-  // decide which member gets the failure.
-  const active = members.filter(
-    (m) =>
-      m.row.id !== devUser.id && !m.archivedAt && m.row.status === "MEMBER",
-  );
-  const unlinked = active.find((m) => !m.row.drupalUserId);
   const failedAt = new Date(NOW.getTime() - 2 * 24 * 60 * 60 * 1000);
 
   // The Authentik failure is the dev user's: everyone else is skipped before a call is
   // made, so they are the only member whose retry reaches a real instance.
-  const jobs: Prisma.SyncJobCreateManyInput[] = [
+  return [
     {
       target: "AUTHENTIK",
       operation: "UPDATE_USER",
@@ -584,40 +549,20 @@ function buildFailedSyncJobs(
       createdAt: failedAt,
       updatedAt: failedAt,
     },
-  ];
-  if (unlinked) {
-    jobs.push({
-      target: "DRUPAL",
-      operation: "UPDATE_USER",
-      memberId: unlinked.row.id,
-      payload: {
-        fullname: `${unlinked.row.lastName} ${unlinked.row.firstName}`,
-        email: unlinked.row.email,
-      },
+    {
+      target: "WEBSITE",
+      operation: "SYNC_MEMBER",
+      memberId: devUser.id,
+      payload: {},
       status: "FAILED",
       attempts: 1,
       result: {
-        error: "Member has no drupalUserId — cannot target the account",
+        error: "Website webhook error: joinedSemester: érvénytelen formátum.",
       },
       createdAt: failedAt,
       updatedAt: failedAt,
-    });
-  }
-  jobs.push({
-    target: "WEBSITE",
-    operation: "SYNC_MEMBER",
-    memberId: devUser.id,
-    payload: {},
-    status: "FAILED",
-    attempts: 1,
-    result: {
-      error: "Website webhook error: joinedSemester: érvénytelen formátum.",
     },
-    createdAt: failedAt,
-    updatedAt: failedAt,
-  });
-
-  return jobs;
+  ];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

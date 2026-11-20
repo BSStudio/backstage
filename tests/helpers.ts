@@ -29,38 +29,6 @@ export function mockSession(
 
 const ok: SyncResult = { success: true, result: null };
 
-export function mockDrupalOrchestrators() {
-  const orchestrateCreateDrupalUser = vi.fn(
-    async (): Promise<SyncResult> => ok,
-  );
-  const orchestrateUpdateDrupalUser = vi.fn(
-    async (): Promise<SyncResult> => ok,
-  );
-  const orchestrateDeactivateDrupalUser = vi.fn(
-    async (): Promise<SyncResult> => ok,
-  );
-  const orchestrateReactivateDrupalUser = vi.fn(
-    async (): Promise<SyncResult> => ok,
-  );
-
-  vi.doMock(
-    "@/lib/sync/drupal/orchestrators",
-    (): typeof import("@/lib/sync/drupal/orchestrators") => ({
-      orchestrateCreateDrupalUser,
-      orchestrateUpdateDrupalUser,
-      orchestrateDeactivateDrupalUser,
-      orchestrateReactivateDrupalUser,
-    }),
-  );
-
-  return {
-    orchestrateCreateDrupalUser,
-    orchestrateUpdateDrupalUser,
-    orchestrateDeactivateDrupalUser,
-    orchestrateReactivateDrupalUser,
-  };
-}
-
 export function mockWebsiteOrchestrators() {
   const orchestrateSyncWebsiteMember = vi.fn(
     async (): Promise<SyncResult> => ok,
@@ -101,6 +69,18 @@ export function mockGoogleGroupOrchestrators() {
     orchestrateAddToGoogleGroup,
     orchestrateRemoveFromGoogleGroup,
   };
+}
+
+export function stubActiveDirectoryEnv(overrides: Record<string, string> = {}) {
+  const env: Record<string, string> = {
+    AD_LDAP_URL: "ldaps://dc.studio.test:636",
+    AD_BIND_DN: "CN=svc-backstage,OU=Service,DC=studio,DC=test",
+    AD_BIND_PASSWORD: "bind-secret",
+    AD_USERS_OU: "OU=Members,DC=studio,DC=test",
+    AD_UPN_SUFFIX: "studio.test",
+    ...overrides,
+  };
+  for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
 }
 
 // Mocks what `@/lib/session` reads rather than the module itself, so the real session

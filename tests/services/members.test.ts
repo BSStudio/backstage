@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockCreateAuthentikUser,
@@ -8,15 +8,14 @@ const {
   mockOrchestrateAddToGroup,
   mockOrchestrateAddToStatusGroup,
   mockOrchestrateRemoveFromGroup,
-  mockOrchestrateCreateDrupalUser,
-  mockOrchestrateUpdateDrupalUser,
-  mockOrchestrateDeactivateDrupalUser,
-  mockOrchestrateReactivateDrupalUser,
   mockOrchestrateAddToGoogleGroup,
   mockOrchestrateRemoveFromGoogleGroup,
   mockOrchestrateAddToAlumniGroup,
   mockOrchestrateReactivate,
   mockOrchestrateSyncWebsiteMember,
+  mockOrchestrateCreateActiveDirectoryUser,
+  mockOrchestrateSyncActiveDirectoryUser,
+  mockBuildAuthentikAttributes,
 } = vi.hoisted(() => ({
   mockCreateAuthentikUser: vi.fn(),
   mockOrchestrateDeactivate: vi.fn(),
@@ -25,15 +24,29 @@ const {
   mockOrchestrateAddToGroup: vi.fn(),
   mockOrchestrateAddToStatusGroup: vi.fn(),
   mockOrchestrateRemoveFromGroup: vi.fn(),
-  mockOrchestrateCreateDrupalUser: vi.fn(),
-  mockOrchestrateUpdateDrupalUser: vi.fn(),
-  mockOrchestrateDeactivateDrupalUser: vi.fn(),
-  mockOrchestrateReactivateDrupalUser: vi.fn(),
   mockOrchestrateAddToGoogleGroup: vi.fn(),
   mockOrchestrateRemoveFromGoogleGroup: vi.fn(),
   mockOrchestrateAddToAlumniGroup: vi.fn(),
   mockOrchestrateReactivate: vi.fn(),
   mockOrchestrateSyncWebsiteMember: vi.fn(),
+  mockOrchestrateCreateActiveDirectoryUser: vi.fn(),
+  mockOrchestrateSyncActiveDirectoryUser: vi.fn(),
+  mockBuildAuthentikAttributes: vi.fn(
+    (m: {
+      firstName: string;
+      lastName: string;
+      mobile: string | null;
+      avatarUrl: string | null;
+    }) => {
+      const attrs: Record<string, unknown> = {
+        first_name: m.firstName,
+        last_name: m.lastName,
+      };
+      if (m.mobile) attrs.mobile = m.mobile;
+      if (m.avatarUrl) attrs.avatar_url = m.avatarUrl;
+      return attrs;
+    },
+  ),
 }));
 
 vi.mock("@/lib/sync/authentik/orchestrators", () => ({
@@ -45,32 +58,19 @@ vi.mock("@/lib/sync/authentik/orchestrators", () => ({
   orchestrateAddToGroup: mockOrchestrateAddToGroup,
   orchestrateAddToStatusGroup: mockOrchestrateAddToStatusGroup,
   orchestrateRemoveFromGroup: mockOrchestrateRemoveFromGroup,
-  buildAuthentikAttributes: (m: {
-    firstName: string;
-    lastName: string;
-    mobile: string | null;
-    avatarUrl: string | null;
-  }) => {
-    const attrs: Record<string, unknown> = {
-      first_name: m.firstName,
-      last_name: m.lastName,
-    };
-    if (m.mobile) attrs.mobile = m.mobile;
-    if (m.avatarUrl) attrs.avatar_url = m.avatarUrl;
-    return attrs;
-  },
+  buildAuthentikAttributes: mockBuildAuthentikAttributes,
 }));
 
-const drupalOk = { success: true as const, result: null };
-vi.mock("@/lib/sync/drupal/orchestrators", () => ({
-  orchestrateCreateDrupalUser: mockOrchestrateCreateDrupalUser,
-  orchestrateUpdateDrupalUser: mockOrchestrateUpdateDrupalUser,
-  orchestrateDeactivateDrupalUser: mockOrchestrateDeactivateDrupalUser,
-  orchestrateReactivateDrupalUser: mockOrchestrateReactivateDrupalUser,
-}));
+const ok = { success: true as const, result: null };
 
 vi.mock("@/lib/sync/website/orchestrators", () => ({
   orchestrateSyncWebsiteMember: mockOrchestrateSyncWebsiteMember,
+}));
+
+vi.mock("@/lib/sync/active-directory/orchestrators", () => ({
+  orchestrateCreateActiveDirectoryUser:
+    mockOrchestrateCreateActiveDirectoryUser,
+  orchestrateSyncActiveDirectoryUser: mockOrchestrateSyncActiveDirectoryUser,
 }));
 
 vi.mock("@/lib/sync/google/orchestrators", () => ({
@@ -98,6 +98,7 @@ import {
   uploadMemberAvatar,
 } from "@/lib/services/members";
 import { localMemberId } from "@/types";
+import { stubActiveDirectoryEnv } from "../helpers";
 import { getTestPrisma } from "../setup";
 
 const ACTOR: Actor = { id: "test-actor-id", role: "LEADER" };
@@ -145,15 +146,13 @@ beforeEach(async () => {
     success: true,
     result: null,
   });
-  mockOrchestrateCreateDrupalUser.mockResolvedValue(drupalOk);
-  mockOrchestrateUpdateDrupalUser.mockResolvedValue(drupalOk);
-  mockOrchestrateDeactivateDrupalUser.mockResolvedValue(drupalOk);
-  mockOrchestrateReactivateDrupalUser.mockResolvedValue(drupalOk);
   mockOrchestrateReactivate.mockResolvedValue({ success: true, result: null });
-  mockOrchestrateAddToGoogleGroup.mockResolvedValue(drupalOk);
-  mockOrchestrateRemoveFromGoogleGroup.mockResolvedValue(drupalOk);
-  mockOrchestrateAddToAlumniGroup.mockResolvedValue(drupalOk);
-  mockOrchestrateSyncWebsiteMember.mockResolvedValue(drupalOk);
+  mockOrchestrateAddToGoogleGroup.mockResolvedValue(ok);
+  mockOrchestrateRemoveFromGoogleGroup.mockResolvedValue(ok);
+  mockOrchestrateAddToAlumniGroup.mockResolvedValue(ok);
+  mockOrchestrateSyncWebsiteMember.mockResolvedValue(ok);
+  mockOrchestrateCreateActiveDirectoryUser.mockResolvedValue(ok);
+  mockOrchestrateSyncActiveDirectoryUser.mockResolvedValue(ok);
 
   const prisma = getTestPrisma();
 
@@ -167,7 +166,6 @@ beforeEach(async () => {
       lastName: "Actor",
       email: "actor@test.com",
       joinedSemester: "2025/2026/1",
-      drupalUserId: "9001",
     },
   });
 
@@ -181,9 +179,12 @@ beforeEach(async () => {
       lastName: "Member",
       email: "target@test.com",
       joinedSemester: "2025/2026/1",
-      drupalUserId: "9002",
     },
   });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 // ─── listMembers ─────────────────────────────────────────────────────────────
@@ -373,32 +374,7 @@ describe("createMember", () => {
     });
   });
 
-  it("persists the Drupal uid returned by the Drupal CREATE_USER", async () => {
-    const prisma = getTestPrisma();
-    mockOrchestrateCreateDrupalUser.mockResolvedValueOnce({
-      success: true,
-      result: { userId: "4242", username: "nmember" },
-    });
-
-    const { member } = await createMember(
-      prisma,
-      {
-        firstName: "New",
-        lastName: "Member",
-        email: "new@test.com",
-        mobile: "+36301234567",
-      },
-      ACTOR,
-    );
-
-    expect(member.drupalUserId).toBe("4242");
-    const persisted = await prisma.member.findUnique({
-      where: { id: member.id },
-    });
-    expect(persisted?.drupalUserId).toBe("4242");
-  });
-
-  it("creates the Drupal user with the username Authentik resolved", async () => {
+  it("returns the username Authentik resolved", async () => {
     const prisma = getTestPrisma();
     // Collision: Authentik hands back jkovacs2, not the derived base.
     mockCreateAuthentikUser.mockResolvedValueOnce({
@@ -424,37 +400,7 @@ describe("createMember", () => {
       ACTOR,
     );
 
-    expect(mockOrchestrateCreateDrupalUser.mock.calls[0][2]).toMatchObject({
-      username: "jkovacs2",
-    });
     expect(username).toBe("jkovacs2");
-  });
-
-  it("reports a syncError but still creates the member when the Drupal create fails", async () => {
-    const prisma = getTestPrisma();
-    mockOrchestrateCreateDrupalUser.mockResolvedValueOnce({
-      success: false,
-      error: "User creation failed for nmember",
-    });
-
-    const { member, syncErrors } = await createMember(
-      prisma,
-      {
-        firstName: "New",
-        lastName: "Member",
-        email: "new@test.com",
-        mobile: "+36301234567",
-      },
-      ACTOR,
-    );
-
-    expect(syncErrors).toEqual(["User creation failed for nmember"]);
-    expect(member.drupalUserId).toBeNull();
-
-    const persisted = await prisma.member.findUnique({
-      where: { id: member.id },
-    });
-    expect(persisted?.drupalUserId).toBeNull();
   });
 
   it("throws ValidationError for missing required fields", async () => {
@@ -534,9 +480,6 @@ describe("createMember", () => {
     expect(mockCreateAuthentikUser.mock.calls[0][0]).toMatchObject({
       mobile: "+421903123456",
     });
-    expect(mockOrchestrateCreateDrupalUser.mock.calls[0][2]).toMatchObject({
-      mobile: "+421903123456",
-    });
   });
 
   it("reports an empty email as missing rather than malformed", async () => {
@@ -610,6 +553,28 @@ describe("createMember", () => {
     ).rejects.toMatchObject({
       name: "ValidationError",
       details: { email: "Ezzel az email-címmel már van tag" },
+      userMessage: "Ezzel az email-címmel már van tag",
+    });
+
+    expect(mockCreateAuthentikUser).not.toHaveBeenCalled();
+  });
+
+  it("refuses a duplicate email in different letter case", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      createMember(
+        prisma,
+        {
+          firstName: "Another",
+          lastName: "Target",
+          email: "Target@Test.com",
+          mobile: "+36301234567",
+        },
+        ACTOR,
+      ),
+    ).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { email: "Ezzel az email-címmel már van tag" },
     });
 
     expect(mockCreateAuthentikUser).not.toHaveBeenCalled();
@@ -636,10 +601,6 @@ describe("createMember", () => {
     expect(member.university).toBeNull();
     expect(member.major).toBeNull();
     expect(member.dormRoom).toBeNull();
-
-    expect(mockOrchestrateCreateDrupalUser.mock.calls[0][2]).toMatchObject({
-      nickname: "",
-    });
   });
 
   it("ignores unknown fields in input", async () => {
@@ -883,6 +844,60 @@ describe("updateMember", () => {
     expect(updated.email).toBe("moved@test.com");
   });
 
+  it("refuses an email another member holds", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      updateMember(prisma, MEMBER_ID, { email: "actor@test.com" }, ACTOR),
+    ).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { email: "Ezzel az email-címmel már van tag" },
+      userMessage: "Ezzel az email-címmel már van tag",
+    });
+  });
+
+  it("refuses an email another member holds in different letter case", async () => {
+    const prisma = getTestPrisma();
+    await expect(
+      updateMember(prisma, MEMBER_ID, { email: "Actor@Test.com" }, ACTOR),
+    ).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { email: "Ezzel az email-címmel már van tag" },
+    });
+  });
+
+  it("refuses an email an archived member holds", async () => {
+    const prisma = getTestPrisma();
+    await prisma.member.create({
+      data: {
+        id: "archived-member-id",
+        firstName: "Gone",
+        lastName: "Member",
+        email: "gone@test.com",
+        joinedSemester: "2025/2026/1",
+        archived: true,
+      },
+    });
+
+    await expect(
+      updateMember(prisma, MEMBER_ID, { email: "gone@test.com" }, ACTOR),
+    ).rejects.toMatchObject({
+      name: "ValidationError",
+      details: { email: "Ezzel az email-címmel már van tag" },
+    });
+  });
+
+  it("lets a leader change only the letter case of an email", async () => {
+    const prisma = getTestPrisma();
+    const { member: updated } = await updateMember(
+      prisma,
+      MEMBER_ID,
+      { email: "Target@test.com" },
+      ACTOR,
+    );
+
+    expect(updated.email).toBe("Target@test.com");
+  });
+
   // ─── Status changes ─────────────────────────────────────────────────────────
 
   it("throws ForbiddenError when member tries to change status", async () => {
@@ -1068,49 +1083,6 @@ describe("updateMember", () => {
     ]);
   });
 
-  it("maps every Drupal-tracked field onto the Drupal update payload", async () => {
-    const prisma = getTestPrisma();
-
-    await updateMember(
-      prisma,
-      MEMBER_ID,
-      {
-        firstName: "János",
-        lastName: "Kovács",
-        nickname: "Jani",
-        email: "jkovacs@bsstudio.hu",
-        mobile: "+36301234567",
-        status: "MEMBER",
-      },
-      ACTOR,
-    );
-
-    expect(mockOrchestrateUpdateDrupalUser).toHaveBeenCalledTimes(1);
-    const [, memberId, fields] = mockOrchestrateUpdateDrupalUser.mock.calls[0];
-    expect(memberId).toBe(MEMBER_ID);
-    expect(fields).toEqual({
-      fullname: "Kovács János",
-      nickname: "Jani",
-      email: "jkovacs@bsstudio.hu",
-      mobile: "+36301234567",
-      position: "stúdiós",
-    });
-  });
-
-  it("sends an empty string when a Drupal-tracked field is cleared", async () => {
-    const prisma = getTestPrisma();
-    await prisma.member.update({
-      where: { id: MEMBER_ID },
-      data: { nickname: "Jani" },
-    });
-
-    await updateMember(prisma, MEMBER_ID, { nickname: "" }, ACTOR);
-
-    expect(mockOrchestrateUpdateDrupalUser.mock.calls[0][2]).toEqual({
-      nickname: "",
-    });
-  });
-
   it("refuses to clear the mobile of a member with an Authentik account", async () => {
     const prisma = getTestPrisma();
     const error = await updateMember(
@@ -1145,9 +1117,6 @@ describe("updateMember", () => {
     const { member } = await updateMember(prisma, id, { mobile: "" }, ACTOR);
 
     expect(member.mobile).toBeNull();
-    expect(mockOrchestrateUpdateDrupalUser.mock.calls[0][2]).toEqual({
-      mobile: "",
-    });
   });
 
   it("normalises the separators out of an updated mobile", async () => {
@@ -1181,32 +1150,6 @@ describe("updateMember", () => {
         },
       },
     });
-  });
-
-  it("collects a syncError when the Drupal update fails", async () => {
-    const prisma = getTestPrisma();
-    mockOrchestrateUpdateDrupalUser.mockResolvedValueOnce({
-      success: false,
-      error: "Update Személyes adatok failed for 9002",
-    });
-
-    const result = await updateMember(
-      prisma,
-      MEMBER_ID,
-      { nickname: "Nicknamed" },
-      ACTOR,
-    );
-
-    expect(result.syncErrors).toEqual([
-      "Update Személyes adatok failed for 9002",
-    ]);
-  });
-
-  it("does not touch Drupal when only non-tracked fields change", async () => {
-    const prisma = getTestPrisma();
-    await updateMember(prisma, MEMBER_ID, { university: "BME" }, ACTOR);
-
-    expect(mockOrchestrateUpdateDrupalUser).not.toHaveBeenCalled();
   });
 });
 
@@ -1339,7 +1282,7 @@ describe("archiveMember", () => {
 
     expect(result.syncErrors).toEqual([]);
     expect(mockOrchestrateDeactivate).not.toHaveBeenCalled();
-    expect(mockOrchestrateDeactivateDrupalUser).not.toHaveBeenCalled();
+    expect(mockOrchestrateSyncWebsiteMember).not.toHaveBeenCalled();
 
     const member = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
     expect(member?.archivedAt).toEqual(first?.archivedAt);
@@ -1442,7 +1385,6 @@ describe("archiveMember", () => {
       "a pozíció megszüntetése nem sikerült: Missing Authentik group UUID for Leadership",
     ]);
     expect(mockOrchestrateDeactivate).toHaveBeenCalledTimes(1);
-    expect(mockOrchestrateDeactivateDrupalUser).toHaveBeenCalledTimes(1);
   });
 
   it("names a thrown non-Error in the position failure", async () => {
@@ -1482,26 +1424,23 @@ describe("archiveMember", () => {
     expect(member?.archived).toBe(true);
   });
 
-  it("returns syncErrors from both systems when each deactivation fails", async () => {
+  it("returns syncErrors from every target that failed", async () => {
     const prisma = getTestPrisma();
     mockOrchestrateDeactivate.mockResolvedValueOnce({
       success: false,
       error: "Authentik unreachable",
     });
-    mockOrchestrateDeactivateDrupalUser.mockResolvedValueOnce({
+    mockOrchestrateSyncWebsiteMember.mockResolvedValueOnce({
       success: false,
-      error: "Deactivation step 1 failed for user 9002",
+      error: "Website webhook error: HTTP 500",
     });
 
     const result = await archiveMember(prisma, MEMBER_ID, ACTOR);
 
     expect(result.syncErrors).toEqual([
       "Authentik unreachable",
-      "Deactivation step 1 failed for user 9002",
+      "Website webhook error: HTTP 500",
     ]);
-    expect(mockOrchestrateDeactivateDrupalUser.mock.calls[0][1]).toBe(
-      MEMBER_ID,
-    );
   });
 
   it("leaves the Google Group alone unless asked", async () => {
@@ -1554,7 +1493,6 @@ describe("reactivateMember", () => {
       success: true,
       result: null,
     });
-    mockOrchestrateReactivateDrupalUser.mockResolvedValue(drupalOk);
     return prisma;
   }
 
@@ -1594,7 +1532,7 @@ describe("reactivateMember", () => {
     });
   });
 
-  it("re-enables both accounts and re-adds the status group", async () => {
+  it("re-enables the account and re-adds the status group", async () => {
     const prisma = await archived();
     await prisma.member.update({
       where: { id: MEMBER_ID },
@@ -1605,7 +1543,6 @@ describe("reactivateMember", () => {
 
     expect(mockOrchestrateReactivate).toHaveBeenCalledTimes(1);
     expect(mockOrchestrateReactivate.mock.calls[0][1]).toBe(MEMBER_ID);
-    expect(mockOrchestrateReactivateDrupalUser).toHaveBeenCalledTimes(1);
     expect(mockOrchestrateAddToStatusGroup).toHaveBeenCalledTimes(1);
     expect(mockOrchestrateAddToStatusGroup.mock.calls[0][2]).toBe("MEMBER");
   });
@@ -1640,7 +1577,6 @@ describe("reactivateMember", () => {
       success: true,
       result: null,
     });
-    mockOrchestrateReactivateDrupalUser.mockResolvedValue(drupalOk);
 
     await reactivateMember(prisma, MEMBER_ID, ACTOR);
 
@@ -1662,7 +1598,7 @@ describe("reactivateMember", () => {
 
     expect(result.syncErrors).toEqual([]);
     expect(mockOrchestrateReactivate).not.toHaveBeenCalled();
-    expect(mockOrchestrateReactivateDrupalUser).not.toHaveBeenCalled();
+    expect(mockOrchestrateSyncWebsiteMember).not.toHaveBeenCalled();
     expect(mockOrchestrateAddToStatusGroup).not.toHaveBeenCalled();
     expect(
       await prisma.auditLog.count({
@@ -1677,16 +1613,16 @@ describe("reactivateMember", () => {
       success: false,
       error: "Authentik unreachable",
     });
-    mockOrchestrateReactivateDrupalUser.mockResolvedValueOnce({
+    mockOrchestrateSyncWebsiteMember.mockResolvedValueOnce({
       success: false,
-      error: "Reactivation step 1 failed for user 9002",
+      error: "Website webhook error: HTTP 500",
     });
 
     const result = await reactivateMember(prisma, MEMBER_ID, ACTOR);
 
     expect(result.syncErrors).toEqual([
       "Authentik unreachable",
-      "Reactivation step 1 failed for user 9002",
+      "Website webhook error: HTTP 500",
     ]);
     const member = await prisma.member.findUnique({ where: { id: MEMBER_ID } });
     expect(member?.archived).toBe(false);
@@ -1729,7 +1665,6 @@ describe("batchArchive", () => {
         lastName: "Target",
         email: "second@test.com",
         joinedSemester: "2025/2026/1",
-        drupalUserId: "9003",
       },
     });
 
@@ -2783,5 +2718,176 @@ describe("website sync", () => {
 
     expect(result.member.nickname).toBe("Jani");
     expect(result.syncErrors).toContain("Website webhook error: HTTP 500");
+  });
+});
+
+describe("active directory sync", () => {
+  function syncedIds() {
+    return mockOrchestrateSyncActiveDirectoryUser.mock.calls.map((c) => c[1]);
+  }
+
+  async function createJanos() {
+    mockCreateAuthentikUser.mockResolvedValue({
+      uuid: crypto.randomUUID(),
+      username: "jkovacs",
+      name: "János Kovács",
+      email: "jkovacs@bsstudio.hu",
+    });
+    return createMember(
+      getTestPrisma(),
+      {
+        firstName: "János",
+        lastName: "Kovács",
+        email: "jkovacs@bsstudio.hu",
+        mobile: "+36301234567",
+      },
+      ACTOR,
+    );
+  }
+
+  it("creates the AD account with the Authentik username", async () => {
+    const { member } = await createJanos();
+
+    expect(mockOrchestrateCreateActiveDirectoryUser).toHaveBeenCalledWith(
+      getTestPrisma(),
+      member.id,
+      "jkovacs",
+    );
+  });
+
+  it("pushes the DN to Authentik when AD is configured", async () => {
+    stubActiveDirectoryEnv();
+
+    const { member } = await createJanos();
+
+    expect(mockBuildAuthentikAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({ id: member.id }),
+    );
+    expect(mockOrchestrateUpdateAttributes).toHaveBeenCalledOnce();
+    expect(mockOrchestrateUpdateAttributes).toHaveBeenCalledWith(
+      getTestPrisma(),
+      member.id,
+      { attributes: mockBuildAuthentikAttributes.mock.results[0].value },
+    );
+  });
+
+  it("sends no extra Authentik update without AD", async () => {
+    await createJanos();
+
+    expect(mockOrchestrateUpdateAttributes).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed AD create without failing the member", async () => {
+    mockOrchestrateCreateActiveDirectoryUser.mockResolvedValue({
+      success: false,
+      error: "Active Directory error: x",
+    });
+
+    const { member, syncErrors } = await createJanos();
+
+    expect(member.firstName).toBe("János");
+    expect(syncErrors).toContain("Active Directory error: x");
+  });
+
+  it.each([[{ firstName: "János" }], [{ lastName: "Kovács" }]])(
+    "syncs AD when %j changes",
+    async (patch) => {
+      await updateMember(getTestPrisma(), MEMBER_ID, patch, ACTOR);
+
+      expect(syncedIds()).toEqual([MEMBER_ID]);
+    },
+  );
+
+  it.each([
+    [{ nickname: "Jani" }],
+    [{ email: "moved@bsstudio.hu" }],
+    [{ mobile: "+36301234567" }],
+    [{ status: "MEMBER" as const }],
+  ])("leaves AD alone when only %j changes", async (patch) => {
+    await updateMember(getTestPrisma(), MEMBER_ID, patch, ACTOR);
+
+    expect(mockOrchestrateSyncActiveDirectoryUser).not.toHaveBeenCalled();
+  });
+
+  it("syncs AD on archive and again on reactivation", async () => {
+    const prisma = getTestPrisma();
+
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    expect(syncedIds()).toEqual([MEMBER_ID]);
+
+    await reactivateMember(prisma, MEMBER_ID, ACTOR);
+    expect(syncedIds()).toEqual([MEMBER_ID, MEMBER_ID]);
+  });
+
+  it("does not sync AD for a member already archived", async () => {
+    const prisma = getTestPrisma();
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    mockOrchestrateSyncActiveDirectoryUser.mockClear();
+
+    await archiveMember(prisma, MEMBER_ID, ACTOR);
+    await archiveMember(prisma, MEMBER_ID, ACTOR, {
+      removeFromGoogleGroup: true,
+    });
+
+    expect(mockOrchestrateSyncActiveDirectoryUser).not.toHaveBeenCalled();
+  });
+
+  it("does not sync AD when reactivating a member who is not archived", async () => {
+    await reactivateMember(getTestPrisma(), MEMBER_ID, ACTOR);
+
+    expect(mockOrchestrateSyncActiveDirectoryUser).not.toHaveBeenCalled();
+  });
+
+  it("syncs AD once per member a batch archive archives", async () => {
+    const prisma = getTestPrisma();
+    const id2 = crypto.randomUUID();
+    const alreadyArchived = crypto.randomUUID();
+    await prisma.member.createMany({
+      data: [
+        {
+          id: id2,
+          firstName: "Second",
+          lastName: "Member",
+          email: "second@bsstudio.hu",
+          joinedSemester: "2025/2026/1",
+        },
+        {
+          id: alreadyArchived,
+          firstName: "Gone",
+          lastName: "Member",
+          email: "gone@bsstudio.hu",
+          joinedSemester: "2025/2026/1",
+          archived: true,
+          archivedAt: new Date(),
+        },
+      ],
+    });
+
+    await batchArchive(prisma, [MEMBER_ID, id2, alreadyArchived], ACTOR);
+
+    expect(syncedIds().sort()).toEqual([MEMBER_ID, id2].sort());
+  });
+
+  it("leaves AD alone on role, avatar and status changes", async () => {
+    const prisma = getTestPrisma();
+
+    await assignRole(
+      prisma,
+      MEMBER_ID,
+      { label: "Főszerkesztő", authentikGroupIds: [] },
+      ACTOR,
+    );
+    await removeRole(prisma, MEMBER_ID, ACTOR);
+    await uploadMemberAvatar(
+      prisma,
+      MEMBER_ID,
+      { avatarUrl: "/a.webp", portraitUrl: "/p.webp" },
+      ACTOR,
+    );
+    await removeMemberAvatar(prisma, MEMBER_ID, ACTOR);
+    await batchUpdateStatus(prisma, [MEMBER_ID], "MEMBER", ACTOR);
+
+    expect(mockOrchestrateCreateActiveDirectoryUser).not.toHaveBeenCalled();
+    expect(mockOrchestrateSyncActiveDirectoryUser).not.toHaveBeenCalled();
   });
 });

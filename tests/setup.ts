@@ -7,6 +7,11 @@ import {
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { PrismaClient } from "@/app/generated/prisma/client";
 
+// The real AD handlers run in tests; AD_* from the shell would point them at a real DC.
+for (const name of Object.keys(process.env)) {
+  if (name.startsWith("AD_")) delete process.env[name];
+}
+
 let container: StartedPostgreSqlContainer;
 let prisma: PrismaClient;
 

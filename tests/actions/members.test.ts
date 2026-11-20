@@ -78,6 +78,23 @@ describe("createMemberAction", () => {
     expect(result).toEqual({ success: false, error: "Érvénytelen adatok" });
   });
 
+  it("shows the reason a ValidationError gives", async () => {
+    const { ValidationError } = await import("@/lib/errors");
+    mockGetSession.mockResolvedValue(session("LEADER"));
+    mockCreateMember.mockRejectedValue(
+      new ValidationError(
+        { email: "taken" },
+        "Ezzel az email-címmel már van tag",
+      ),
+    );
+    const { createMemberAction } = await import("@/lib/actions/members");
+    const result = await createMemberAction({});
+    expect(result).toEqual({
+      success: false,
+      error: "Ezzel az email-címmel már van tag",
+    });
+  });
+
   it("returns success and revalidates on creation", async () => {
     mockGetSession.mockResolvedValue(session("LEADER"));
     mockCreateMember.mockResolvedValue({

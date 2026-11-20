@@ -1,17 +1,12 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  mockDrupalOrchestrators,
-  mockNoSession,
-  mockSession,
-} from "../../../../helpers";
+import { mockNoSession, mockSession } from "../../../../helpers";
 import { getTestPrisma, mockPrisma } from "../../../../setup";
 
 const ACTOR_ID = "test-actor-id";
 const MEMBER_ID = "test-member-id";
 
 function mockOrchestratorsSuccess() {
-  mockDrupalOrchestrators();
   vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
     createAuthentikUser: vi.fn(),
     orchestrateDeactivate: vi.fn(),
@@ -42,7 +37,6 @@ function mockOrchestratorsSuccess() {
 beforeEach(async () => {
   vi.resetModules();
   mockPrisma();
-  mockDrupalOrchestrators();
   vi.stubEnv("AUTHENTIK_GROUP_LEADERSHIP_UUID", "leadership-group-uuid");
 
   const prisma = getTestPrisma();
@@ -68,7 +62,6 @@ beforeEach(async () => {
       lastName: "Member",
       email: "target@test.com",
       joinedSemester: "2025/2026/1",
-      drupalUserId: "9002",
     },
   });
 

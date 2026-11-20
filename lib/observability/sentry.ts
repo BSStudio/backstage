@@ -22,7 +22,8 @@ export function sentryInitOptions() {
     dsn,
     // No DSN means no Sentry — dev machines and the test suite stay offline.
     enabled: Boolean(dsn),
-    release: process.env.NEXT_PUBLIC_APP_VERSION,
+    // The same string `next.config.ts` uploads source maps under.
+    release: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
     environment:
       process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT || process.env.NODE_ENV,
     // No `tracesSampleRate`: Sentry reads 0 as "tracing on, sample nothing",

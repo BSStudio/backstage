@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
-import { getInitials } from "@/lib/members";
+import { getInitials, isHeadOfStudio } from "@/lib/members";
 import prisma from "@/lib/prisma";
 import { pageActor } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -26,10 +26,9 @@ export default async function LeadershipPage() {
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
 
-  // Head of studio ("Stúdióvezető") first, then by last name
   const members = [...rawMembers].sort((a, b) => {
-    const aIsHead = a.leadershipRole?.label === "Stúdióvezető" ? 0 : 1;
-    const bIsHead = b.leadershipRole?.label === "Stúdióvezető" ? 0 : 1;
+    const aIsHead = isHeadOfStudio(a.leadershipRole?.label) ? 0 : 1;
+    const bIsHead = isHeadOfStudio(b.leadershipRole?.label) ? 0 : 1;
     if (aIsHead !== bIsHead) return aIsHead - bIsHead;
     return a.lastName.localeCompare(b.lastName, "hu");
   });
@@ -52,7 +51,7 @@ export default async function LeadershipPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {members.map((m) => {
-            const isHead = m.leadershipRole?.label === "Stúdióvezető";
+            const isHead = isHeadOfStudio(m.leadershipRole?.label);
             return (
               <Card
                 key={m.id}

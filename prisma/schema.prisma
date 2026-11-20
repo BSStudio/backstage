@@ -13,8 +13,8 @@ datasource db {
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 enum MembershipStatus {
-  MEMBER_CANDIDATE_CANDIDATE // jelölt-jelölt
-  MEMBER_CANDIDATE           // jelölt
+  MEMBER_CANDIDATE_CANDIDATE // stúdiós-jelölt jelölt
+  MEMBER_CANDIDATE           // stúdiós-jelölt
   MEMBER                     // stúdiós
   ACTIVE_ALUMNI              // aktív öregtag
   ALUMNI                     // öregtag
@@ -22,9 +22,9 @@ enum MembershipStatus {
 
 enum SyncTarget {
   AUTHENTIK
-  DRUPAL
   WEBSITE
   GOOGLE_GROUP
+  ACTIVE_DIRECTORY
 }
 
 enum SyncOperation {
@@ -117,9 +117,6 @@ model Member {
   // Membership
   status              MembershipStatus      @default(MEMBER_CANDIDATE_CANDIDATE)
   joinedSemester      String                // e.g. "2025/2026/1"
-
-  // External system links
-  drupalUserId        String?               // Drupal numeric uid on bsstudio.hu
 
   // Soft delete / archive
   archived            Boolean               @default(false)

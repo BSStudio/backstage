@@ -1,20 +1,17 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  mockDrupalOrchestrators,
   mockNoSession,
   mockSession,
+  mockWebsiteOrchestrators,
 } from "../../helpers";
 import { getTestPrisma, mockPrisma } from "../../setup";
 
 const ACTOR_ID = "test-actor-id";
 
-let drupalOrchestrators: ReturnType<typeof mockDrupalOrchestrators>;
-
 beforeEach(async () => {
   vi.resetModules();
   mockPrisma();
-  drupalOrchestrators = mockDrupalOrchestrators();
 
   vi.doMock("@/lib/sync/authentik/orchestrators", () => ({
     createAuthentikUser: vi.fn(async (data) => ({
@@ -148,9 +145,10 @@ describe("POST /api/members", () => {
 
   it("returns 207 when the member was created but a sync step failed", async () => {
     mockSession({ id: ACTOR_ID, role: "LEADER" });
-    drupalOrchestrators.orchestrateCreateDrupalUser.mockResolvedValueOnce({
+    const website = mockWebsiteOrchestrators();
+    website.orchestrateSyncWebsiteMember.mockResolvedValueOnce({
       success: false,
-      error: "Drupal API error: HTTP 500",
+      error: "Website webhook error: HTTP 500",
     });
 
     const { POST } = await import("@/app/api/members/route");
@@ -166,6 +164,6 @@ describe("POST /api/members", () => {
     expect(res.status).toBe(207);
     const body = await res.json();
     expect(body.member.email).toBe("new@test.com");
-    expect(body.syncErrors).toEqual(["Drupal API error: HTTP 500"]);
+    expect(body.syncErrors).toEqual(["Website webhook error: HTTP 500"]);
   });
 });

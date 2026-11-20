@@ -20,13 +20,13 @@ beforeEach(() => {
 
 describe("captureSyncJobFailure", () => {
   it("tags the member and the external system, and never the payload", () => {
-    const error = new Error("Drupal rejected the form");
+    const error = new Error("Website webhook error: HTTP 500");
 
     captureSyncJobFailure(error, {
       jobId: "job-1",
       memberId: "uuid-member-1",
-      target: "DRUPAL",
-      operation: "CREATE_USER",
+      target: "WEBSITE",
+      operation: "SYNC_MEMBER",
       attempts: 2,
     });
 
@@ -34,8 +34,8 @@ describe("captureSyncJobFailure", () => {
       level: "error",
       tags: {
         "sync.job_id": "job-1",
-        "sync.target": "DRUPAL",
-        "sync.operation": "CREATE_USER",
+        "sync.target": "WEBSITE",
+        "sync.operation": "SYNC_MEMBER",
         "member.id": "uuid-member-1",
       },
       extra: { attempts: 2 },
