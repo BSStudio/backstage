@@ -31,6 +31,29 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("bulk results", () => {
+  it.each([
+    ["putKvPairs", () => putKvPairs([{ key: "promo", value: "https://a.hu" }])],
+    ["deleteKvKeys", () => deleteKvKeys(["promo"])],
+  ])("%s throws when KV leaves keys unapplied", async (_, call) => {
+    mockFetch.mockResolvedValue(
+      envelope({ successful_key_count: 0, unsuccessful_keys: ["promo"] }),
+    );
+
+    await expect(call()).rejects.toThrow(
+      "Cloudflare API error: KV did not apply: promo",
+    );
+  });
+
+  it("accepts a result that names no failed keys", async () => {
+    mockFetch.mockResolvedValue(
+      envelope({ successful_key_count: 1, unsuccessful_keys: [] }),
+    );
+
+    await expect(deleteKvKeys(["promo"])).resolves.toBeUndefined();
+  });
+});
+
 describe("putKvPairs", () => {
   it("writes the pairs as a JSON array to the bulk endpoint", async () => {
     mockFetch.mockResolvedValue(envelope(null));

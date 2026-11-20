@@ -611,6 +611,20 @@ describe("republishShortLinks", () => {
     expect(mockDeleteKvKeys).toHaveBeenCalledWith([]);
   });
 
+  it("keeps a stray key that became a link during the push", async () => {
+    const prisma = getTestPrisma();
+    await seed("promo");
+    mockListKvKeys.mockResolvedValue(["promo", "gala"]);
+    mockPutKvPairs.mockImplementation(async () => {
+      await seed("gala", "https://bsstudio.hu/g");
+    });
+
+    const result = await republishShortLinks(prisma, ADMIN);
+
+    expect(result).toEqual({ links: 1, removed: 0 });
+    expect(mockDeleteKvKeys).toHaveBeenCalledWith([]);
+  });
+
   it("takes back the key of a link deleted during the push", async () => {
     const prisma = getTestPrisma();
     await seed("promo");

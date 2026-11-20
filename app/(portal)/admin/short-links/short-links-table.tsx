@@ -91,7 +91,8 @@ export function ShortLinksTable({
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Several buttons share one transition, so this says which one is busy.
+  // Several buttons share one transition: this says which one spins, and all stay disabled while
+  // it runs.
   function busy(action: string) {
     return isPending && pendingAction === action;
   }
@@ -252,7 +253,7 @@ export function ShortLinksTable({
                               variant="ghost"
                               size="icon"
                               aria-label="Publikálás"
-                              disabled={busy(`${link.slug}:PUBLISH`)}
+                              disabled={isPending}
                               onClick={() => publish(link)}
                             >
                               {busy(`${link.slug}:PUBLISH`) ? (
@@ -274,7 +275,7 @@ export function ShortLinksTable({
                             variant="ghost"
                             size="icon"
                             aria-label="Törlés"
-                            disabled={busy(`${link.slug}:DELETE`)}
+                            disabled={isPending}
                             onClick={() => setDeleting(link)}
                           >
                             {busy(`${link.slug}:DELETE`) ? (

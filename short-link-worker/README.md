@@ -25,7 +25,7 @@ A build that fails leaves the previous version serving, so a broken config means
 
 Known wart: dashboard-connected workers also run a preview build on non-production branches, and those builds ignore the root directory and watch paths — so an unrelated pull request can show a build here. It deploys nothing.
 
-To deploy by hand, with a token that has Workers Scripts: Edit in your own environment:
+To deploy by hand, with a token in your own environment that has Workers Scripts: Edit on the account and Workers Routes: Edit on the `bsstudio.hu` zone, since the deploy attaches the route:
 
 ```bash
 pnpm worker:deploy

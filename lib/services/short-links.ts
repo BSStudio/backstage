@@ -252,16 +252,18 @@ export async function republishShortLinks(
 
   await putKvPairs(links.map((link) => ({ key: link.slug, value: link.url })));
 
-  // A link deleted since the read had its key put back above.
+  // Re-read after the put: a link deleted since had its key put back above, and a stray may
+  // have become a link.
   const remaining = new Set(
     (await prisma.shortLink.findMany({ select: { slug: true } })).map(
       (link) => link.slug,
     ),
   );
+  const orphans = strays.filter((key) => !remaining.has(key));
   const deleted = links
     .map((link) => link.slug)
     .filter((slug) => !remaining.has(slug));
-  await deleteKvKeys([...strays, ...deleted]);
+  await deleteKvKeys([...orphans, ...deleted]);
 
   // updateMany rather than update: a row deleted since the read is not an error here.
   await prisma.$transaction(
@@ -278,9 +280,9 @@ export async function republishShortLinks(
       actorId: actor.id,
       targetLabel: "Rövid linkek",
       action: "SHORT_LINK_FULL_SYNC",
-      diff: { links: links.length, removed: strays.length } as object,
+      diff: { links: links.length, removed: orphans.length } as object,
     },
   });
 
-  return { links: links.length, removed: strays.length };
+  return { links: links.length, removed: orphans.length };
 }
