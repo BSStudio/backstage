@@ -23,9 +23,12 @@ interface SqlResponse {
   data?: { slug?: string; clicks?: string | number }[];
 }
 
-export async function readShortLinkClicks(): Promise<Record<string, number>> {
+export async function readShortLinkClicks(): Promise<Record<
+  string,
+  number
+> | null> {
   const dataset = analyticsDataset();
-  if (!dataset) return {};
+  if (!dataset) return null;
 
   const { accountId, token } = cloudflareAuth();
   // SUM(_sample_interval), not COUNT(): Analytics Engine downsamples and a count under-reports.

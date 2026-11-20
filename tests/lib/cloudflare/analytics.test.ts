@@ -79,10 +79,10 @@ describe("readShortLinkClicks", () => {
     expect(init.body).toContain(`INTERVAL '${CLICK_WINDOW_DAYS}' DAY`);
   });
 
-  it("returns nothing and calls out to no one when no dataset is set", async () => {
+  it("answers null and calls out to no one when no dataset is set", async () => {
     vi.stubEnv("CLOUDFLARE_ANALYTICS_DATASET", "");
 
-    expect(await readShortLinkClicks()).toEqual({});
+    expect(await readShortLinkClicks()).toBeNull();
     expect(mockFetch).not.toHaveBeenCalled();
   });
 

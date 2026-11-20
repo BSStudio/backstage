@@ -54,7 +54,7 @@ export function ShortLinksTable({
   canRepublish,
 }: {
   links: ShortLink[];
-  clicks: Record<string, number>;
+  clicks: Record<string, number> | null;
   baseUrl: string | null;
   canManage: boolean;
   canRepublish: boolean;
@@ -72,9 +72,9 @@ export function ShortLinksTable({
     return isPending && pendingAction === action;
   }
 
-  async function copy(link: ShortLink) {
+  async function copy(base: string, link: ShortLink) {
     try {
-      await navigator.clipboard.writeText(shortLinkUrl(baseUrl, link.slug));
+      await navigator.clipboard.writeText(shortLinkUrl(base, link.slug));
       setCopied(link.slug);
       setTimeout(() => setCopied(null), 1500);
     } catch {
@@ -123,6 +123,8 @@ export function ShortLinksTable({
     router.refresh();
   }
 
+  const columns = 4 + (clicks ? 1 : 0) + (canManage ? 1 : 0);
+
   return (
     <div className="flex flex-col gap-4">
       {(canManage || canRepublish) && (
@@ -144,7 +146,7 @@ export function ShortLinksTable({
               <TableHead>Rövidítés</TableHead>
               <TableHead>Cél</TableHead>
               <TableHead>Jegyzet</TableHead>
-              <TableHead className="w-px">Kattintás</TableHead>
+              {clicks && <TableHead className="w-px">Kattintás</TableHead>}
               <TableHead className="w-px">Állapot</TableHead>
               {canManage && <TableHead className="w-px" />}
             </TableRow>
@@ -152,17 +154,13 @@ export function ShortLinksTable({
           <TableBody>
             {links.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={canManage ? 6 : 5}
-                  className="h-24 text-center"
-                >
+                <TableCell colSpan={columns} className="h-24 text-center">
                   Nincs még rövid link rögzítve.
                 </TableCell>
               </TableRow>
             ) : (
               links.map((link) => {
                 const state = publishState(link);
-                const count = clicks[link.slug];
 
                 return (
                   <TableRow key={link.slug}>
@@ -171,18 +169,20 @@ export function ShortLinksTable({
                         <span className="font-mono font-medium">
                           {link.slug}
                         </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Rövid cím másolása"
-                          onClick={() => copy(link)}
-                        >
-                          {copied === link.slug ? (
-                            <Check className="size-3.5" />
-                          ) : (
-                            <Copy className="size-3.5" />
-                          )}
-                        </Button>
+                        {baseUrl && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Rövid cím másolása"
+                            onClick={() => copy(baseUrl, link)}
+                          >
+                            {copied === link.slug ? (
+                              <Check className="size-3.5" />
+                            ) : (
+                              <Copy className="size-3.5" />
+                            )}
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="max-w-xs truncate">
@@ -195,12 +195,14 @@ export function ShortLinksTable({
                         {link.url}
                       </a>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="min-w-48 whitespace-normal text-muted-foreground">
                       {link.note ?? "—"}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {count ?? "—"}
-                    </TableCell>
+                    {clicks && (
+                      <TableCell className="text-right tabular-nums">
+                        {clicks[link.slug] ?? "—"}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <Badge
                         variant="outline"

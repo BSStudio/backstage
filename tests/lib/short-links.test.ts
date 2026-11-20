@@ -13,10 +13,6 @@ describe("shortLinkUrl", () => {
       "https://bsstudio.hu/s/promo",
     );
   });
-
-  it("falls back to a bare path when no base is configured", () => {
-    expect(shortLinkUrl(null, "promo")).toBe("/promo");
-  });
 });
 
 describe("publishState", () => {

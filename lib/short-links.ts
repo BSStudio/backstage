@@ -1,5 +1,5 @@
-export function shortLinkUrl(base: string | null, slug: string): string {
-  return base ? `${base}/${slug}` : `/${slug}`;
+export function shortLinkUrl(base: string, slug: string): string {
+  return `${base}/${slug}`;
 }
 
 export const PUBLISH_STATES = ["UNPUBLISHED", "STALE", "PUBLISHED"] as const;

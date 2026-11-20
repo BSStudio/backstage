@@ -138,6 +138,12 @@ describe("getShortLinkClicks", () => {
     expect(await getShortLinkClicks(LEADER)).toEqual({ promo: 12 });
   });
 
+  it("answers null when no dataset is configured", async () => {
+    mockReadClicks.mockResolvedValue(null);
+
+    expect(await getShortLinkClicks(LEADER)).toBeNull();
+  });
+
   it("logs a warning and answers empty when Cloudflare will not say", async () => {
     mockReadClicks.mockRejectedValue(new Error("Analytics down"));
 

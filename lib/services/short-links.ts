@@ -83,7 +83,7 @@ export async function listShortLinks(prisma: PrismaClient, actor: Actor) {
 // A missing click count is a blank column, not an incident — the same call the calendar makes.
 export async function getShortLinkClicks(
   actor: Actor,
-): Promise<Record<string, number>> {
+): Promise<Record<string, number> | null> {
   ensureCanViewAdminArea(actor);
   try {
     return await readShortLinkClicks();
