@@ -20,30 +20,20 @@ describe("shortLinkUrl", () => {
 });
 
 describe("publishState", () => {
-  const published = new Date("2026-01-02T00:00:00Z");
+  const url = "https://bsstudio.hu/b";
 
   it("reports a link that has never been pushed", () => {
-    expect(publishState({ updatedAt: published, publishedAt: null })).toBe(
-      "UNPUBLISHED",
+    expect(publishState({ url, publishedUrl: null })).toBe("UNPUBLISHED");
+  });
+
+  it("reports a link retargeted since it was pushed", () => {
+    expect(publishState({ url, publishedUrl: "https://bsstudio.hu/a" })).toBe(
+      "STALE",
     );
   });
 
-  it("reports a link edited since it was pushed", () => {
-    expect(
-      publishState({
-        updatedAt: new Date("2026-01-03T00:00:00Z"),
-        publishedAt: published,
-      }),
-    ).toBe("STALE");
-  });
-
   it("reports a link KV holds the current target for", () => {
-    expect(
-      publishState({
-        updatedAt: published,
-        publishedAt: new Date("2026-01-04T00:00:00Z"),
-      }),
-    ).toBe("PUBLISHED");
+    expect(publishState({ url, publishedUrl: url })).toBe("PUBLISHED");
   });
 });
 

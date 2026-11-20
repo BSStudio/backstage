@@ -7,11 +7,11 @@ export const PUBLISH_STATES = ["UNPUBLISHED", "STALE", "PUBLISHED"] as const;
 export type PublishState = (typeof PUBLISH_STATES)[number];
 
 export function publishState(link: {
-  updatedAt: Date;
-  publishedAt: Date | null;
+  url: string;
+  publishedUrl: string | null;
 }): PublishState {
-  if (!link.publishedAt) return "UNPUBLISHED";
-  if (link.publishedAt < link.updatedAt) return "STALE";
+  if (link.publishedUrl === null) return "UNPUBLISHED";
+  if (link.publishedUrl !== link.url) return "STALE";
   return "PUBLISHED";
 }
 

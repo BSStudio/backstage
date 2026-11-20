@@ -233,9 +233,7 @@ function buildShortLinks(devUser: DevUser): Prisma.ShortLinkCreateManyInput[] {
     note: link.note,
     createdById: devUser.id,
     createdAt: daysAgo(30),
-    updatedAt: daysAgo(link.updatedDaysAgo),
-    publishedAt:
-      link.publishedDaysAgo === null ? null : daysAgo(link.publishedDaysAgo),
+    publishedUrl: link.publishedUrl,
   }));
 }
 

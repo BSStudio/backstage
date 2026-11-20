@@ -272,6 +272,6 @@ model ShortLink {
   createdById  String
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  // Null, or older than updatedAt, means KV does not hold the current target.
-  publishedAt  DateTime?
+  // The target last written to KV. Null, or different from url, means KV does not hold url.
+  publishedUrl String?
 }

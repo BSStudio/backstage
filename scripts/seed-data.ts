@@ -612,9 +612,7 @@ export interface SeedShortLink {
   slug: string;
   url: string;
   note: string | null;
-  // Days since the row was last published; null for one that never has been.
-  publishedDaysAgo: number | null;
-  updatedDaysAgo: number;
+  publishedUrl: string | null;
 }
 
 // Between them covering all three publish states: current, never pushed, and edited since it
@@ -624,28 +622,24 @@ export const SEED_SHORT_LINKS: SeedShortLink[] = [
     slug: "gala",
     url: "https://bsstudio.hu/esemenyek/oszi-gala",
     note: "Őszi gála plakát és Instagram bio",
-    publishedDaysAgo: 3,
-    updatedDaysAgo: 3,
+    publishedUrl: "https://bsstudio.hu/esemenyek/oszi-gala",
   },
   {
     slug: "jelentkezes",
     url: "https://bsstudio.hu/jelentkezes",
     note: null,
-    publishedDaysAgo: 10,
-    updatedDaysAgo: 10,
+    publishedUrl: "https://bsstudio.hu/jelentkezes",
   },
   {
     slug: "szabalyzat",
     url: "https://wiki.bsstudio.hu/doc/szabalyzat",
     note: "Még nem osztottuk ki",
-    publishedDaysAgo: null,
-    updatedDaysAgo: 1,
+    publishedUrl: null,
   },
   {
     slug: "studio",
     url: "https://bsstudio.hu/rolunk",
     note: "Átirányítva az új aloldalra, de a kulcs még a régit tartja",
-    publishedDaysAgo: 20,
-    updatedDaysAgo: 2,
+    publishedUrl: "https://bsstudio.hu/a-studiorol",
   },
 ];

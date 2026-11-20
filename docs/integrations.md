@@ -70,9 +70,9 @@ The domain-side and Authentik-side setup is instance configuration nothing in th
 
 `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_KV_NAMESPACE_ID`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ANALYTICS_DATASET` and `SHORT_LINK_BASE_URL`. Clearing any of the first three stops publishing: links still save and read as unpublished, and the republish button is hidden.
 
-**Backstage never serves a redirect.** `short-link-worker/` does, reading Workers KV at the edge; Backstage only writes the projection into that KV. Postgres is authoritative and the two are written in separate steps that no transaction spans, which is what `ShortLink.publishedAt` records and what the republish repairs.
+**Backstage never serves a redirect.** `short-link-worker/` does, reading Workers KV at the edge; Backstage only writes the projection into that KV. Postgres is authoritative and the two are written in separate steps that no transaction spans, which is what `ShortLink.publishedUrl` records and what the republish repairs.
 
-**Every write goes through the bulk endpoints**, even a single key: `PUT …/bulk` takes JSON and accepts one entry where `PUT …/values/{key}` wants multipart, so there is one code path and it is the same one the republish uses. KV allows **one write per second to the same key** and answers 429 past it, which a double-submitted retarget reaches — so any publish failure leaves the row saved with a stale `publishedAt` and rides back in `syncErrors` as a warning.
+**Every write goes through the bulk endpoints**, even a single key: `PUT …/bulk` takes JSON and accepts one entry where `PUT …/values/{key}` wants multipart, so there is one code path and it is the same one the republish uses. KV allows **one write per second to the same key** and answers 429 past it, which a double-submitted retarget reaches — so any publish failure leaves the row saved with its old `publishedUrl` and rides back in `syncErrors` as a warning.
 
 **A 200 carrying `success: false` is a failure.** Cloudflare answers that way for a refused operation, so `cloudflareRequest` checks the envelope rather than only `res.ok`.
 

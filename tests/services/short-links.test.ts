@@ -48,6 +48,7 @@ import {
   republishShortLinks,
   updateShortLink,
 } from "@/lib/services/short-links";
+import { publishState } from "@/lib/short-links";
 import { getTestPrisma } from "../setup";
 
 const ADMIN: Actor = { id: "admin-id", role: "ADMIN" };
@@ -168,7 +169,7 @@ describe("createShortLink", () => {
 
     expect(link.slug).toBe("promo");
     expect(link.createdById).toBe(LEADER.id);
-    expect(link.publishedAt).not.toBeNull();
+    expect(publishState(link)).toBe("PUBLISHED");
     expect(syncErrors).toEqual([]);
 
     const log = await prisma.auditLog.findFirstOrThrow();
@@ -259,7 +260,7 @@ describe("createShortLink", () => {
       ADMIN,
     );
 
-    expect(link.publishedAt).toBeNull();
+    expect(link.publishedUrl).toBeNull();
     expect(syncErrors).toEqual([]);
     expect(mockPutKvPairs).not.toHaveBeenCalled();
   });
@@ -275,7 +276,7 @@ describe("createShortLink", () => {
     const saved = await getTestPrisma().shortLink.findUniqueOrThrow({
       where: { slug: "promo" },
     });
-    expect(saved.publishedAt).toBeNull();
+    expect(saved.publishedUrl).toBeNull();
   });
 
   it("rethrows a failure the integration did not raise", async () => {
@@ -336,6 +337,39 @@ describe("updateShortLink", () => {
 
     expect(await prisma.auditLog.count()).toBe(1);
     expect(mockPutKvPairs).not.toHaveBeenCalled();
+  });
+
+  it("keeps a published link published across a note-only edit", async () => {
+    const prisma = getTestPrisma();
+    await seed("promo");
+    await publishShortLink(prisma, "promo", ADMIN);
+
+    const { link } = await updateShortLink(
+      prisma,
+      "promo",
+      { note: "Csak jegyzet" },
+      ADMIN,
+    );
+
+    expect(publishState(link)).toBe("PUBLISHED");
+  });
+
+  it("reads as stale when the retarget's push is refused", async () => {
+    const prisma = getTestPrisma();
+    await seed("promo");
+    await publishShortLink(prisma, "promo", ADMIN);
+    mockPutKvPairs.mockRejectedValue(
+      new CloudflareError(429, { message: "Too many requests" }),
+    );
+
+    const { link } = await updateShortLink(
+      prisma,
+      "promo",
+      { url: "https://bsstudio.hu/b" },
+      ADMIN,
+    );
+
+    expect(publishState(link)).toBe("STALE");
   });
 
   it("clears a note given as blank", async () => {
@@ -465,7 +499,7 @@ describe("publishShortLink", () => {
     );
 
     expect(syncErrors).toEqual([]);
-    expect(link.publishedAt).not.toBeNull();
+    expect(link.publishedUrl).toBe("https://bsstudio.hu/a");
     expect(await prisma.auditLog.count()).toBe(0);
   });
 
@@ -482,7 +516,7 @@ describe("publishShortLink", () => {
     );
 
     expect(syncErrors).toEqual(["Cloudflare API error: Too many requests"]);
-    expect(link.publishedAt).toBeNull();
+    expect(link.publishedUrl).toBeNull();
   });
 
   it("refuses an unknown slug", async () => {
@@ -517,7 +551,7 @@ describe("republishShortLinks", () => {
     expect(mockDeleteKvKeys).toHaveBeenCalledWith(["leftover"]);
 
     const links = await prisma.shortLink.findMany();
-    expect(links.every((link) => link.publishedAt !== null)).toBe(true);
+    expect(links.every((link) => link.publishedUrl === link.url)).toBe(true);
 
     const log = await prisma.auditLog.findFirstOrThrow();
     expect(log.action).toBe("SHORT_LINK_FULL_SYNC");

@@ -46,25 +46,22 @@ function fieldError(field: string, message: string): ValidationError {
 // same way an unconfigured target records a SKIPPED sync job.
 async function publish(
   prisma: PrismaClient,
-  slug: string,
-  url: string,
-): Promise<{ syncErrors: string[]; publishedAt: Date | null }> {
-  if (!isCloudflareConfigured()) return { syncErrors: [], publishedAt: null };
+  link: ShortLink,
+): Promise<ShortLinkResult> {
+  if (!isCloudflareConfigured()) return { link, syncErrors: [] };
   try {
-    await putKvPairs([{ key: slug, value: url }]);
-    const publishedAt = new Date();
-    await prisma.shortLink.update({ where: { slug }, data: { publishedAt } });
-    return { syncErrors: [], publishedAt };
+    await putKvPairs([{ key: link.slug, value: link.url }]);
   } catch (error) {
     if (error instanceof CloudflareError) {
-      return { syncErrors: [error.message], publishedAt: null };
+      return { link, syncErrors: [error.message] };
     }
     throw error;
   }
-}
-
-function withPublishedAt(link: ShortLink, publishedAt: Date | null): ShortLink {
-  return publishedAt ? { ...link, publishedAt } : link;
+  const published = await prisma.shortLink.update({
+    where: { slug: link.slug },
+    data: { publishedUrl: link.url },
+  });
+  return { link: published, syncErrors: [] };
 }
 
 async function unpublish(slug: string): Promise<string[]> {
@@ -130,12 +127,7 @@ export async function createShortLink(
     return created;
   });
 
-  const { syncErrors, publishedAt } = await publish(
-    prisma,
-    link.slug,
-    link.url,
-  );
-  return { link: withPublishedAt(link, publishedAt), syncErrors };
+  return publish(prisma, link);
 }
 
 export async function updateShortLink(
@@ -182,12 +174,7 @@ export async function updateShortLink(
   // Only the target reaches KV, so a note-only edit has nothing to push.
   if (!diff.url) return { link: updated, syncErrors: [] };
 
-  const { syncErrors, publishedAt } = await publish(
-    prisma,
-    updated.slug,
-    updated.url,
-  );
-  return { link: withPublishedAt(updated, publishedAt), syncErrors };
+  return publish(prisma, updated);
 }
 
 export async function deleteShortLink(
@@ -225,12 +212,7 @@ export async function publishShortLink(
   const link = await prisma.shortLink.findUnique({ where: { slug } });
   if (!link) throw new NotFoundError();
 
-  const { syncErrors, publishedAt } = await publish(
-    prisma,
-    link.slug,
-    link.url,
-  );
-  return { link: withPublishedAt(link, publishedAt), syncErrors };
+  return publish(prisma, link);
 }
 
 export async function republishShortLinks(
@@ -253,7 +235,15 @@ export async function republishShortLinks(
   await putKvPairs(links.map((link) => ({ key: link.slug, value: link.url })));
   await deleteKvKeys(strays);
 
-  await prisma.shortLink.updateMany({ data: { publishedAt: new Date() } });
+  // updateMany rather than update: a row deleted since the read is not an error here.
+  await prisma.$transaction(
+    links.map((link) =>
+      prisma.shortLink.updateMany({
+        where: { slug: link.slug },
+        data: { publishedUrl: link.url },
+      }),
+    ),
+  );
 
   await prisma.auditLog.create({
     data: {

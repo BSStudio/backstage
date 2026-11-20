@@ -19,7 +19,7 @@ CREATE TABLE "ShortLink" (
     "createdById" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "publishedAt" TIMESTAMP(3),
+    "publishedUrl" TEXT,
 
     CONSTRAINT "ShortLink_pkey" PRIMARY KEY ("slug")
 );
