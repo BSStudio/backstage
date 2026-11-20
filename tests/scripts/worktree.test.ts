@@ -119,8 +119,15 @@ describe("mainCheckoutOf", () => {
     root = realpathSync.native(
       mkdtempSync(path.join(tmpdir(), "worktree-test-")),
     );
+    writeFileSync(`${root}.gitconfig`, "");
+    // The developer's own git config (commit signing, hooks) has no say in a throwaway repo.
+    const env = {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: `${root}.gitconfig`,
+      GIT_CONFIG_NOSYSTEM: "1",
+    };
     const git = (...args: string[]) =>
-      execFileSync("git", args, { cwd: root, stdio: "pipe" });
+      execFileSync("git", args, { cwd: root, stdio: "pipe", env });
     git("init", "-q", "-b", "main");
     writeFileSync(path.join(root, "README.md"), "x\n");
     git("add", "README.md");
@@ -147,6 +154,7 @@ describe("mainCheckoutOf", () => {
 
   afterAll(() => {
     rmSync(root, { recursive: true, force: true });
+    rmSync(`${root}.gitconfig`, { force: true });
   });
 
   it("is null in the main checkout", () => {
