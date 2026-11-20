@@ -26,4 +26,4 @@
 
 `GET /api/health` — container liveness. Public to the proxy and unauthenticated: it answers `{ status: "ok" }`, or 503 once the database round trip fails.
 
-Admin-area resources (sync jobs, audit log, Google Group), app links and computers deliberately have **no** REST read routes; see [Architectural decisions](decisions.md).
+Admin-area resources (sync jobs, audit log, Google Group), app links, computers and short links deliberately have **no** REST read routes; see [Architectural decisions](decisions.md).

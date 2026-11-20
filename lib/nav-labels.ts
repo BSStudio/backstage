@@ -12,8 +12,10 @@ export const NAV_LABELS = {
   "google-group": "Google Group",
   apps: "Alkalmazások",
   computers: "Számítógépek",
+  "short-links": "Rövid linkek",
 
   // Sidebar-specific contextual labels
   membersActive: "Aktív",
   adminApps: "Alkalmazások kezelése",
+  adminShortLinks: "Rövid linkek kezelése",
 } as const satisfies Record<string, string>;

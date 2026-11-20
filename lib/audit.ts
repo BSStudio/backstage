@@ -20,6 +20,10 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   APP_LINK_UPDATED: "Alkalmazás módosítás",
   APP_LINK_DELETED: "Alkalmazás törlés",
   COMPUTER_DELETED: "Számítógép törlés",
+  SHORT_LINK_CREATED: "Rövid link létrehozás",
+  SHORT_LINK_UPDATED: "Rövid link módosítás",
+  SHORT_LINK_DELETED: "Rövid link törlés",
+  SHORT_LINK_FULL_SYNC: "Rövid linkek újrapublikálása",
 };
 
 /** Tailwind classes for audit action badges. */
@@ -44,6 +48,10 @@ export const AUDIT_ACTION_VARIANT: Record<AuditAction, string> = {
   APP_LINK_UPDATED: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
   APP_LINK_DELETED: "bg-red-500/15 text-red-600 dark:text-red-400",
   COMPUTER_DELETED: "bg-red-500/15 text-red-600 dark:text-red-400",
+  SHORT_LINK_CREATED: "bg-green-500/15 text-green-600 dark:text-green-400",
+  SHORT_LINK_UPDATED: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  SHORT_LINK_DELETED: "bg-red-500/15 text-red-600 dark:text-red-400",
+  SHORT_LINK_FULL_SYNC: "bg-gray-500/15 text-gray-600 dark:text-gray-400",
 };
 
 export type AuditDiffEntry =

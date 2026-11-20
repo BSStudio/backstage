@@ -607,3 +607,39 @@ export const SEED_COMPUTERS: SeedComputer[] = [
     },
   },
 ];
+
+export interface SeedShortLink {
+  slug: string;
+  url: string;
+  note: string | null;
+  publishedUrl: string | null;
+}
+
+// Between them covering all three publish states: current, never pushed, and retargeted since
+// it was pushed.
+export const SEED_SHORT_LINKS: SeedShortLink[] = [
+  {
+    slug: "gala",
+    url: "https://bsstudio.hu/esemenyek/oszi-gala",
+    note: "Őszi gála plakát és Instagram bio",
+    publishedUrl: "https://bsstudio.hu/esemenyek/oszi-gala",
+  },
+  {
+    slug: "jelentkezes",
+    url: "https://bsstudio.hu/jelentkezes",
+    note: null,
+    publishedUrl: "https://bsstudio.hu/jelentkezes",
+  },
+  {
+    slug: "szabalyzat",
+    url: "https://wiki.bsstudio.hu/doc/szabalyzat",
+    note: "Még nem osztottuk ki",
+    publishedUrl: null,
+  },
+  {
+    slug: "studio",
+    url: "https://bsstudio.hu/rolunk",
+    note: "Átirányítva az új aloldalra, de a Cloudflare még a régire visz",
+    publishedUrl: "https://bsstudio.hu/a-studiorol",
+  },
+];

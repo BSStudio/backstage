@@ -21,7 +21,10 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "tsx scripts/reset-db.ts",
     "db:seed": "tsx scripts/seed-dev.ts",
-    "authentik:contract": "tsx scripts/authentik-contract.ts"
+    "authentik:contract": "tsx scripts/authentik-contract.ts",
+    "worker:dev": "pnpm wrangler dev --config short-link-worker/wrangler.jsonc",
+    "worker:deploy": "pnpm wrangler deploy --config short-link-worker/wrangler.jsonc",
+    "wrangler": "pnpm dlx --allow-build=workerd --allow-build=esbuild wrangler@4.149.0"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1167.0",

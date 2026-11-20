@@ -4,10 +4,12 @@ import {
   type Actor,
   canAdminister,
   canManageMembers,
+  canManageShortLinks,
   canModifyMember,
   canViewAdminArea,
   ensureCanAdminister,
   ensureCanManageMembers,
+  ensureCanManageShortLinks,
   ensureCanModifyMember,
   toActor,
 } from "@/lib/permissions";
@@ -58,6 +60,18 @@ describe("canAdminister", () => {
   });
 });
 
+describe("canManageShortLinks", () => {
+  it("allows admins and leaders", () => {
+    expect(canManageShortLinks("ADMIN")).toBe(true);
+    expect(canManageShortLinks("LEADER")).toBe(true);
+  });
+
+  it("denies members and unauthenticated visitors", () => {
+    expect(canManageShortLinks("MEMBER")).toBe(false);
+    expect(canManageShortLinks(undefined)).toBe(false);
+  });
+});
+
 describe("canModifyMember", () => {
   it("allows a member to modify their own record", () => {
     expect(canModifyMember(MEMBER, MEMBER.id)).toBe(true);
@@ -91,6 +105,17 @@ describe("ensureCanAdminister", () => {
 
   it("throws for leaders", () => {
     expect(() => ensureCanAdminister(LEADER)).toThrow(ForbiddenError);
+  });
+});
+
+describe("ensureCanManageShortLinks", () => {
+  it("passes for leaders and admins", () => {
+    expect(() => ensureCanManageShortLinks(LEADER)).not.toThrow();
+    expect(() => ensureCanManageShortLinks(ADMIN)).not.toThrow();
+  });
+
+  it("throws for members", () => {
+    expect(() => ensureCanManageShortLinks(MEMBER)).toThrow(ForbiddenError);
   });
 });
 

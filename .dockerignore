@@ -18,6 +18,7 @@ Dockerfile
 coverage
 docker-compose*.yml
 node_modules
+short-link-worker
 storage
 tests
 *.md

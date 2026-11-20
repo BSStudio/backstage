@@ -32,6 +32,8 @@ VALUES (gen_random_uuid()::text, 'ACTIVE_DIRECTORY', 'CREATE_USER', '<uuid>',
 
 **CardDAVToken** — one row per device a member set up for contact sync. `tokenHash` is the SHA-256 of a 256-bit random token; the token itself is shown once and stored nowhere. `label` names the device, `lastUsedAt` moves at most once every five minutes. Deleting the row revokes the device.
 
+**ShortLink** — one studio short link. `slug` is the primary key rather than a generated id — it is what the URL names, the same reasoning as `Computer.id` — and is lowercased on the way in, so one slug cannot exist under two spellings. It is also immutable: an edit changes `url` and `note` only, because renaming would break a URL already printed on a poster. `createdById` is a plain column rather than a `Member` relation, the same snapshot reasoning as `AuditLog.targetLabel`: a link outlives the row that created it. `publishedUrl` is the only record of what Workers KV holds — the target last written there, so null, or anything other than `url`, means KV does not hold the current target, and that is what the admin table badges. It records the target rather than a time because `updatedAt` moves on every write, the one recording the publish included, so a timestamp compared against it reads every link as stale. There is no `clicks` column; counts are a live read from Analytics Engine (see [Cloudflare](integrations.md#cloudflare-short-links)).
+
 ## Membership status
 
 ```prisma

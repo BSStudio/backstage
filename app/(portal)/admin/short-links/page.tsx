@@ -1,0 +1,57 @@
+import type { Metadata } from "next";
+import { isAnalyticsConfigured } from "@/lib/cloudflare/analytics";
+import { isCloudflareConfigured } from "@/lib/cloudflare/client";
+import {
+  canAdminister,
+  canManageShortLinks,
+  canViewAdminArea,
+} from "@/lib/permissions";
+import prisma from "@/lib/prisma";
+import { getShortLinkClicks, listShortLinks } from "@/lib/services/short-links";
+import { pageActor } from "@/lib/session";
+import { shortLinkBaseUrl } from "@/lib/short-link-config";
+import { shortLinkPrefix } from "@/lib/short-links";
+import { ShortLinksTable } from "./short-links-table";
+
+export const metadata: Metadata = {
+  title: "Rövid linkek kezelése - Backstage",
+};
+
+export default async function AdminShortLinksPage() {
+  const actor = await pageActor(canViewAdminArea);
+  // Not awaited: the table renders first and the click column streams in.
+  const clicks = isAnalyticsConfigured() ? getShortLinkClicks(actor) : null;
+  const links = await listShortLinks(prisma, actor);
+
+  const baseUrl = shortLinkBaseUrl();
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Rövid linkek kezelése
+        </h1>
+        <p className="text-muted-foreground">
+          {baseUrl ? (
+            <>
+              A linkek a{" "}
+              <span className="font-mono">{shortLinkPrefix(baseUrl)}</span>{" "}
+              alatt érhetők el.
+            </>
+          ) : (
+            "Nincs beállítva, hol érhetők el a linkek, így egyelőre nem működnek."
+          )}
+        </p>
+      </div>
+
+      <ShortLinksTable
+        links={links}
+        clicks={clicks}
+        baseUrl={baseUrl}
+        canManage={canManageShortLinks(actor.role)}
+        canPublish={isCloudflareConfigured()}
+        canRepublish={canAdminister(actor.role) && isCloudflareConfigured()}
+      />
+    </div>
+  );
+}

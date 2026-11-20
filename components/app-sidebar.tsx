@@ -5,6 +5,7 @@ import {
   FolderSync,
   Home,
   LayoutGrid,
+  Link2,
   Mails,
   Monitor,
   ScrollText,
@@ -94,6 +95,11 @@ const adminNav: NavItem[] = [
     title: NAV_LABELS.adminApps,
     url: "/admin/apps",
     icon: Settings,
+  },
+  {
+    title: NAV_LABELS.adminShortLinks,
+    url: "/admin/short-links",
+    icon: Link2,
   },
 ];
 

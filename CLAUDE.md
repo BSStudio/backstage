@@ -49,6 +49,9 @@ CI runs the same two, plus commitlint over the PR's commits and BSStudio/.github
 | `pnpm db:seed` | Wipe and reseed dev data (`--reset-user` re-asks who you are) |
 | `pnpm build` | Production build (standalone output) |
 | `pnpm authentik:contract` | Diff Authentik's OpenAPI spec against the committed snapshot (`--update` to rewrite it) |
+| `pnpm worker:dev` | `wrangler dev` over `short-link-worker/`, against a local KV namespace |
+| `pnpm worker:deploy` | Deploy the short-link Worker by hand — normally Cloudflare does it on a push |
+| `pnpm wrangler` | Wrangler at a pinned version through `pnpm dlx` — it is not a dependency |
 
 Environment variables: see `.env.example`. It is the complete list and is kept in sync.
 

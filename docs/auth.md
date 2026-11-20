@@ -29,15 +29,17 @@ The proxy only sees whether a cookie *exists*. `requireAuth()` is what rejects o
 
 `toActor(session)` in `lib/permissions.ts` reduces a session to the `{ id, role }` actor services take. It is typed structurally rather than on `Session`, so `lib/permissions.ts` pulls in neither `next/headers` nor better-auth — `components/app-sidebar.tsx` is a client component that imports it, and either would break the browser bundle.
 
-**Every rule lives in `lib/permissions.ts`.** Nothing else compares a role to a literal — the predicates (`canManageMembers`, `canViewAdminArea`, `canAdminister`, `canModifyMember`) drive the UI, and the `ensureCan*` guards enforce it in the services. A route's `requirePermission` only fails the request earlier, before a body is parsed; it is not what makes the call safe.
+**Every rule lives in `lib/permissions.ts`.** Nothing else compares a role to a literal — the predicates (`canManageMembers`, `canViewAdminArea`, `canAdminister`, `canModifyMember`, `canManageShortLinks`) drive the UI, and the `ensureCan*` guards enforce it in the services. A route's `requirePermission` only fails the request earlier, before a body is parsed; it is not what makes the call safe.
+
+`canManageShortLinks` has the same body as `canViewAdminArea` today and is a separate predicate on purpose: a short link is an open redirector on a studio domain, so narrowing who may *read* the admin area must never silently widen who may point one of those URLs anywhere.
 
 | Role | Derived from | Can |
 | --- | --- | --- |
 | `MEMBER` | everyone else | view member list, view/edit own profile |
-| `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive, reactivate; read the whole admin area — audit log, sync jobs, Google Group reconciliation, app links |
-| `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + retry failed sync jobs, force a full website sync, refresh and annotate the Google Group list, create/edit/reorder/delete app links, delete a computer |
+| `LEADER` | `AUTHENTIK_GROUP_LEADERSHIP` | + edit any member, change status, assign/remove roles, create, archive, reactivate; read the whole admin area — audit log, sync jobs, Google Group reconciliation, app links, short links; create/retarget/delete a short link |
+| `ADMIN` | `AUTHENTIK_GROUP_ADMIN` | + retry failed sync jobs, force a full website sync, refresh and annotate the Google Group list, create/edit/reorder/delete app links, delete a computer, republish every short link |
 
-The admin area splits on read vs write: `LEADER` sees every admin page, `ADMIN` is what the mutations on them require.
+The admin area splits on read vs write: `LEADER` sees every admin page, `ADMIN` is what the mutations on them require. Short links are the one exception — a leader creates and retargets them, because they are made for events a leader is already running, and only the whole-store republish is `ADMIN`.
 
 `resolveUserRole(groups)` in `types/index.ts` implements the mapping.
 

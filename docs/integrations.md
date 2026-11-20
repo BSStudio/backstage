@@ -66,6 +66,24 @@ AD accepts `unicodePwd` only over an encrypted connection, so the URL must be `l
 
 The domain-side and Authentik-side setup is instance configuration nothing in the app can detect, like Authentik's subject mode, and it lives on the studio wiki: the two delegated service accounts; the LDAP source, with writeback on and user and group sync off; `LDAPBackend` removed from every password stage, without which every wrong Authentik password is also a failed AD bind counting toward lockout; the "Remove Change Password" GPO; a finite lockout duration, since an Authentik reset does not unlock an AD account; and an `adm-` or `svc-` prefix on every account made by hand, since Authentik's username collision check sees only Authentik.
 
+## Cloudflare (short links)
+
+`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_KV_NAMESPACE_ID`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ANALYTICS_DATASET` and `SHORT_LINK_BASE_URL`. Clearing any of the first three stops publishing: links still save and read as unpublished, and the republish button is hidden.
+
+**Backstage never serves a redirect.** `short-link-worker/` does, reading Workers KV at the edge; Backstage only writes the projection into that KV. Postgres is authoritative and the two are written in separate steps that no transaction spans, which is what `ShortLink.publishedUrl` records and what the republish repairs.
+
+**Every write goes through the bulk endpoints**, even a single key: `PUT …/bulk` takes JSON and accepts one entry where `PUT …/values/{key}` wants multipart, so there is one code path and it is the same one the republish uses. KV allows **one write per second to the same key** and answers 429 past it, which a double-submitted retarget reaches — so any publish failure leaves the row saved with its old `publishedUrl` and rides back in `syncErrors` as a warning.
+
+**A 200 carrying `success: false` is a failure.** Cloudflare answers that way for a refused operation, so `cloudflareRequest` checks the envelope rather than only `res.ok`. A bulk write or delete that succeeds can still list `unsuccessful_keys`, and `kv.ts` raises those as the same error.
+
+**Clicks are a separate grant on the same token.** The Worker writes one Analytics Engine data point per redirect, read back over the SQL API with **`SUM(_sample_interval)`, never `COUNT(*)`** — Analytics Engine downsamples on both read and write, so a count under-reports. The dataset name is checked against a pattern because it is interpolated into the SQL. The read covers the last 30 days and is not awaited by the page: the click column streams in after the table. Retention is Cloudflare's, so these are a live reading rather than a stored total, and an unset dataset drops the column.
+
+The token Backstage holds needs only **Workers KV Storage: Edit** on that namespace plus **Account Analytics: Read** — deliberately not the Workers Scripts: Edit a deploy needs, so Backstage cannot rewrite the Worker.
+
+`SHORT_LINK_BASE_URL` carries a path: the links live under `/s/` on the website's own domain, and the Worker's route sends it only that path. The prefix is fixed in three places — that variable, the route in `wrangler.jsonc` and `PREFIX` in the Worker — which change together.
+
+Cloudflare-side setup is instance configuration nothing in the app can detect, like Authentik's subject mode: the KV namespace, the website's DNS record proxied through Cloudflare so the route can attach, and Workers Builds pointed at `short-link-worker/` as both its root directory and its watch path. The Analytics Engine dataset needs no creating — it appears on the Worker's first write. See `short-link-worker/README.md`.
+
 ## Sync architecture
 
 Every external mutation creates a `SyncJob` row and executes it **synchronously**: `runSyncJob` writes the row and hands it to `executeSyncJob` (`lib/sync/executor.ts`). Failures persist as `FAILED` rows at `/admin/sync-jobs`, retried manually via `retrySyncJobAction`. There is no background worker.
