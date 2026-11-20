@@ -1,7 +1,7 @@
 name: backstage
 services:
   db:
-    image: postgres:18-alpine
+    image: postgres:19-alpine
     restart: unless-stopped
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5583}:5432"
