@@ -8,7 +8,7 @@ import {
 import prisma from "@/lib/prisma";
 import { getShortLinkClicks, listShortLinks } from "@/lib/services/short-links";
 import { pageActor } from "@/lib/session";
-import { shortLinkBaseUrl, shortLinkHost } from "@/lib/short-link-config";
+import { shortLinkBaseUrl } from "@/lib/short-link-config";
 import { ShortLinksTable } from "./short-links-table";
 
 export const metadata: Metadata = {
@@ -41,7 +41,6 @@ export default async function AdminShortLinksPage() {
         links={links}
         clicks={clicks}
         baseUrl={baseUrl}
-        shortHost={shortLinkHost()}
         canManage={canManageShortLinks(actor.role)}
         canRepublish={canAdminister(actor.role) && isCloudflareConfigured()}
       />

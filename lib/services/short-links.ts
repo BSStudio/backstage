@@ -14,7 +14,7 @@ import {
   ensureCanManageShortLinks,
   ensureCanViewAdminArea,
 } from "@/lib/permissions";
-import { shortLinkHost } from "@/lib/short-link-config";
+import { shortLinkBaseUrl } from "@/lib/short-link-config";
 import {
   createShortLinkSchema,
   updateShortLinkSchema,
@@ -102,7 +102,7 @@ export async function createShortLink(
 ): Promise<ShortLinkResult> {
   ensureCanManageShortLinks(actor);
 
-  const parsed = createShortLinkSchema(shortLinkHost()).safeParse(input);
+  const parsed = createShortLinkSchema(shortLinkBaseUrl()).safeParse(input);
   if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
 
   const data = { ...parsed.data, note: parsed.data.note || null };
@@ -141,7 +141,7 @@ export async function updateShortLink(
   const link = await prisma.shortLink.findUnique({ where: { slug } });
   if (!link) throw new NotFoundError();
 
-  const parsed = updateShortLinkSchema(shortLinkHost()).safeParse(input);
+  const parsed = updateShortLinkSchema(shortLinkBaseUrl()).safeParse(input);
   if (!parsed.success) throw new ValidationError(z.treeifyError(parsed.error));
 
   const { note } = parsed.data;

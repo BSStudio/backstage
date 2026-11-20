@@ -83,7 +83,7 @@ beforeEach(async () => {
   mockListKvKeys.mockResolvedValue([]);
   mockReadClicks.mockResolvedValue({});
   configured();
-  vi.stubEnv("SHORT_LINK_BASE_URL", "https://l.example.hu");
+  vi.stubEnv("SHORT_LINK_BASE_URL", "https://bsstudio.hu/s");
 
   await getTestPrisma().member.createMany({
     data: [ADMIN, LEADER, MEMBER].map((actor) => ({
@@ -241,11 +241,11 @@ describe("createShortLink", () => {
     },
   );
 
-  it("refuses a target on the short host itself", async () => {
+  it("refuses a target that is itself a short link", async () => {
     await expect(
       createShortLink(
         getTestPrisma(),
-        { ...VALID, url: "https://l.example.hu/gala" },
+        { ...VALID, url: "https://bsstudio.hu/s/gala" },
         ADMIN,
       ),
     ).rejects.toThrow(ValidationError);

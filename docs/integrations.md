@@ -80,7 +80,9 @@ The domain-side and Authentik-side setup is instance configuration nothing in th
 
 The token Backstage holds needs only **Workers KV Storage: Edit** on that namespace plus **Account Analytics: Read** — deliberately not the Workers Scripts: Edit a deploy needs, so Backstage cannot rewrite the Worker.
 
-Cloudflare-side setup is instance configuration nothing in the app can detect, like Authentik's subject mode: the KV namespace, a proxied DNS record for the short host, and Workers Builds pointed at `short-link-worker/` as both its root directory and its watch path. The Analytics Engine dataset needs no creating — it appears on the Worker's first write. See `short-link-worker/README.md`.
+`SHORT_LINK_BASE_URL` carries a path: the links live under `/s/` on the website's own domain, and the Worker's route sends it only that path. The prefix is fixed in three places — that variable, the route in `wrangler.jsonc` and `PREFIX` in the Worker — which change together.
+
+Cloudflare-side setup is instance configuration nothing in the app can detect, like Authentik's subject mode: the KV namespace, the website's DNS record proxied through Cloudflare so the route can attach, and Workers Builds pointed at `short-link-worker/` as both its root directory and its watch path. The Analytics Engine dataset needs no creating — it appears on the Worker's first write. See `short-link-worker/README.md`.
 
 ## Sync architecture
 

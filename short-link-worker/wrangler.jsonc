@@ -11,5 +11,5 @@
   "analytics_engine_datasets": [
     { "binding": "CLICKS", "dataset": "short_link_clicks" }
   ],
-  "routes": [{ "pattern": "l.bsstudio.hu/*", "zone_name": "bsstudio.hu" }]
+  "routes": [{ "pattern": "bsstudio.hu/s/*", "zone_name": "bsstudio.hu" }]
 }

@@ -9,8 +9,8 @@ import {
 
 describe("shortLinkUrl", () => {
   it("joins the base and the slug", () => {
-    expect(shortLinkUrl("https://l.example.hu", "promo")).toBe(
-      "https://l.example.hu/promo",
+    expect(shortLinkUrl("https://bsstudio.hu/s", "promo")).toBe(
+      "https://bsstudio.hu/s/promo",
     );
   });
 

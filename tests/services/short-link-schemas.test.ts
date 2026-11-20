@@ -5,11 +5,11 @@ import {
   updateShortLinkSchema,
 } from "@/lib/services/short-link-schemas";
 
-const HOST = "l.example.hu";
+const BASE = "https://bsstudio.hu/s";
 
 describe("createShortLinkSchema", () => {
   it("trims and lowercases the slug", () => {
-    const parsed = createShortLinkSchema(HOST).parse({
+    const parsed = createShortLinkSchema(BASE).parse({
       slug: "  PROMO  ",
       url: "https://bsstudio.hu/a",
     });
@@ -18,7 +18,7 @@ describe("createShortLinkSchema", () => {
   });
 
   it("names the field when the slug is missing entirely", () => {
-    const result = createShortLinkSchema(HOST).safeParse({
+    const result = createShortLinkSchema(BASE).safeParse({
       url: "https://bsstudio.hu/a",
     });
 
@@ -28,10 +28,10 @@ describe("createShortLinkSchema", () => {
     );
   });
 
-  it("refuses a target on the short host", () => {
-    const result = createShortLinkSchema(HOST).safeParse({
+  it("refuses a target under the short-link base", () => {
+    const result = createShortLinkSchema(BASE).safeParse({
       slug: "promo",
-      url: "https://L.EXAMPLE.HU/gala",
+      url: "https://BSSTUDIO.HU/s/gala",
     });
 
     expect(result.success).toBe(false);
@@ -40,17 +40,39 @@ describe("createShortLinkSchema", () => {
     );
   });
 
-  it("allows any host when none is configured", () => {
-    const parsed = createShortLinkSchema(null).parse({
+  it.each([
+    "https://bsstudio.hu/esemenyek",
+    "https://bsstudio.hu/sajto",
+    "https://bsstudio.hu/s",
+  ])("allows %s, which is outside the base path", (url) => {
+    expect(
+      createShortLinkSchema(BASE).safeParse({ slug: "promo", url }).success,
+    ).toBe(true);
+  });
+
+  it("refuses the whole host when the base has no path", () => {
+    const result = createShortLinkSchema("https://l.example.hu").safeParse({
       slug: "promo",
       url: "https://l.example.hu/gala",
     });
 
-    expect(parsed.url).toBe("https://l.example.hu/gala");
+    expect(result.success).toBe(false);
   });
 
+  it.each([null, "not a url"])(
+    "allows any target when the base is %p",
+    (base) => {
+      const parsed = createShortLinkSchema(base).parse({
+        slug: "promo",
+        url: "https://bsstudio.hu/s/gala",
+      });
+
+      expect(parsed.url).toBe("https://bsstudio.hu/s/gala");
+    },
+  );
+
   it("caps the note", () => {
-    const result = createShortLinkSchema(HOST).safeParse({
+    const result = createShortLinkSchema(BASE).safeParse({
       slug: "promo",
       url: "https://bsstudio.hu/a",
       note: "x".repeat(121),
@@ -61,7 +83,7 @@ describe("createShortLinkSchema", () => {
   });
 
   it("caps the slug", () => {
-    const result = createShortLinkSchema(HOST).safeParse({
+    const result = createShortLinkSchema(BASE).safeParse({
       slug: "a".repeat(65),
       url: "https://bsstudio.hu/a",
     });
@@ -73,12 +95,12 @@ describe("createShortLinkSchema", () => {
 
 describe("updateShortLinkSchema", () => {
   it("accepts a payload carrying neither field", () => {
-    expect(updateShortLinkSchema(HOST).parse({})).toEqual({});
+    expect(updateShortLinkSchema(BASE).parse({})).toEqual({});
   });
 
-  it("still refuses a target on the short host", () => {
-    const result = updateShortLinkSchema(HOST).safeParse({
-      url: "https://l.example.hu/gala",
+  it("still refuses a target under the short-link base", () => {
+    const result = updateShortLinkSchema(BASE).safeParse({
+      url: "https://bsstudio.hu/s/gala",
     });
 
     expect(result.success).toBe(false);
@@ -87,7 +109,7 @@ describe("updateShortLinkSchema", () => {
 
 describe("shortLinkFormSchema", () => {
   it("requires every field, because a form always submits all of them", () => {
-    const schema = shortLinkFormSchema(HOST);
+    const schema = shortLinkFormSchema(BASE);
 
     expect(
       schema.safeParse({ slug: "promo", url: "https://bsstudio.hu/a" }).success,

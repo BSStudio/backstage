@@ -12,11 +12,11 @@ import { toastSync } from "@/lib/toast";
 
 export function ShortLinkForm({
   link,
-  shortHost,
+  baseUrl,
   onDone,
 }: {
   link?: ShortLink;
-  shortHost: string | null;
+  baseUrl: string | null;
   onDone: () => void;
 }) {
   const form = useAppForm({
@@ -25,7 +25,7 @@ export function ShortLinkForm({
       url: link?.url ?? "",
       note: link?.note ?? "",
     },
-    validators: { onChange: shortLinkFormSchema(shortHost) },
+    validators: { onChange: shortLinkFormSchema(baseUrl) },
     onSubmit: async ({ value }) => {
       const result = link
         ? await updateShortLinkAction(link.slug, {

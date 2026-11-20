@@ -50,14 +50,12 @@ export function ShortLinksTable({
   links,
   clicks,
   baseUrl,
-  shortHost,
   canManage,
   canRepublish,
 }: {
   links: ShortLink[];
   clicks: Record<string, number>;
   baseUrl: string | null;
-  shortHost: string | null;
   canManage: boolean;
   canRepublish: boolean;
 }) {
@@ -262,7 +260,7 @@ export function ShortLinksTable({
               A rövidítés később nem módosítható, a cél igen.
             </DialogDescription>
           </DialogHeader>
-          <ShortLinkForm shortHost={shortHost} onDone={handleDone} />
+          <ShortLinkForm baseUrl={baseUrl} onDone={handleDone} />
         </DialogContent>
       </Dialog>
 
@@ -280,7 +278,7 @@ export function ShortLinksTable({
           {editing && (
             <ShortLinkForm
               link={editing}
-              shortHost={shortHost}
+              baseUrl={baseUrl}
               onDone={handleDone}
             />
           )}

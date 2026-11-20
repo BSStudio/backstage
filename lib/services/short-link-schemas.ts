@@ -21,46 +21,49 @@ const noteField = z
   .max(120, "Legfeljebb 120 karakter")
   .optional();
 
-function hostOf(value: string): string | null {
+function isUnderBase(value: string, shortBase: string): boolean {
   try {
-    return new URL(value).host.toLowerCase();
+    const base = new URL(shortBase);
+    const target = new URL(value);
+    const prefix = base.pathname.replace(/\/*$/, "/");
+    return target.host === base.host && target.pathname.startsWith(prefix);
   } catch {
-    return null;
+    return false;
   }
 }
 
 // The protocol is pinned because the target is handed straight to a redirect:
 // `javascript:alert(1)` parses as a valid URL and only this keeps it out.
-function urlField(shortHost: string | null) {
-  const base = z
+function urlField(shortBase: string | null) {
+  const field = z
     .string({ error: urlError })
     .trim()
     .pipe(z.url({ protocol: /^https?$/, error: urlError }));
 
-  if (!shortHost) return base;
+  if (!shortBase) return field;
 
-  return base.refine((value) => hostOf(value) !== shortHost.toLowerCase(), {
+  return field.refine((value) => !isUnderBase(value, shortBase), {
     error: "A cél nem lehet egy másik rövid link",
   });
 }
 
-export function createShortLinkSchema(shortHost: string | null) {
+export function createShortLinkSchema(shortBase: string | null) {
   return z.object({
     slug: slugField,
-    url: urlField(shortHost),
+    url: urlField(shortBase),
     note: noteField,
   });
 }
 
-export function updateShortLinkSchema(shortHost: string | null) {
+export function updateShortLinkSchema(shortBase: string | null) {
   return z.object({
-    url: urlField(shortHost).optional(),
+    url: urlField(shortBase).optional(),
     note: noteField,
   });
 }
 
-export function shortLinkFormSchema(shortHost: string | null) {
-  return createShortLinkSchema(shortHost).required();
+export function shortLinkFormSchema(shortBase: string | null) {
+  return createShortLinkSchema(shortBase).required();
 }
 
 export type CreateShortLinkInput = z.infer<
