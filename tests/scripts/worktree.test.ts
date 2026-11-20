@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   databaseName,
   mainCheckoutOf,
@@ -120,14 +120,15 @@ describe("mainCheckoutOf", () => {
       mkdtempSync(path.join(tmpdir(), "worktree-test-")),
     );
     writeFileSync(`${root}.gitconfig`, "");
-    // The developer's own git config (commit signing, hooks) has no say in a throwaway repo.
-    const env = {
-      ...process.env,
-      GIT_CONFIG_GLOBAL: `${root}.gitconfig`,
-      GIT_CONFIG_NOSYSTEM: "1",
-    };
+    // Neither the developer's git config (commit signing, hooks) nor a calling hook's
+    // GIT_DIR / GIT_INDEX_FILE has a say in a throwaway repo.
+    for (const name of Object.keys(process.env)) {
+      if (name.startsWith("GIT_")) vi.stubEnv(name, undefined);
+    }
+    vi.stubEnv("GIT_CONFIG_GLOBAL", `${root}.gitconfig`);
+    vi.stubEnv("GIT_CONFIG_NOSYSTEM", "1");
     const git = (...args: string[]) =>
-      execFileSync("git", args, { cwd: root, stdio: "pipe", env });
+      execFileSync("git", args, { cwd: root, stdio: "pipe" });
     git("init", "-q", "-b", "main");
     writeFileSync(path.join(root, "README.md"), "x\n");
     git("add", "README.md");
@@ -155,6 +156,7 @@ describe("mainCheckoutOf", () => {
   afterAll(() => {
     rmSync(root, { recursive: true, force: true });
     rmSync(`${root}.gitconfig`, { force: true });
+    vi.unstubAllEnvs();
   });
 
   it("is null in the main checkout", () => {
