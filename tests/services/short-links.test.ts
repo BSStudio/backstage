@@ -639,6 +639,39 @@ describe("republishShortLinks", () => {
     expect(mockDeleteKvKeys).toHaveBeenCalledWith(["gala"]);
   });
 
+  it("still takes back a deleted link's key when the push partly fails", async () => {
+    const prisma = getTestPrisma();
+    await seed("promo");
+    await seed("gala", "https://bsstudio.hu/g");
+    mockPutKvPairs.mockImplementation(async () => {
+      await prisma.shortLink.delete({ where: { slug: "gala" } });
+      throw new CloudflareError(200, { message: "KV did not apply: promo" });
+    });
+
+    await expect(republishShortLinks(prisma, ADMIN)).rejects.toThrow(
+      "KV did not apply: promo",
+    );
+    expect(mockDeleteKvKeys).toHaveBeenCalledWith(["gala"]);
+    const promo = await prisma.shortLink.findUniqueOrThrow({
+      where: { slug: "promo" },
+    });
+    expect(promo.publishedUrl).toBeNull();
+  });
+
+  it("reports the push's error when the cleanup fails too", async () => {
+    await seed("promo");
+    mockPutKvPairs.mockRejectedValue(
+      new CloudflareError(403, { message: "Forbidden by token" }),
+    );
+    mockDeleteKvKeys.mockRejectedValue(
+      new CloudflareError(403, { message: "Also forbidden" }),
+    );
+
+    await expect(republishShortLinks(getTestPrisma(), ADMIN)).rejects.toThrow(
+      "Forbidden by token",
+    );
+  });
+
   it("writes no audit entry when the push is refused", async () => {
     const prisma = getTestPrisma();
     await seed("promo");

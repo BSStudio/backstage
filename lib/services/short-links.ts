@@ -250,20 +250,33 @@ export async function republishShortLinks(
   const wanted = new Set(links.map((link) => link.slug));
   const strays = keys.filter((key) => !wanted.has(key));
 
-  await putKvPairs(links.map((link) => ({ key: link.slug, value: link.url })));
+  // Re-read after the put: a link deleted since had its key put back, and a stray may have
+  // become a link. Answers how many strays it removed.
+  async function cleanUp(): Promise<number> {
+    const remaining = new Set(
+      (await prisma.shortLink.findMany({ select: { slug: true } })).map(
+        (link) => link.slug,
+      ),
+    );
+    const orphans = strays.filter((key) => !remaining.has(key));
+    const deleted = links
+      .map((link) => link.slug)
+      .filter((slug) => !remaining.has(slug));
+    await deleteKvKeys([...orphans, ...deleted]);
+    return orphans.length;
+  }
 
-  // Re-read after the put: a link deleted since had its key put back above, and a stray may
-  // have become a link.
-  const remaining = new Set(
-    (await prisma.shortLink.findMany({ select: { slug: true } })).map(
-      (link) => link.slug,
-    ),
-  );
-  const orphans = strays.filter((key) => !remaining.has(key));
-  const deleted = links
-    .map((link) => link.slug)
-    .filter((slug) => !remaining.has(slug));
-  await deleteKvKeys([...orphans, ...deleted]);
+  try {
+    await putKvPairs(
+      links.map((link) => ({ key: link.slug, value: link.url })),
+    );
+  } catch (error) {
+    // Part of the batch may have landed, so the cleanup still runs; the push's error is the one
+    // reported.
+    await cleanUp().catch(() => undefined);
+    throw error;
+  }
+  const removed = await cleanUp();
 
   // updateMany rather than update: a row deleted since the read is not an error here.
   await prisma.$transaction(
@@ -280,9 +293,9 @@ export async function republishShortLinks(
       actorId: actor.id,
       targetLabel: "Rövid linkek",
       action: "SHORT_LINK_FULL_SYNC",
-      diff: { links: links.length, removed: orphans.length } as object,
+      diff: { links: links.length, removed } as object,
     },
   });
 
-  return { links: links.length, removed: orphans.length };
+  return { links: links.length, removed };
 }
