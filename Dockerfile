@@ -42,20 +42,17 @@ COPY . .
 ARG NEXT_PUBLIC_SENTRY_DSN=""
 # Empty falls back to NODE_ENV, i.e. production.
 ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT=""
-ARG NEXT_PUBLIC_APP_VERSION="dev"
-# No `.git` or git binary here, so CI passes what next.config.ts derives locally.
-ARG NEXT_PUBLIC_COMMIT_HASH=""
+ARG VERSION="dev"
 ARG SENTRY_ORG=""
 ARG SENTRY_PROJECT=""
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=$NEXT_PUBLIC_SENTRY_ENVIRONMENT
-ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
-ENV NEXT_PUBLIC_COMMIT_HASH=$NEXT_PUBLIC_COMMIT_HASH
+ENV NEXT_PUBLIC_APP_VERSION=$VERSION
 ENV SENTRY_ORG=$SENTRY_ORG
 ENV SENTRY_PROJECT=$SENTRY_PROJECT
 
 # Without the token `withSentryConfig` skips source map upload and the build still passes.
-RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
+RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN,env=SENTRY_AUTH_TOKEN \
   --mount=type=cache,id=next,target=/app/.next/cache \
   pnpm build
 

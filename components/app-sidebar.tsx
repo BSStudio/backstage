@@ -32,7 +32,10 @@ import {
 } from "@/components/ui/sidebar";
 import { NAV_LABELS } from "@/lib/nav-labels";
 import { canViewAdminArea } from "@/lib/permissions";
+import { releaseLink } from "@/lib/release-link";
 import type { UserRole } from "@/types";
+
+const release = releaseLink(process.env.NEXT_PUBLIC_APP_VERSION ?? "dev");
 
 type NavItem = {
   title: string;
@@ -192,18 +195,12 @@ export function AppSidebar({ role }: { role: UserRole }) {
       </SidebarContent>
       <SidebarFooter>
         <a
-          href={
-            /^\d+\.\d+\.\d+$/.test(process.env.NEXT_PUBLIC_APP_VERSION ?? "")
-              ? `https://github.com/BSStudio/backstage/releases/tag/v${process.env.NEXT_PUBLIC_APP_VERSION}`
-              : process.env.NEXT_PUBLIC_COMMIT_HASH
-                ? `https://github.com/BSStudio/backstage/commit/${process.env.NEXT_PUBLIC_COMMIT_HASH}`
-                : "https://github.com/BSStudio/backstage"
-          }
+          href={release.url}
           target="_blank"
           rel="noopener noreferrer"
           className="px-2 pb-1 text-[10px] text-muted-foreground/50 hover:text-muted-foreground group-data-[collapsible=icon]:hidden"
         >
-          {process.env.NEXT_PUBLIC_APP_VERSION}
+          {release.label}
         </a>
       </SidebarFooter>
     </Sidebar>
