@@ -29,8 +29,10 @@ const nextConfig: NextConfig = {
   },
 };
 
-// Upload is off without the build secret, so a local `pnpm build` still succeeds.
+// Upload is off without the build secret, so a local `pnpm build` still succeeds, and for
+// `dev`, so a local token cannot publish a build as `backstage@dev`.
 const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+const upload = Boolean(sentryAuthToken) && appVersion !== "dev";
 
 export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
@@ -42,11 +44,12 @@ export default withSentryConfig(nextConfig, {
   // Proxy events through our own origin so ad blockers cannot drop them by hostname.
   tunnelRoute: "/monitoring",
   sourcemaps: {
-    disable: !sentryAuthToken,
+    disable: !upload,
     deleteSourcemapsAfterUpload: true,
   },
   release: {
     name: sentryRelease,
-    create: Boolean(sentryAuthToken),
+    create: upload,
+    finalize: upload,
   },
 });
