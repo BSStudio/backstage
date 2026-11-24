@@ -1,5 +1,17 @@
-import type { ErrorEvent } from "@sentry/nextjs";
-import { scrubBreadcrumb, scrubEvent, scrubLog } from "./scrub";
+import type { BrowserOptions, ErrorEvent } from "@sentry/nextjs";
+import { scrubBreadcrumb, scrubEvent, scrubLog, scrubSpan } from "./scrub";
+
+type SamplingContext = Parameters<
+  NonNullable<BrowserOptions["tracesSampler"]>
+>[0];
+
+const TRACES_SAMPLE_RATE = 0.5;
+
+/** The probes' health check and the agents' pings. */
+const UNTRACED_PATHS = [
+  /^\/api\/health\/?$/,
+  /^\/api\/computers\/[^/]+\/ping\/?$/,
+];
 
 // Shared by all three runtimes, so no server-only imports: `instrumentation-client.ts`
 // pulls this into the browser bundle.
@@ -15,6 +27,16 @@ export function isExpectedError(error: unknown): boolean {
   return error instanceof Error && EXPECTED_ERROR_NAMES.includes(error.name);
 }
 
+export function tracesSampler({
+  name,
+  attributes,
+  inheritOrSampleWith,
+}: SamplingContext): number {
+  const path = String(attributes?.["url.path"] ?? name.replace(/^[A-Z]+ /, ""));
+  if (UNTRACED_PATHS.some((pattern) => pattern.test(path))) return 0;
+  return inheritOrSampleWith(TRACES_SAMPLE_RATE);
+}
+
 export function sentryInitOptions() {
   const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
@@ -26,11 +48,11 @@ export function sentryInitOptions() {
     release: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
     environment:
       process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT || process.env.NODE_ENV,
-    // No `tracesSampleRate`: Sentry reads 0 as "tracing on, sample nothing",
-    // which still builds spans and propagates trace headers.
+    tracesSampler,
+    beforeSendSpan: scrubSpan,
 
-    // All of it is collected by default. `databaseQueryData` reaches nothing while tracing
-    // is off, and is pinned so turning tracing on cannot start sending bound values.
+    // All of it is collected by default; `databaseQueryData` would put the values
+    // Prisma binds on the query spans.
     dataCollection: {
       userInfo: false,
       cookies: false,

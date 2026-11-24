@@ -7,6 +7,7 @@ import {
   scrubBreadcrumb,
   scrubEvent,
   scrubLog,
+  scrubSpan,
 } from "@/lib/observability/scrub";
 
 describe("redactString", () => {
@@ -65,6 +66,24 @@ describe("scrubLog", () => {
     expect(
       scrubLog({ level: "info", message: "computers.ping", attributes }),
     ).toEqual({ level: "info", message: "computers.ping", attributes });
+  });
+});
+
+describe("scrubSpan", () => {
+  it("redacts the name and the attributes of an outgoing call", () => {
+    const span = scrubSpan({
+      name: "GET https://api.example/users?email=a@b.co",
+      attributes: {
+        "url.full": "https://api.example/users?email=a@b.co",
+        "http.response.status_code": 200,
+      },
+    } as unknown as Parameters<typeof scrubSpan>[0]);
+
+    expect(span.name).toBe(`GET https://api.example/users?email=${REDACTED}`);
+    expect(span.attributes).toEqual({
+      "url.full": `https://api.example/users?email=${REDACTED}`,
+      "http.response.status_code": 200,
+    });
   });
 });
 

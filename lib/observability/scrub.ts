@@ -1,4 +1,13 @@
-import type { Breadcrumb, ErrorEvent, Log } from "@sentry/nextjs";
+import type {
+  Breadcrumb,
+  BrowserOptions,
+  ErrorEvent,
+  Log,
+} from "@sentry/nextjs";
+
+type StreamedSpan = Parameters<
+  NonNullable<BrowserOptions["beforeSendSpan"]>
+>[0];
 
 // Emails and mobiles leak into error *strings*, not just into fields we control:
 // an upstream error body can echo the submitted values back. Tags are not
@@ -71,6 +80,15 @@ export function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb {
     breadcrumb.data = redactPii(breadcrumb.data) as Record<string, unknown>;
   }
   return breadcrumb;
+}
+
+/** Outgoing calls name their URL, query string included. */
+export function scrubSpan(span: StreamedSpan): StreamedSpan {
+  return {
+    ...span,
+    name: redactString(span.name),
+    attributes: redactPii(span.attributes) as StreamedSpan["attributes"],
+  };
 }
 
 export function scrubLog(log: Log): Log {
