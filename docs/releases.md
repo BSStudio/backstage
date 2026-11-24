@@ -25,7 +25,7 @@ The contract check reads goauthentik's `main` rather than a release, so a field 
 
 | Kind | Name | Without it |
 | --- | --- | --- |
-| Secret | `CODECOV_TOKEN` | the coverage upload fails the `Test` job (`fail_ci_if_error`) |
+| Secret | `CODECOV_TOKEN` | pull requests get no coverage or test-result comment; the `Test` job still passes |
 | Secret | `SENTRY_AUTH_TOKEN` | no source map upload, so production stack traces stay minified |
 | Variable | `NEXT_PUBLIC_SENTRY_DSN` | the built image reports nothing to Sentry at all |
 | Variable | `SENTRY_ORG` / `SENTRY_PROJECT` | source map upload has no target |
