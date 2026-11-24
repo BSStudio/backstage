@@ -1,7 +1,7 @@
 import type { ErrorEvent } from "@sentry/nextjs";
 import { afterEach, describe, expect, it } from "vitest";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import { REDACTED } from "@/lib/observability/scrub";
+import { REDACTED, scrubLog } from "@/lib/observability/scrub";
 import { isExpectedError, sentryInitOptions } from "@/lib/observability/sentry";
 
 const envKeys = [
@@ -63,6 +63,13 @@ describe("sentryInitOptions", () => {
     });
     // Not 0 — Sentry reads 0 as "tracing on, sample nothing".
     expect(options).not.toHaveProperty("tracesSampleRate");
+  });
+
+  it("sends logs, scrubbed like events", () => {
+    const options = sentryInitOptions();
+
+    expect(options.enableLogs).toBe(true);
+    expect(options.beforeSendLog).toBe(scrubLog);
   });
 
   it("falls back to NODE_ENV for the environment", () => {

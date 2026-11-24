@@ -40,10 +40,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       body,
       agent,
     );
-    logger.info("computers.ping", {
-      ...caller,
-      outcome: registered ? "registered" : "ok",
-    });
+    if (registered) {
+      logger.info("computers.ping", { ...caller, outcome: "registered" });
+    }
     return NextResponse.json(
       { id: computer.id, lastSeenAt: computer.lastSeenAt },
       { status: registered ? 201 : 200 },

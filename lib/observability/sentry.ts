@@ -1,5 +1,5 @@
 import type { ErrorEvent } from "@sentry/nextjs";
-import { scrubBreadcrumb, scrubEvent } from "./scrub";
+import { scrubBreadcrumb, scrubEvent, scrubLog } from "./scrub";
 
 // Shared by all three runtimes, so no server-only imports: `instrumentation-client.ts`
 // pulls this into the browser bundle.
@@ -47,5 +47,8 @@ export function sentryInitOptions() {
       return scrubEvent(event);
     },
     beforeBreadcrumb: scrubBreadcrumb,
+    // Only the server writes logs: `lib/observability/logger.ts` has no client callers.
+    enableLogs: true,
+    beforeSendLog: scrubLog,
   };
 }

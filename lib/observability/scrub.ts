@@ -1,4 +1,4 @@
-import type { Breadcrumb, ErrorEvent } from "@sentry/nextjs";
+import type { Breadcrumb, ErrorEvent, Log } from "@sentry/nextjs";
 
 // Emails and mobiles leak into error *strings*, not just into fields we control:
 // an upstream error body can echo the submitted values back. Tags are not
@@ -11,6 +11,12 @@ const EMAIL_PATTERN = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 /** International (`+36…`, `0036…`) and Hungarian trunk (`06…`) numbers. */
 const PHONE_PATTERN =
   /(?:\+|00)\d[\d\s\-./()]{6,}\d|\b06[\s\-./]?\d{1,2}[\s\-./]?\d{3}[\s\-./]?\d{3,4}\b/g;
+
+const IPV4_PATTERN = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
+
+/** Requires `::` or eight groups, so clock times like 12:30:05 survive. */
+const IPV6_PATTERN =
+  /(?<![\w:])(?:(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}|(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{0,4}::(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{0,4})(?![\w:])/gi;
 
 const SENSITIVE_KEYS = new Set([
   "authorization",
@@ -35,7 +41,9 @@ const MAX_DEPTH = 6;
 export function redactString(value: string): string {
   return value
     .replace(EMAIL_PATTERN, REDACTED)
-    .replace(PHONE_PATTERN, REDACTED);
+    .replace(PHONE_PATTERN, REDACTED)
+    .replace(IPV4_PATTERN, REDACTED)
+    .replace(IPV6_PATTERN, REDACTED);
 }
 
 export function redactPii(value: unknown, depth = 0): unknown {
@@ -63,6 +71,14 @@ export function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb {
     breadcrumb.data = redactPii(breadcrumb.data) as Record<string, unknown>;
   }
   return breadcrumb;
+}
+
+export function scrubLog(log: Log): Log {
+  return {
+    ...log,
+    message: redactString(String(log.message)),
+    attributes: redactPii(log.attributes) as Log["attributes"],
+  };
 }
 
 export function scrubEvent(event: ErrorEvent): ErrorEvent {
