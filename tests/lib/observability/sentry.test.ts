@@ -1,8 +1,12 @@
 import type { ErrorEvent } from "@sentry/nextjs";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import { REDACTED } from "@/lib/observability/scrub";
-import { isExpectedError, sentryInitOptions } from "@/lib/observability/sentry";
+import { REDACTED, scrubLog, scrubSpan } from "@/lib/observability/scrub";
+import {
+  isExpectedError,
+  sentryInitOptions,
+  tracesSampler,
+} from "@/lib/observability/sentry";
 
 const envKeys = [
   "NEXT_PUBLIC_SENTRY_DSN",
@@ -65,6 +69,20 @@ describe("sentryInitOptions", () => {
     expect(options).not.toHaveProperty("tracesSampleRate");
   });
 
+  it("sends logs, scrubbed like events", () => {
+    const options = sentryInitOptions();
+
+    expect(options.enableLogs).toBe(true);
+    expect(options.beforeSendLog).toBe(scrubLog);
+  });
+
+  it("traces through the sampler and scrubs the spans it sends", () => {
+    const options = sentryInitOptions();
+
+    expect(options.tracesSampler).toBe(tracesSampler);
+    expect(options.beforeSendSpan).toBe(scrubSpan);
+  });
+
   it("falls back to NODE_ENV for the environment", () => {
     delete process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT;
     expect(sentryInitOptions().environment).toBe(process.env.NODE_ENV);
@@ -113,5 +131,36 @@ describe("sentryInitOptions", () => {
     expect(beforeSend({ message: "boom" } as ErrorEvent)).toEqual({
       message: "boom",
     });
+  });
+});
+
+describe("tracesSampler", () => {
+  function context(name: string, attributes = {}) {
+    return {
+      name,
+      attributes,
+      inheritOrSampleWith: vi.fn((rate: number) => rate),
+    } as unknown as Parameters<typeof tracesSampler>[0];
+  }
+
+  it.each([
+    "GET /api/health",
+    "POST /api/computers/nle4/ping",
+    "POST /api/computers/[id]/ping",
+  ])("never traces %s", (name) => {
+    expect(tracesSampler(context(name))).toBe(0);
+  });
+
+  it("reads the path from the attributes when the name has none", () => {
+    expect(tracesSampler(context("GET", { "url.path": "/api/health" }))).toBe(
+      0,
+    );
+  });
+
+  it("samples everything else at 0.5, deferring to an incoming decision", () => {
+    const members = context("GET /members");
+
+    expect(tracesSampler(members)).toBe(0.5);
+    expect(members.inheritOrSampleWith).toHaveBeenCalledWith(0.5);
   });
 });

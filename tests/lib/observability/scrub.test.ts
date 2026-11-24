@@ -6,6 +6,8 @@ import {
   redactString,
   scrubBreadcrumb,
   scrubEvent,
+  scrubLog,
+  scrubSpan,
 } from "@/lib/observability/scrub";
 
 describe("redactString", () => {
@@ -28,11 +30,60 @@ describe("redactString", () => {
     expect(redactString("06-1-123-456")).toBe(REDACTED);
   });
 
+  it("redacts IPv4 and IPv6 addresses", () => {
+    expect(redactString("from 10.1.2.3 via 2001:db8::1")).toBe(
+      `from ${REDACTED} via ${REDACTED}`,
+    );
+  });
+
   it("leaves ordinary text alone", () => {
     expect(redactString("Authentik returned 500 for pk 9001")).toBe(
       "Authentik returned 500 for pk 9001",
     );
     expect(redactString("2025/2026/1")).toBe("2025/2026/1");
+    expect(redactString("synced at 12:30:05")).toBe("synced at 12:30:05");
+  });
+});
+
+describe("scrubLog", () => {
+  it("redacts the message and the attributes", () => {
+    const log = scrubLog({
+      level: "warn",
+      message: "Key (email)=(kovacs.janos@bsstudio.hu) already exists.",
+      attributes: { address: "a@b.co", email: "kept?", "member.id": "m-42" },
+    });
+
+    expect(log.message).toBe(`Key (email)=(${REDACTED}) already exists.`);
+    expect(log.attributes).toEqual({
+      address: REDACTED,
+      email: REDACTED,
+      "member.id": "m-42",
+    });
+  });
+
+  it("keeps who did what", () => {
+    const attributes = { sub: "svc-1", caller: "nle-agent", outcome: "ok" };
+    expect(
+      scrubLog({ level: "info", message: "computers.ping", attributes }),
+    ).toEqual({ level: "info", message: "computers.ping", attributes });
+  });
+});
+
+describe("scrubSpan", () => {
+  it("redacts the name and the attributes of an outgoing call", () => {
+    const span = scrubSpan({
+      name: "GET https://api.example/users?email=a@b.co",
+      attributes: {
+        "url.full": "https://api.example/users?email=a@b.co",
+        "http.response.status_code": 200,
+      },
+    } as unknown as Parameters<typeof scrubSpan>[0]);
+
+    expect(span.name).toBe(`GET https://api.example/users?email=${REDACTED}`);
+    expect(span.attributes).toEqual({
+      "url.full": `https://api.example/users?email=${REDACTED}`,
+      "http.response.status_code": 200,
+    });
   });
 });
 

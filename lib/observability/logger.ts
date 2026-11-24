@@ -1,3 +1,5 @@
+import * as Sentry from "@sentry/nextjs";
+
 type Level = "info" | "warn" | "error";
 
 function emit(
@@ -15,6 +17,8 @@ function emit(
   if (level === "error") console.error(line);
   else if (level === "warn") console.warn(line);
   else console.log(line);
+
+  Sentry.logger[level](event, fields);
 }
 
 export const logger = {

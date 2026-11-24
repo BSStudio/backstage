@@ -89,17 +89,15 @@ describe("POST /api/computers/[id]/ping", () => {
     });
   });
 
-  it("answers 200 on a later ping", async () => {
+  it("answers 200 on a later ping without logging it", async () => {
     const { POST } = await importRoute();
     await POST(req(), params());
 
     const response = await POST(req(), params());
 
     expect(response.status).toBe(200);
-    expect(mockLogger.info).toHaveBeenLastCalledWith(
-      "computers.ping",
-      expect.objectContaining({ outcome: "ok" }),
-    );
+    // Only the first ping's registration.
+    expect(mockLogger.info).toHaveBeenCalledTimes(1);
   });
 
   it("answers 400 for a body that is not JSON at all", async () => {
